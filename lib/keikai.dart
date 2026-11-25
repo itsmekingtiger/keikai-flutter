@@ -16,6 +16,7 @@ export 'src/foundation/motion.dart';
 export 'src/foundation/theme.dart';
 export 'src/foundation/tokens.dart';
 export 'src/foundation/typography.dart';
+export 'src/hud/hud.dart';
 export 'src/layout/box.dart';
 export 'src/layout/flex.dart';
 export 'src/layout/grid.dart';

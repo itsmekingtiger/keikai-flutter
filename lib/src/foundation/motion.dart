@@ -12,7 +12,7 @@ class KkSteps extends Curve {
   final int count;
 
   @override
-  double transformInternal(double t) => (t * count).floorToDouble() / count;
+  double transformInternal(double t) => kkStepDown(t, count);
 
   @override
   bool operator ==(Object other) => other is KkSteps && other.count == count;
@@ -22,6 +22,15 @@ class KkSteps extends Curve {
 
   @override
   String toString() => 'KkSteps($count)';
+}
+
+/// `steps(count, end)` at [t]: the largest multiple of 1/[count] not above [t].
+///
+/// A value that sits on a step edge up to rounding error (15/22 × 22 is
+/// 14.999999999999998 in floating point) counts as having reached that step.
+double kkStepDown(double t, int count) {
+  final double stepped = (t * count + 1e-9).floorToDouble() / count;
+  return stepped > 1.0 ? 1.0 : stepped;
 }
 
 /// Evaluates CSS-style keyframes at [t] (0 to 1).
@@ -39,7 +48,7 @@ double kkKeyframes(double t, List<double> stops, List<double> values, {int? step
     final double b = stops[i + 1];
     if (t < b) {
       double local = b == a ? 1.0 : (t - a) / (b - a);
-      if (steps != null) local = (local * steps).floorToDouble() / steps;
+      if (steps != null) local = kkStepDown(local, steps);
       return values[i] + (values[i + 1] - values[i]) * local;
     }
   }

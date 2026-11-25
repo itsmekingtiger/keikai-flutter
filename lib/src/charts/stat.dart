@@ -110,6 +110,7 @@ class KkStat extends StatelessWidget {
     this.delta,
     this.note,
     this.accent,
+    this.frame = true,
     this.scramble = true,
     this.boot = true,
     this.semanticLabel,
@@ -146,6 +147,10 @@ class KkStat extends StatelessWidget {
 
   /// Colour of the 2px top edge. Defaults to the level colour, or signal.
   final Color? accent;
+
+  /// Draw the panel ground, the border and the coloured top edge, with their
+  /// padding. False leaves just the content, for a stat inside a panel body.
+  final bool frame;
 
   /// Scramble the figure when it changes.
   final bool scramble;
@@ -236,16 +241,20 @@ class KkStat extends StatelessWidget {
 
     final bool hasFoot = delta != null || n != null;
     final Widget stat = KkBox(
-      decoration: KkDecoration(
-        fill: c.bg100,
-        edges: KkEdges(
-          top: KkSide(accent ?? c.level(level), width: theme.metrics.stroke2),
-          right: KkSide(c.line, width: theme.metrics.stroke1),
-          bottom: KkSide(c.line, width: theme.metrics.stroke1),
-          left: KkSide(c.line, width: theme.metrics.stroke1),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(theme.metrics.space3, 10, theme.metrics.space3, theme.metrics.space2),
+      decoration: frame
+          ? KkDecoration(
+              fill: c.bg100,
+              edges: KkEdges(
+                top: KkSide(accent ?? c.level(level), width: theme.metrics.stroke2),
+                right: KkSide(c.line, width: theme.metrics.stroke1),
+                bottom: KkSide(c.line, width: theme.metrics.stroke1),
+                left: KkSide(c.line, width: theme.metrics.stroke1),
+              ),
+            )
+          : null,
+      padding: frame
+          ? EdgeInsets.fromLTRB(theme.metrics.space3, 10, theme.metrics.space3, theme.metrics.space2)
+          : EdgeInsets.zero,
       clip: true,
       child: KkColumn(
         gap: 6,

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
-import 'package:keikai/src/hud/hud.dart';
 
 import '../support/harness.dart';
 

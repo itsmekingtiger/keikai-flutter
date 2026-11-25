@@ -158,24 +158,23 @@ N5 --- E2>E-52]:::offline
 
 KkDiagram _powerGrid() => KkDiagram(
   nodes: const <KkDiagramNode>[
-    KkDiagramNode('GA', code: 'GRID-A', label: 'MAIN BUS', kind: KkNodeKind.hub, position: Offset(0.22, 0.30)),
-    KkDiagramNode('GB', code: 'GRID-B', label: 'AUX BUS', kind: KkNodeKind.hub, position: Offset(0.70, 0.30)),
-    KkDiagramNode('S1', code: 'SEC-01', label: 'REACTOR', level: KkLevel.nominal, position: Offset(0.06, 0.12)),
-    KkDiagramNode('S2', code: 'SEC-02', label: 'TURBINE', level: KkLevel.nominal, position: Offset(0.06, 0.62)),
-    KkDiagramNode('S3', code: 'SEC-03', label: 'COOLANT', level: KkLevel.caution, position: Offset(0.36, 0.72)),
+    KkDiagramNode('GA', code: 'GRID-A', label: 'MAIN BUS', kind: KkNodeKind.hub),
+    KkDiagramNode('GB', code: 'GRID-B', label: 'AUX BUS', kind: KkNodeKind.hub),
+    KkDiagramNode('S1', code: 'SEC-01', label: 'REACTOR', level: KkLevel.nominal),
+    KkDiagramNode('S2', code: 'SEC-02', label: 'TURBINE', level: KkLevel.nominal),
+    KkDiagramNode('S3', code: 'SEC-03', label: 'COOLANT', level: KkLevel.caution),
     KkDiagramNode(
       'S4',
       code: 'SEC-04',
       label: 'PUMP HALL',
       cjk: '冷却',
       level: KkLevel.critical,
-      position: Offset(0.50, 0.12),
       info: <String>['COOLANT PRESSURE LOW', '2.1 BAR · LIMIT 4.2', '14:02:31Z'],
     ),
-    KkDiagramNode('S5', code: 'SEC-05', label: 'BATTERY', position: Offset(0.56, 0.72)),
-    KkDiagramNode('S6', code: 'SEC-06', label: 'UPLINK', level: KkLevel.offline, position: Offset(0.92, 0.12)),
-    KkDiagramNode('L1', code: 'L-71', kind: KkNodeKind.leaf, position: Offset(0.84, 0.72)),
-    KkDiagramNode('L2', code: 'L-72', kind: KkNodeKind.leaf, level: KkLevel.offline, position: Offset(0.94, 0.52)),
+    KkDiagramNode('S5', code: 'SEC-05', label: 'BATTERY'),
+    KkDiagramNode('S6', code: 'SEC-06', label: 'UPLINK', level: KkLevel.offline),
+    KkDiagramNode('L1', code: 'L-71', kind: KkNodeKind.leaf),
+    KkDiagramNode('L2', code: 'L-72', kind: KkNodeKind.leaf, level: KkLevel.offline),
   ],
   edges: const <KkDiagramEdge>[
     KkDiagramEdge('S1', 'GA', active: true, flow: KkEdgeFlow.forward, arrow: false),
@@ -219,9 +218,9 @@ class _RadialAndNetwork extends StatelessWidget {
           child: KkNodeGraph(
             cjk: '電源系統',
             en: 'power grid',
-            meta: '10 NODES · 1 ALARM',
+            meta: 'FORCE · 10 NODES · 1 ALARM',
             diagram: _powerGrid(),
-            layout: const KkManualLayout(size: Size(640, 360)),
+            layout: const KkForceLayout(seed: 1, spacing: 104),
             selected: 'S4',
           ),
         ),
@@ -362,7 +361,7 @@ KkDiagram _symbolGrid() {
             label: names[l],
             kind: KkNodeKind.values[k],
             level: levels[l],
-            position: Offset(48.0 + l * 104, 28.0 + k * 68),
+            position: Offset(48.0 + l * 104, 28.0 + k * 80),
           ),
     ],
   );
@@ -433,7 +432,7 @@ class _Grammar extends StatelessWidget {
                 meta: 'HUB · OFFLINE SELECTED',
                 child: KkDiagramView(
                   diagram: _symbolGrid(),
-                  layout: const KkManualLayout(size: Size(520, 360), normalised: false),
+                  layout: const KkManualLayout(size: Size(520, 400), normalised: false),
                   selected: 'hub4',
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.all(24),

@@ -345,8 +345,9 @@ class KkDiagramPainter {
       ..color = lv;
 
     if (node.kind == KkNodeKind.leaf) {
-      if (offline) {
-        canvas.drawPath(outline, Paint()..color = _ground);
+      if (offline || (lit && !critical)) {
+        // Hollow: an offline leaf, or any leaf under the pointer.
+        canvas.drawPath(outline, Paint()..color = lit ? colors.bg300 : _ground);
         canvas.drawPath(outline, stroke);
       } else {
         canvas.drawPath(outline, Paint()..color = lv);

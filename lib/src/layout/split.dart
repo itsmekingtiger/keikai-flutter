@@ -15,7 +15,7 @@ import '../widgets/pressable.dart';
 /// takes. Give [ratio] and [onChanged] to control it, or leave [ratio] null
 /// and the split keeps its own, starting at [initialRatio].
 ///
-/// The handle is 8px: a 1px line with a grip. Drag it, or focus it and use the
+/// The handle is 8px: a 1px line with a dashed grip. Drag it, or focus it and use the
 /// arrow keys (4px, 24px with Shift), Home and End; a double tap puts it back
 /// at [initialRatio].
 class KkSplit extends StatefulWidget {
@@ -235,20 +235,21 @@ class _KkSplitHandlePainter extends CustomPainter {
     final bool h = axis == Axis.horizontal;
     final Paint paint = Paint()..color = line;
     // The 1px line down the middle of the handle.
-    if (h) {
-      canvas.drawRect(Rect.fromLTWH(((size.width - 1) / 2).floorToDouble(), 0, 1, size.height), paint);
-    } else {
-      canvas.drawRect(Rect.fromLTWH(0, ((size.height - 1) / 2).floorToDouble(), size.width, 1), paint);
-    }
+    final double across = h ? size.width : size.height;
+    final double along = h ? size.height : size.width;
+    final double lineAt = ((across - 1) / 2).floorToDouble();
+    canvas.drawRect(h ? Rect.fromLTWH(lineAt, 0, 1, along) : Rect.fromLTWH(0, lineAt, along, 1), paint);
     final Color? g = grip;
     if (g == null) return;
-    // The grip: a 4px bar of 6px dashes, 32px long, on the ground colour.
-    final double thick = math.min(4, h ? size.width : size.height);
-    final double length = math.min(33, (h ? size.height : size.width) - 8);
-    if (length < 6) return;
+    // The grip: 3px dashes, 6 long and 3 apart, 33px in all, centred on the
+    // line and set on the ground colour so the line does not run through it.
+    const double thick = 3;
+    final double length = math.min(33, along - 8);
+    if (length < 6 || across < thick) return;
+    final double start = ((along - length) / 2).floorToDouble();
     final Rect bar = h
-        ? Rect.fromLTWH(((size.width - thick) / 2).floorToDouble(), ((size.height - length) / 2).floorToDouble(), thick, length)
-        : Rect.fromLTWH(((size.width - length) / 2).floorToDouble(), ((size.height - thick) / 2).floorToDouble(), length, thick);
+        ? Rect.fromLTWH(lineAt - 1, start, thick, length)
+        : Rect.fromLTWH(start, lineAt - 1, length, thick);
     canvas.drawRect(bar.inflate(2), paint..color = ground);
     paint.color = g;
     for (double d = 0; d + 6 <= length + 0.01; d += 9) {

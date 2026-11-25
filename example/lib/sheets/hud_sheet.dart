@@ -1,6 +1,4 @@
 import 'package:keikai/keikai.dart';
-// ignore: implementation_imports
-import 'package:keikai/src/hud/hud.dart';
 
 import 'sheet_scaffold.dart';
 
