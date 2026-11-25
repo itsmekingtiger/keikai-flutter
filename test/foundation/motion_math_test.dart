@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart' show testChecked;
+
 void main() {
   group('KkSteps', () {
     test('holds each step and jumps at its end, like steps(n, end)', () {
@@ -30,6 +32,34 @@ void main() {
           expect(v, lessThanOrEqualTo(i / 1000 + 1e-9));
         }
       }
+    });
+
+    test('a step is reached exactly at its edge, whatever the rounding', () {
+      // 15/22 x 22 is a hair under 15 in floating point; a plain floor would
+      // leave the curve one step short at the very moment the step is due.
+      expect(15 / 22 * 22, lessThan(15));
+      expect(kkStepDown(15 / 22, 22), 15 / 22);
+      for (int n = 1; n <= 64; n++) {
+        final KkSteps steps = KkSteps(n);
+        for (int k = 0; k <= n; k++) {
+          expect(steps.transform(k / n), k / n, reason: 'n=$n k=$k');
+          expect(kkStepDown(k / n, n), k / n, reason: 'n=$n k=$k');
+        }
+      }
+    });
+
+    test('kkStepDown holds until the edge and never passes 1', () {
+      expect(kkStepDown(0, 4), 0);
+      expect(kkStepDown(0.25 - 1e-6, 4), 0);
+      expect(kkStepDown(0.25, 4), 0.25);
+      expect(kkStepDown(0.25 + 1e-6, 4), 0.25);
+      expect(kkStepDown(0.999999, 4), 0.75);
+      expect(kkStepDown(1, 4), 1);
+      expect(kkStepDown(1 + 1e-12, 4), 1);
+      expect(kkStepDown(1.3, 4), 1);
+      // One step: nothing until the end.
+      expect(kkStepDown(0.999, 1), 0);
+      expect(kkStepDown(1, 1), 1);
     });
 
     test('equality and description', () {
@@ -113,7 +143,7 @@ void main() {
       }
     });
 
-    testWidgets('drives an animation', (WidgetTester tester) async {
+    testChecked('drives an animation', (WidgetTester tester) async {
       final AnimationController controller = AnimationController(
         vsync: const TestVSync(),
         duration: const Duration(milliseconds: 100),
@@ -154,7 +184,7 @@ void main() {
       expect(kkLoopAt(const Duration(seconds: 3), Duration.zero), 0);
     });
 
-    testWidgets('kkFrameTime is the frame timestamp and keeps its value between frames', (
+    testChecked('kkFrameTime is the frame timestamp and keeps its value between frames', (
       WidgetTester tester,
     ) async {
       kkFrameTime();
