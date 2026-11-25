@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart' show testChecked;
 import '../support/harness.dart';
 
 const KkColors _c = KkColors.standby;
@@ -74,14 +75,14 @@ void main() {
       );
     }
 
-    testWidgets('a tap presses it', (WidgetTester tester) async {
+    testChecked('a tap presses it', (WidgetTester tester) async {
       await pumpKk(tester, pressable());
       expect(states, const KkStates());
       await tester.tap(find.byType(KkPressable));
       expect(presses, 1);
     });
 
-    testWidgets('shows the pressed state while the pointer is down', (WidgetTester tester) async {
+    testChecked('shows the pressed state while the pointer is down', (WidgetTester tester) async {
       await pumpKk(tester, pressable());
       final TestGesture gesture = await tester.startGesture(tester.getCenter(find.byType(KkPressable)));
       await tester.pump();
@@ -101,7 +102,7 @@ void main() {
       expect(presses, 1);
     });
 
-    testWidgets('Enter, numpad Enter and Space activate it when focused', (WidgetTester tester) async {
+    testChecked('Enter, numpad Enter and Space activate it when focused', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
       await pumpKk(tester, pressable(focusNode: node));
@@ -117,7 +118,7 @@ void main() {
       expect(presses, 3);
     });
 
-    testWidgets('works without an app around it (its own shortcuts)', (WidgetTester tester) async {
+    testChecked('works without an app around it (its own shortcuts)', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
       await tester.pumpWidget(
@@ -133,7 +134,7 @@ void main() {
       expect(presses, 2);
     });
 
-    testWidgets('disabled by flag or by having no callback', (WidgetTester tester) async {
+    testChecked('disabled by flag or by having no callback', (WidgetTester tester) async {
       for (final Widget w in <Widget>[pressable(enabled: false), pressable(withCallback: false)]) {
         final FocusNode node = FocusNode();
         await pumpKk(tester, KeyedSubtree(key: UniqueKey(), child: w));
@@ -148,7 +149,7 @@ void main() {
       }
     });
 
-    testWidgets('a disabled control cannot take focus or keys', (WidgetTester tester) async {
+    testChecked('a disabled control cannot take focus or keys', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
       await pumpKk(tester, pressable(enabled: false, focusNode: node));
@@ -159,7 +160,7 @@ void main() {
       expect(presses, 0);
     });
 
-    testWidgets('a long press', (WidgetTester tester) async {
+    testChecked('a long press', (WidgetTester tester) async {
       await pumpKk(tester, pressable(withLongPress: true));
       await tester.longPress(find.byType(KkPressable));
       expect(longPresses, 1);
@@ -171,7 +172,7 @@ void main() {
       expect(longPresses, 2);
     });
 
-    testWidgets('hover with a mouse', (WidgetTester tester) async {
+    testChecked('hover with a mouse', (WidgetTester tester) async {
       // Hover highlights follow the framework's highlight mode; the test
       // platform starts in touch mode, a desktop in traditional mode.
       FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
@@ -192,7 +193,7 @@ void main() {
       expect(log, <bool>[true, false]);
     });
 
-    testWidgets('the cursor is a hand, forbidden when disabled, or the given one', (WidgetTester tester) async {
+    testChecked('the cursor is a hand, forbidden when disabled, or the given one', (WidgetTester tester) async {
       MouseCursor cursor() => tester.widget<FocusableActionDetector>(find.byType(FocusableActionDetector)).mouseCursor;
       await pumpKk(tester, pressable());
       expect(cursor(), SystemMouseCursors.click);
@@ -202,7 +203,7 @@ void main() {
       expect(cursor(), SystemMouseCursors.grab);
     });
 
-    testWidgets('the focus state shows for keyboard focus only', (WidgetTester tester) async {
+    testChecked('the focus state shows for keyboard focus only', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
       final List<bool> log = <bool>[];
@@ -228,7 +229,7 @@ void main() {
       expect(log, <bool>[true, false]);
     });
 
-    testWidgets('autofocus', (WidgetTester tester) async {
+    testChecked('autofocus', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
       await pumpKk(tester, pressable(focusNode: node, autofocus: true));
@@ -236,7 +237,7 @@ void main() {
       expect(node.hasFocus, isTrue);
     });
 
-    testWidgets('Tab moves focus between controls', (WidgetTester tester) async {
+    testChecked('Tab moves focus between controls', (WidgetTester tester) async {
       final FocusNode a = FocusNode(debugLabel: 'a');
       final FocusNode b = FocusNode(debugLabel: 'b');
       addTearDown(a.dispose);
@@ -265,7 +266,7 @@ void main() {
       expect(b.hasFocus, isTrue);
     });
 
-    testWidgets('semantics: a labelled, enabled button with its flags', (WidgetTester tester) async {
+    testChecked('semantics: a labelled, enabled button with its flags', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpKk(tester, pressable(selected: true));
       SemanticsData data = tester.getSemantics(find.bySemanticsLabel(RegExp('Acknowledge'))).getSemanticsData();
@@ -298,7 +299,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('excludeSemantics replaces the child text with the label', (WidgetTester tester) async {
+    testChecked('excludeSemantics replaces the child text with the label', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpKk(tester, pressable());
       expect(find.bySemanticsLabel(RegExp('inner')), findsOneWidget);
@@ -317,7 +318,7 @@ void main() {
   });
 
   group('KkFocusRing', () {
-    testWidgets('draws a 2px ring 2px outside the child, in the focus colour', (WidgetTester tester) async {
+    testChecked('draws a 2px ring 2px outside the child, in the focus colour', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkFocusRing(visible: true, child: SizedBox(width: 100, height: 40)),
@@ -335,7 +336,7 @@ void main() {
       expect(tester.getSize(find.byType(KkFocusRing)), const Size(100, 40));
     });
 
-    testWidgets('a negative offset draws inside; hidden draws nothing', (WidgetTester tester) async {
+    testChecked('a negative offset draws inside; hidden draws nothing', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkFocusRing(visible: true, offset: -2, child: SizedBox(width: 100, height: 40)),
@@ -360,7 +361,7 @@ void main() {
   group('KkText', () {
     Text inner(WidgetTester tester, String data) => tester.widget<Text>(find.text(data));
 
-    testWidgets('cjk: heavy Mincho, one line, no wrapping', (WidgetTester tester) async {
+    testChecked('cjk: heavy Mincho, one line, no wrapping', (WidgetTester tester) async {
       await pumpKk(tester, const KkText.cjk('電源系統', size: 21));
       final Text t = inner(tester, '電源系統');
       expect(t.style!.fontFamily, 'packages/keikai/Zen Old Mincho');
@@ -375,7 +376,7 @@ void main() {
       expect(find.byType(KkSqueeze), findsNothing);
     });
 
-    testWidgets('en: condensed capitals with tracking in em', (WidgetTester tester) async {
+    testChecked('en: condensed capitals with tracking in em', (WidgetTester tester) async {
       await pumpKk(tester, const KkText.en('system status', size: 13, spacing: 0.1));
       final Text t = inner(tester, 'SYSTEM STATUS');
       expect(t.style!.fontFamily, 'packages/keikai/Sofia Sans Extra Condensed');
@@ -385,7 +386,7 @@ void main() {
       expect(inner(tester, 'Mixed Case').style!.fontWeight, FontWeight.w600);
     });
 
-    testWidgets('num: tabular mono', (WidgetTester tester) async {
+    testChecked('num: tabular mono', (WidgetTester tester) async {
       await pumpKk(tester, const KkText.num('042.7', size: 32, weight: FontWeight.w500, spacing: -0.01));
       final Text t = inner(tester, '042.7');
       expect(t.style!.fontFamily, 'packages/keikai/IBM Plex Mono');
@@ -398,7 +399,7 @@ void main() {
       expect(tester.getSize(find.text('111.1')).width, a);
     });
 
-    testWidgets('body: sentences wrap', (WidgetTester tester) async {
+    testChecked('body: sentences wrap', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const SizedBox(width: 120, child: KkText.body('냉각수 압력이 기준치 아래로 떨어졌습니다.')),
@@ -411,7 +412,7 @@ void main() {
       expect(tester.getSize(find.byType(Text)).height, greaterThan(14 * 1.55 * 1.5));
     });
 
-    testWidgets('raw: the ambient style, optionally merged', (WidgetTester tester) async {
+    testChecked('raw: the ambient style, optionally merged', (WidgetTester tester) async {
       await pumpKk(tester, const KkText('plain'));
       Text t = inner(tester, 'plain');
       expect(t.style!.fontFamily, 'packages/keikai/IBM Plex Sans KR');
@@ -424,7 +425,7 @@ void main() {
       expect(t.style!.fontFamily, 'packages/keikai/IBM Plex Sans KR');
     });
 
-    testWidgets('colour: explicit, then style, then the current ink', (WidgetTester tester) async {
+    testChecked('colour: explicit, then style, then the current ink', (WidgetTester tester) async {
       await pumpKk(tester, const KkInk(color: Color(0xFF112233), child: KkText.cjk('甲')));
       expect(inner(tester, '甲').style!.color, const Color(0xFF112233));
       await pumpKk(
@@ -447,7 +448,7 @@ void main() {
       expect(inner(tester, 'ALERT').style!.color, KkColors.alertTheme.ink);
     });
 
-    testWidgets('squeeze compresses a title to 80% of its width', (WidgetTester tester) async {
+    testChecked('squeeze compresses a title to 80% of its width', (WidgetTester tester) async {
       await pumpKk(tester, const KkText.cjk('電源系統', size: 20, key: ValueKey<String>('t')));
       final double natural = tester.getSize(find.byKey(const ValueKey<String>('t'))).width;
       expect(natural, closeTo(80, 0.5));
@@ -459,7 +460,7 @@ void main() {
       expect(find.byType(KkSqueeze), findsNothing);
     });
 
-    testWidgets('the type scale of the theme multiplies the size', (WidgetTester tester) async {
+    testChecked('the type scale of the theme multiplies the size', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkText.num('1', size: 12),
@@ -468,7 +469,7 @@ void main() {
       expect(inner(tester, '1').style!.fontSize, 15);
     });
 
-    testWidgets('alignment, lines and overflow pass through', (WidgetTester tester) async {
+    testChecked('alignment, lines and overflow pass through', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkText.body('abc', textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, softWrap: true),
@@ -480,7 +481,7 @@ void main() {
       expect(t.softWrap, isTrue);
     });
 
-    testWidgets('a long single-line label is clipped by its box, not wrapped', (WidgetTester tester) async {
+    testChecked('a long single-line label is clipped by its box, not wrapped', (WidgetTester tester) async {
       await pumpKk(tester, const SizedBox(width: 40, child: KkText.en('auxiliary power online', size: 20)));
       expect(tester.takeException(), isNull);
       expect(tester.getSize(find.byType(Text)).height, 20);
@@ -488,7 +489,7 @@ void main() {
   });
 
   group('KkLabel', () {
-    testWidgets('a CJK title and its Latin subtitle on one baseline', (WidgetTester tester) async {
+    testChecked('a CJK title and its Latin subtitle on one baseline', (WidgetTester tester) async {
       await pumpKk(tester, const KkLabel(cjk: '電源系統', en: 'power'));
       final Text cjk = tester.widget<Text>(find.text('電源系統'));
       final Text en = tester.widget<Text>(find.text('POWER'));
@@ -516,7 +517,7 @@ void main() {
       expect(tester.getSize(find.byType(KkLabel)).width, closeTo(b.right, 1e-6));
     });
 
-    testWidgets('either part alone; empty parts are dropped', (WidgetTester tester) async {
+    testChecked('either part alone; empty parts are dropped', (WidgetTester tester) async {
       await pumpKk(tester, const KkLabel(cjk: '冷却'));
       expect(find.byType(Text), findsOneWidget);
       await pumpKk(tester, const KkLabel(en: 'coolant'));
@@ -527,7 +528,7 @@ void main() {
       expect(tester.getSize(find.byType(KkLabel)).width, 0);
     });
 
-    testWidgets('sizes, colours, gap and squeeze are configurable', (WidgetTester tester) async {
+    testChecked('sizes, colours, gap and squeeze are configurable', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkLabel(
@@ -555,7 +556,7 @@ void main() {
   });
 
   group('KkSqueeze', () {
-    testWidgets('takes the compressed width and keeps the height', (WidgetTester tester) async {
+    testChecked('takes the compressed width and keeps the height', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkSqueeze(key: ValueKey<String>('s'), child: SizedBox(key: ValueKey<String>('c'), width: 100, height: 20)),
@@ -567,7 +568,7 @@ void main() {
       expect(child.localToGlobal(const Offset(100, 20)), const Offset(80, 20));
     });
 
-    testWidgets('a forced width is divided by the scale for the child', (WidgetTester tester) async {
+    testChecked('a forced width is divided by the scale for the child', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const SizedBox(
@@ -579,7 +580,7 @@ void main() {
       expect(child.size.width, closeTo(100, 1e-9));
     });
 
-    testWidgets('taps land on the right part of the child', (WidgetTester tester) async {
+    testChecked('taps land on the right part of the child', (WidgetTester tester) async {
       final List<String> log = <String>[];
       await pumpKk(
         tester,
@@ -608,7 +609,7 @@ void main() {
       expect(log, <String>['left', 'right']);
     });
 
-    testWidgets('intrinsics, dry layout, no child, scale change', (WidgetTester tester) async {
+    testChecked('intrinsics, dry layout, no child, scale change', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkSqueeze(key: ValueKey<String>('s'), scaleX: 0.5, child: SizedBox(width: 100, height: 20)),
@@ -631,21 +632,21 @@ void main() {
   });
 
   group('KkTate', () {
-    testWidgets('stacks the characters upright in one column', (WidgetTester tester) async {
+    testChecked('stacks the characters upright in one column', (WidgetTester tester) async {
       await pumpKk(tester, const KkTate('設計言語', size: 22));
       final Size s = tester.getSize(find.byType(KkTate));
       expect(s.height, closeTo(88, 1e-6));
       expect(s.width, closeTo(22, 0.5));
     });
 
-    testWidgets('spacing is in em; the column can be made wider', (WidgetTester tester) async {
+    testChecked('spacing is in em; the column can be made wider', (WidgetTester tester) async {
       await pumpKk(tester, const KkTate('電源系統', size: 14, spacing: 0.12, columnWidth: 24));
       final Size s = tester.getSize(find.byType(KkTate));
       expect(s.width, 24);
       expect(s.height, closeTo(4 * 14 * 1.12, 1e-6));
     });
 
-    testWidgets('is read as one word; clipped when it does not fit; follows text changes', (
+    testChecked('is read as one word; clipped when it does not fit; follows text changes', (
       WidgetTester tester,
     ) async {
       final SemanticsHandle handle = tester.ensureSemantics();
@@ -663,7 +664,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('takes the current ink and the theme scale', (WidgetTester tester) async {
+    testChecked('takes the current ink and the theme scale', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkInk(color: Color(0xFF123456), child: KkTate('警戒', size: 20)),
@@ -681,7 +682,7 @@ void main() {
   });
 
   group('KkIcon and KkGlyph', () {
-    testWidgets('an icon is a 16px square in the current ink', (WidgetTester tester) async {
+    testChecked('an icon is a 16px square in the current ink', (WidgetTester tester) async {
       await pumpKk(tester, const KkIcon(KkIcons.search));
       expect(tester.getSize(find.byType(KkIcon)), const Size(16, 16));
       final RenderKkIcon r = _icon(tester, KkIcon);
@@ -694,7 +695,7 @@ void main() {
       expect(_icon(tester, KkIcon).color, const Color(0xFF0000FF));
     });
 
-    testWidgets('an icon is decorative unless it has a label', (WidgetTester tester) async {
+    testChecked('an icon is decorative unless it has a label', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpKk(tester, const KkIcon(KkIcons.trash));
       expect(find.bySemanticsLabel('Delete'), findsNothing);
@@ -703,7 +704,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('an icon squeezed into a smaller or uneven box still paints', (WidgetTester tester) async {
+    testChecked('an icon squeezed into a smaller or uneven box still paints', (WidgetTester tester) async {
       await pumpKk(tester, const SizedBox(width: 8, height: 30, child: KkIcon(KkIcons.settings)));
       expect(tester.getSize(find.byType(KkIcon)), const Size(8, 30));
       expect(tester.takeException(), isNull);
@@ -713,7 +714,7 @@ void main() {
       expect(r.getDryLayout(const BoxConstraints()), const Size(16, 16));
     });
 
-    testWidgets('a glyph shows the status icon of its level in the level colour', (WidgetTester tester) async {
+    testChecked('a glyph shows the status icon of its level in the level colour', (WidgetTester tester) async {
       for (final KkLevel level in KkLevel.values) {
         await pumpKk(tester, KkGlyph(level: level));
         final RenderKkIcon r = _icon(tester, KkGlyph);
@@ -723,7 +724,7 @@ void main() {
       }
     });
 
-    testWidgets('a glyph without a level is the info plate in the current ink', (WidgetTester tester) async {
+    testChecked('a glyph without a level is the info plate in the current ink', (WidgetTester tester) async {
       await pumpKk(tester, const KkInk(color: Color(0xFF00FF00), child: KkGlyph(size: 10)));
       final RenderKkIcon r = _icon(tester, KkGlyph);
       expect(r.icon, KkIcons.statusInfo);
@@ -732,10 +733,65 @@ void main() {
       await pumpKk(tester, const KkGlyph(level: KkLevel.critical, color: Color(0xFF0000FF)));
       expect(_icon(tester, KkGlyph).color, const Color(0xFF0000FF));
     });
+
+    testChecked('an icon, a glyph and vertical text sit in a baseline row that is measured before it is laid out', (
+      WidgetTester tester,
+    ) async {
+      // A status line: glyph, icon, vertical mark and a label on one baseline.
+      // A parent that measures it dry (a wrap finding its height, a paragraph
+      // placing it inline) asks every child for its baseline; the ones that
+      // have none must say so instead of asserting.
+      const Widget line = KkRow(
+        key: ValueKey<String>('line'),
+        shrinkWrap: true,
+        cross: KkCrossAlign.baseline,
+        gap: 4,
+        children: <Widget>[
+          KkGlyph(level: KkLevel.caution),
+          KkIcon(KkIcons.search),
+          KkTate('警戒', size: 10),
+          KkLabel(cjk: '電源', en: 'power'),
+        ],
+      );
+      await pumpKk(tester, const IntrinsicHeight(child: KkWrap(children: <Widget>[line])));
+      expect(tester.takeException(), isNull);
+      final RenderBox row = tester.renderObject<RenderBox>(find.byKey(const ValueKey<String>('line')));
+      expect(row.getDryLayout(row.constraints), row.size);
+      // The row's baseline is the label's: the other three have none and sit
+      // at the top of the line.
+      final double? dry = row.getDryBaseline(row.constraints, TextBaseline.alphabetic);
+      expect(dry, isNotNull);
+      final double top = tester.getTopLeft(find.byKey(const ValueKey<String>('line'))).dy;
+      expect(tester.getTopLeft(find.byType(KkGlyph)).dy, top);
+      expect(tester.getTopLeft(find.byType(KkIcon)).dy, top);
+      expect(tester.getTopLeft(find.byType(KkTate)).dy, top);
+      for (final Type type in <Type>[KkGlyph, KkIcon]) {
+        final RenderKkIcon r = _icon(tester, type);
+        expect(r.getDryBaseline(r.constraints, TextBaseline.alphabetic), isNull, reason: '$type');
+        expect(r.getDryBaseline(r.constraints, TextBaseline.ideographic), isNull, reason: '$type');
+      }
+      final RenderKkTate tate = tester.renderObject<RenderKkTate>(
+        find.descendant(of: find.byType(KkTate), matching: find.byWidgetPredicate((Widget w) => w is LeafRenderObjectWidget)),
+      );
+      expect(tate.getDryBaseline(tate.constraints, TextBaseline.alphabetic), isNull);
+      // And inline in running text.
+      await pumpKk(
+        tester,
+        const Text.rich(
+          TextSpan(
+            children: <InlineSpan>[
+              TextSpan(text: 'STATUS '),
+              WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: line),
+            ],
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('KkClock', () {
-    testWidgets('shows UTC time with a Z', (WidgetTester tester) async {
+    testChecked('shows UTC time with a Z', (WidgetTester tester) async {
       final DateTime fixed = DateTime.utc(2026, 11, 24, 14, 2, 31);
       await pumpKk(tester, KkClock(clock: () => fixed));
       expect(find.text('14:02:31Z', findRichText: true), findsOneWidget);
@@ -750,7 +806,7 @@ void main() {
       expect(find.text('03:04:05Z', findRichText: true), findsOneWidget);
     });
 
-    testWidgets('converts a local time to UTC, or shows local time without a suffix', (WidgetTester tester) async {
+    testChecked('converts a local time to UTC, or shows local time without a suffix', (WidgetTester tester) async {
       final DateTime local = DateTime(2026, 11, 24, 9, 30, 15);
       await pumpKk(tester, KkClock(clock: () => local));
       final DateTime utc = local.toUtc();
@@ -759,7 +815,7 @@ void main() {
       expect(find.text('09:30:15', findRichText: true), findsOneWidget);
     });
 
-    testWidgets('ticks every second and leaves no timer behind', (WidgetTester tester) async {
+    testChecked('ticks every second and leaves no timer behind', (WidgetTester tester) async {
       final DateTime start = DateTime.utc(2026, 11, 24, 23, 59, 58);
       final DateTime zero = tester.binding.clock.now();
       await pumpKk(tester, KkClock(clock: () => start.add(tester.binding.clock.now().difference(zero))));
@@ -776,7 +832,7 @@ void main() {
       await pumpKk(tester, const SizedBox.shrink());
     });
 
-    testWidgets('lines its ticks up with whole seconds', (WidgetTester tester) async {
+    testChecked('lines its ticks up with whole seconds', (WidgetTester tester) async {
       final DateTime start = DateTime.utc(2026, 11, 24, 12, 0, 0, 700);
       final DateTime zero = tester.binding.clock.now();
       await pumpKk(tester, KkClock(clock: () => start.add(tester.binding.clock.now().difference(zero))));
@@ -785,7 +841,7 @@ void main() {
       expect(find.text('12:00:01Z', findRichText: true), findsOneWidget);
     });
 
-    testWidgets('the colons blink once a second when motion is on', (WidgetTester tester) async {
+    testChecked('the colons blink once a second when motion is on', (WidgetTester tester) async {
       final DateTime fixed = DateTime.utc(2026, 11, 24, 14, 2, 31);
       Color colon() {
         final TextSpan c = _clockSpan(tester).children!.whereType<TextSpan>().firstWhere((TextSpan s) => s.text == ':');
@@ -810,7 +866,7 @@ void main() {
       expect(colon().a, 1);
     });
 
-    testWidgets('style and colour', (WidgetTester tester) async {
+    testChecked('style and colour', (WidgetTester tester) async {
       final DateTime fixed = DateTime.utc(2026, 11, 24, 14, 2, 31);
       await pumpKk(tester, KkClock(clock: () => fixed));
       TextSpan root = _clockSpan(tester);
@@ -827,7 +883,7 @@ void main() {
       expect(root.style!.color, const Color(0xFF00FF00));
     });
 
-    testWidgets('is read as the plain time', (WidgetTester tester) async {
+    testChecked('is read as the plain time', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpKk(tester, KkClock(clock: () => DateTime.utc(2026, 11, 24, 14, 2, 31)));
       expect(find.bySemanticsLabel('14:02:31Z'), findsOneWidget);
@@ -843,7 +899,7 @@ void main() {
   });
 
   group('frames', () {
-    testWidgets('KkWidgetHead: title, subtitle, meta, trailing, with a line under it', (WidgetTester tester) async {
+    testChecked('KkWidgetHead: title, subtitle, meta, trailing, with a line under it', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const SizedBox(
@@ -885,7 +941,7 @@ void main() {
       );
     });
 
-    testWidgets('KkWidgetHead without the divider, and with a title too long for it', (WidgetTester tester) async {
+    testChecked('KkWidgetHead without the divider, and with a title too long for it', (WidgetTester tester) async {
       await pumpKk(tester, const SizedBox(width: 320, child: KkWidgetHead(cjk: '冷却', divider: false)));
       expect(tester.getSize(find.byType(KkWidgetHead)).height, closeTo(8 + 14 * 1.55 + 8, 0.5));
       await pumpKk(
@@ -899,7 +955,7 @@ void main() {
       expect(tester.getSize(find.byType(KkWidgetHead)).width, 60);
     });
 
-    testWidgets('KkWidgetFoot wraps its keys in dim mono', (WidgetTester tester) async {
+    testChecked('KkWidgetFoot wraps its keys in dim mono', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const SizedBox(
@@ -930,7 +986,7 @@ void main() {
       );
     });
 
-    testWidgets('KkWidgetKey: a 12×3 line or a 10×10 box, a label and a value', (WidgetTester tester) async {
+    testChecked('KkWidgetKey: a 12×3 line or a 10×10 box, a label and a value', (WidgetTester tester) async {
       await pumpKk(tester, const KkWidgetKey(label: 'PRIMARY', color: Color(0xFFE8660F)));
       final Finder swatch = find.descendant(of: find.byType(KkWidgetKey), matching: find.byType(KkBox));
       expect(tester.getSize(swatch), const Size(12, 3));
@@ -952,7 +1008,7 @@ void main() {
         .widget<KkBox>(find.descendant(of: find.byType(KkWidgetFrame), matching: find.byType(KkBox)).first)
         .decoration!;
 
-    testWidgets('KkWidgetFrame: panel fill, 1px line, head, body, foot', (WidgetTester tester) async {
+    testChecked('KkWidgetFrame: panel fill, 1px line, head, body, foot', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const SizedBox(
@@ -980,7 +1036,7 @@ void main() {
       expect(frame.bottom, closeTo(tester.getRect(find.byType(KkWidgetFoot)).bottom + 1, 1e-6));
     });
 
-    testWidgets('KkWidgetFrame levels: critical glows red, offline is dashed', (WidgetTester tester) async {
+    testChecked('KkWidgetFrame levels: critical glows red, offline is dashed', (WidgetTester tester) async {
       const Widget body = SizedBox(height: 20);
       await pumpKk(tester, const SizedBox(width: 200, child: KkWidgetFrame(level: KkLevel.critical, child: body)));
       KkDecoration d = frameDecoration(tester);
@@ -1010,7 +1066,7 @@ void main() {
       expect(tester.getSize(find.byType(KkWidgetFrame)).height, 20);
     });
 
-    testWidgets('KkWidgetFrame expandBody fills a fixed height', (WidgetTester tester) async {
+    testChecked('KkWidgetFrame expandBody fills a fixed height', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const SizedBox(
@@ -1032,7 +1088,7 @@ void main() {
       expect(body.height, greaterThan(100));
     });
 
-    testWidgets('KkWidgetFrame boots in when motion is on, and can skip it', (WidgetTester tester) async {
+    testChecked('KkWidgetFrame boots in when motion is on, and can skip it', (WidgetTester tester) async {
       await pumpKk(tester, const KkWidgetFrame(child: SizedBox(width: 50, height: 20)), motion: true);
       expect(find.descendant(of: find.byType(KkWidgetFrame), matching: find.byType(KkBoot)), findsOneWidget);
       await pumpKk(tester, const KkWidgetFrame(boot: false, child: SizedBox(width: 50, height: 20)), motion: true);
@@ -1040,7 +1096,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
 
-    testWidgets('KkBrackets: four L-shaped corners, 12 by 2, 1px outside', (WidgetTester tester) async {
+    testChecked('KkBrackets: four L-shaped corners, 12 by 2, 1px outside', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkBrackets(child: SizedBox(width: 100, height: 60)),
@@ -1064,7 +1120,7 @@ void main() {
       expect(tester.getSize(find.byType(KkBrackets)), const Size(10, 10));
     });
 
-    testWidgets('KkBackdrop grounds', (WidgetTester tester) async {
+    testChecked('KkBackdrop grounds', (WidgetTester tester) async {
       KkDecoration deco() => tester
           .widget<KkBox>(find.descendant(of: find.byType(KkBackdrop), matching: find.byType(KkBox)).first)
           .decoration!;
