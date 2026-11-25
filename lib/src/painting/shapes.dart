@@ -1,0 +1,366 @@
+import 'dart:math' as math;
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show EdgeInsets;
+
+import '../foundation/colors.dart';
+
+enum _KkShapeKind { rect, chamfer, slant, hex, arrow }
+
+/// The outlines of KEIKAI. Corners are square; to soften one it is cut at 45°,
+/// never rounded.
+@immutable
+class KkShape {
+  /// A plain rectangle.
+  const KkShape.rect() : _kind = _KkShapeKind.rect, tl = 0, tr = 0, br = 0, bl = 0, _a = 0, _notch = false;
+
+  /// A rectangle with any of its corners cut at 45° by the given sizes.
+  const KkShape.chamfer({this.tl = 0, this.tr = 0, this.br = 0, this.bl = 0})
+    : _kind = _KkShapeKind.chamfer,
+      _a = 0,
+      _notch = false;
+
+  /// The button plate: top-left and bottom-right corners cut by [size].
+  const KkShape.plate(double size)
+    : _kind = _KkShapeKind.chamfer,
+      tl = size,
+      tr = 0,
+      br = size,
+      bl = 0,
+      _a = 0,
+      _notch = false;
+
+  /// A code block: the right edge leans in by [cut] at the bottom.
+  const KkShape.slant(double cut)
+    : _kind = _KkShapeKind.slant,
+      tl = 0,
+      tr = 0,
+      br = 0,
+      bl = 0,
+      _a = cut,
+      _notch = false;
+
+  /// A pointy-top hexagon stretched to the box.
+  const KkShape.hex() : _kind = _KkShapeKind.hex, tl = 0, tr = 0, br = 0, bl = 0, _a = 0, _notch = false;
+
+  /// A step of a mode strip: an arrow head of [head] on the right and, when
+  /// [notch] is true, a matching notch on the left.
+  const KkShape.arrow({double head = 12, bool notch = true})
+    : _kind = _KkShapeKind.arrow,
+      tl = 0,
+      tr = 0,
+      br = 0,
+      bl = 0,
+      _a = head,
+      _notch = notch;
+
+  final _KkShapeKind _kind;
+  final double tl;
+  final double tr;
+  final double br;
+  final double bl;
+  final double _a;
+  final bool _notch;
+
+  /// Whether this is the plain rectangle.
+  bool get isRect => _kind == _KkShapeKind.rect;
+
+  /// The outline of this shape fitted to [r].
+  Path path(Rect r) {
+    final Path p = Path();
+    if (r.isEmpty) return p;
+    switch (_kind) {
+      case _KkShapeKind.rect:
+        p.addRect(r);
+      case _KkShapeKind.chamfer:
+        final double m = math.min(r.width, r.height) / 2;
+        final double a = math.min(tl, m);
+        final double b = math.min(tr, m);
+        final double c = math.min(br, m);
+        final double d = math.min(bl, m);
+        p.moveTo(r.left + a, r.top);
+        p.lineTo(r.right - b, r.top);
+        if (b > 0) p.lineTo(r.right, r.top + b);
+        p.lineTo(r.right, r.bottom - c);
+        if (c > 0) p.lineTo(r.right - c, r.bottom);
+        p.lineTo(r.left + d, r.bottom);
+        if (d > 0) p.lineTo(r.left, r.bottom - d);
+        p.lineTo(r.left, r.top + a);
+        p.close();
+      case _KkShapeKind.slant:
+        final double cut = math.min(_a, r.width);
+        p.moveTo(r.left, r.top);
+        p.lineTo(r.right, r.top);
+        p.lineTo(r.right - cut, r.bottom);
+        p.lineTo(r.left, r.bottom);
+        p.close();
+      case _KkShapeKind.hex:
+        final double q = r.height / 4;
+        p.moveTo(r.center.dx, r.top);
+        p.lineTo(r.right, r.top + q);
+        p.lineTo(r.right, r.bottom - q);
+        p.lineTo(r.center.dx, r.bottom);
+        p.lineTo(r.left, r.bottom - q);
+        p.lineTo(r.left, r.top + q);
+        p.close();
+      case _KkShapeKind.arrow:
+        final double h = math.min(_a, r.width / 2);
+        p.moveTo(r.left, r.top);
+        p.lineTo(r.right - h, r.top);
+        p.lineTo(r.right, r.center.dy);
+        p.lineTo(r.right - h, r.bottom);
+        p.lineTo(r.left, r.bottom);
+        if (_notch) p.lineTo(r.left + h, r.center.dy);
+        p.close();
+    }
+    return p;
+  }
+
+  /// Whether [point] is inside this shape fitted to [r].
+  bool contains(Rect r, Offset point) {
+    if (!r.contains(point)) return false;
+    if (_kind == _KkShapeKind.rect) return true;
+    return path(r).contains(point);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is KkShape &&
+      other._kind == _kind &&
+      other.tl == tl &&
+      other.tr == tr &&
+      other.br == br &&
+      other.bl == bl &&
+      other._a == _a &&
+      other._notch == _notch;
+
+  @override
+  int get hashCode => Object.hash(_kind, tl, tr, br, bl, _a, _notch);
+}
+
+/// Paints a KEIKAI surface: an optional glow, an [edge] coloured plate in
+/// [shape], and a [fill] plate inset by [edgeWidth] on top of it.
+///
+/// This is the two-layer construction every plated control uses, so a 1px
+/// border follows the 45° cuts exactly.
+void kkPaintSurface(
+  Canvas canvas,
+  Rect rect, {
+  KkShape shape = const KkShape.rect(),
+  Color? fill,
+  Color? edge,
+  double edgeWidth = 1,
+  KkGlow? glow,
+}) {
+  if (rect.isEmpty) return;
+  if (glow != null) kkPaintGlow(canvas, rect, glow, shape: shape);
+  final bool hasEdge = edge != null && edge.a > 0 && edgeWidth > 0;
+  if (hasEdge) {
+    canvas.drawPath(shape.path(rect), Paint()..color = edge);
+  }
+  if (fill != null && fill.a > 0) {
+    final Rect inner = edgeWidth > 0 ? rect.deflate(edgeWidth) : rect;
+    if (!inner.isEmpty && inner.width > 0 && inner.height > 0) {
+      canvas.drawPath(shape.path(inner), Paint()..color = fill);
+    }
+  }
+}
+
+/// Paints [glow] around [shape] fitted to [rect]: a blurred halo and a hard ring.
+void kkPaintGlow(Canvas canvas, Rect rect, KkGlow glow, {KkShape shape = const KkShape.rect()}) {
+  if (glow.blur > 0 && glow.alpha > 0) {
+    canvas.drawPath(
+      shape.path(rect.inflate(glow.ring)),
+      Paint()
+        ..color = kkFade(glow.color, glow.alpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.outer, glow.blur / 2),
+    );
+  }
+  if (glow.ring > 0) {
+    final Path ring = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addPath(shape.path(rect.inflate(glow.ring)), Offset.zero)
+      ..addPath(shape.path(rect), Offset.zero);
+    canvas.drawPath(ring, Paint()..color = glow.color);
+  }
+}
+
+/// One side of a rectangular border.
+@immutable
+class KkSide {
+  const KkSide(this.color, {this.width = 1, this.dashed = false});
+
+  /// No border on this side.
+  static const KkSide none = KkSide(Color(0x00000000), width: 0);
+
+  final Color color;
+  final double width;
+
+  /// Dashed sides mark a disabled or disconnected surface.
+  final bool dashed;
+
+  @override
+  bool operator ==(Object other) =>
+      other is KkSide && other.color == color && other.width == width && other.dashed == dashed;
+
+  @override
+  int get hashCode => Object.hash(color, width, dashed);
+}
+
+/// The four sides of a rectangular border. Widths take space inside the box,
+/// like a CSS border under `box-sizing: border-box`.
+@immutable
+class KkEdges {
+  const KkEdges({
+    this.top = KkSide.none,
+    this.right = KkSide.none,
+    this.bottom = KkSide.none,
+    this.left = KkSide.none,
+  });
+
+  /// The same [side] all round.
+  const KkEdges.all(KkSide side) : top = side, right = side, bottom = side, left = side;
+
+  /// A solid (or dashed) line of [color] all round.
+  KkEdges.line(Color color, {double width = 1, bool dashed = false})
+    : this.all(KkSide(color, width: width, dashed: dashed));
+
+  static const KkEdges none = KkEdges();
+
+  final KkSide top;
+  final KkSide right;
+  final KkSide bottom;
+  final KkSide left;
+
+  /// The space the border takes on each side.
+  EdgeInsets get insets => EdgeInsets.fromLTRB(left.width, top.width, right.width, bottom.width);
+
+  bool get isNone => top.width <= 0 && right.width <= 0 && bottom.width <= 0 && left.width <= 0;
+
+  KkEdges copyWith({KkSide? top, KkSide? right, KkSide? bottom, KkSide? left}) =>
+      KkEdges(top: top ?? this.top, right: right ?? this.right, bottom: bottom ?? this.bottom, left: left ?? this.left);
+
+  /// Paints the border just inside [r].
+  void paint(Canvas canvas, Rect r) {
+    if (isNone || r.isEmpty) return;
+    final Paint paint = Paint();
+    void side(KkSide s, Rect band, bool horizontal) {
+      if (s.width <= 0 || s.color.a <= 0) return;
+      paint.color = s.color;
+      if (!s.dashed) {
+        canvas.drawRect(band, paint);
+        return;
+      }
+      final double dash = math.max(3, s.width * 3);
+      final double gap = dash;
+      if (horizontal) {
+        for (double x = band.left; x < band.right; x += dash + gap) {
+          canvas.drawRect(Rect.fromLTRB(x, band.top, math.min(x + dash, band.right), band.bottom), paint);
+        }
+      } else {
+        for (double y = band.top; y < band.bottom; y += dash + gap) {
+          canvas.drawRect(Rect.fromLTRB(band.left, y, band.right, math.min(y + dash, band.bottom)), paint);
+        }
+      }
+    }
+
+    side(top, Rect.fromLTRB(r.left, r.top, r.right, r.top + top.width), true);
+    side(bottom, Rect.fromLTRB(r.left, r.bottom - bottom.width, r.right, r.bottom), true);
+    side(left, Rect.fromLTRB(r.left, r.top + top.width, r.left + left.width, r.bottom - bottom.width), false);
+    side(right, Rect.fromLTRB(r.right - right.width, r.top + top.width, r.right, r.bottom - bottom.width), false);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is KkEdges && other.top == top && other.right == right && other.bottom == bottom && other.left == left;
+
+  @override
+  int get hashCode => Object.hash(top, right, bottom, left);
+}
+
+/// The L-shaped corner brackets that frame a panel, a focused field or a dialog.
+@immutable
+class KkBracketSpec {
+  const KkBracketSpec({required this.color, this.length = 12, this.width = 2, this.outset = 1});
+
+  final Color color;
+
+  /// Length of each arm.
+  final double length;
+
+  /// Thickness of each arm.
+  final double width;
+
+  /// How far outside the box the brackets sit.
+  final double outset;
+
+  void paint(Canvas canvas, Rect rect) {
+    if (color.a <= 0 || rect.isEmpty) return;
+    final Rect r = rect.inflate(outset);
+    final double l = math.min(length, math.min(r.width, r.height) / 2);
+    final double w = width;
+    final Path p = Path()
+      ..addRect(Rect.fromLTWH(r.left, r.top, l, w))
+      ..addRect(Rect.fromLTWH(r.left, r.top, w, l))
+      ..addRect(Rect.fromLTWH(r.right - l, r.top, l, w))
+      ..addRect(Rect.fromLTWH(r.right - w, r.top, w, l))
+      ..addRect(Rect.fromLTWH(r.left, r.bottom - w, l, w))
+      ..addRect(Rect.fromLTWH(r.left, r.bottom - l, w, l))
+      ..addRect(Rect.fromLTWH(r.right - l, r.bottom - w, l, w))
+      ..addRect(Rect.fromLTWH(r.right - w, r.bottom - l, w, l));
+    canvas.drawPath(p, Paint()..color = color);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is KkBracketSpec &&
+      other.color == color &&
+      other.length == length &&
+      other.width == width &&
+      other.outset == outset;
+
+  @override
+  int get hashCode => Object.hash(color, length, width, outset);
+}
+
+/// Cuts [source] into dashes following [pattern] (on, off, on, off …).
+Path kkDashPath(Path source, List<double> pattern, {double phase = 0}) {
+  assert(pattern.isNotEmpty && pattern.every((double v) => v > 0));
+  final Path out = Path();
+  final double total = pattern.fold<double>(0, (double a, double b) => a + b);
+  // A pattern that does not advance would never end: leave the path solid.
+  if (pattern.isEmpty || total <= 0 || pattern.any((double v) => v <= 0)) return Path.from(source);
+  for (final PathMetric metric in source.computeMetrics()) {
+    double distance = -(phase % total);
+    int i = 0;
+    bool draw = true;
+    while (distance < metric.length) {
+      final double len = pattern[i % pattern.length];
+      if (draw) {
+        final double from = math.max(0, distance);
+        final double to = math.min(metric.length, distance + len);
+        if (to > from) out.addPath(metric.extractPath(from, to), Offset.zero);
+      }
+      distance += len;
+      draw = !draw;
+      i++;
+    }
+  }
+  return out;
+}
+
+/// A regular polygon outline (used for hexagon marks and radar blips).
+Path kkPolygon(Offset center, double radius, int sides, {double rotation = -math.pi / 2}) {
+  final Path p = Path();
+  for (int i = 0; i < sides; i++) {
+    final double a = rotation + i * 2 * math.pi / sides;
+    final Offset pt = center + Offset(math.cos(a), math.sin(a)) * radius;
+    if (i == 0) {
+      p.moveTo(pt.dx, pt.dy);
+    } else {
+      p.lineTo(pt.dx, pt.dy);
+    }
+  }
+  return p..close();
+}

@@ -1,0 +1,357 @@
+import 'package:flutter/widgets.dart';
+
+import '../foundation/motion.dart';
+import '../foundation/theme.dart';
+import 'stagger.dart';
+
+/// Runs once when it enters the tree (and again whenever [trigger] changes):
+/// waits [delay] plus the ambient stagger delay, then drives [builder] from
+/// 0 to 1 over [duration].
+///
+/// With motion off the progress is 1 from the first frame.
+class KkOneShot extends StatefulWidget {
+  const KkOneShot({
+    super.key,
+    required this.duration,
+    this.delay = Duration.zero,
+    this.trigger,
+    this.stagger = true,
+    this.enabled = true,
+    this.onDone,
+    required this.builder,
+    this.child,
+  });
+
+  final Duration duration;
+  final Duration delay;
+
+  /// Replays the animation when this value changes.
+  final Object? trigger;
+
+  /// Add the ambient [KkStagger] index × the theme's stagger step to [delay].
+  final bool stagger;
+  final bool enabled;
+  final VoidCallback? onDone;
+
+  /// [progress] is linear from 0 to 1; apply [KkSteps] or [KkKeyframes] to it.
+  /// [done] turns true when the animation has finished.
+  final Widget Function(BuildContext context, Animation<double> progress, bool done, Widget? child) builder;
+  final Widget? child;
+
+  @override
+  State<KkOneShot> createState() => _KkOneShotState();
+}
+
+class _KkOneShotState extends State<KkOneShot> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(vsync: this)
+    ..addStatusListener(_onStatus);
+  Animation<double> _progress = const AlwaysStoppedAnimation<double>(1);
+  CurvedAnimation? _curved;
+  bool _started = false;
+  bool _done = false;
+
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      if (!_done && mounted) setState(() => _done = true);
+      widget.onDone?.call();
+    }
+  }
+
+  void _start() {
+    final KeikaiThemeData theme = KeikaiTheme.of(context);
+    final bool motion = widget.enabled && KeikaiTheme.motionOf(context);
+    if (!motion) {
+      _controller.stop();
+      _progress = const AlwaysStoppedAnimation<double>(1);
+      _done = true;
+      return;
+    }
+    Duration delay = widget.delay;
+    if (widget.stagger) delay += theme.motion.staggerStep * KkStagger.of(context);
+    delay = theme.motion.scaled(delay);
+    final Duration duration = theme.motion.scaled(widget.duration);
+    final int total = delay.inMicroseconds + duration.inMicroseconds;
+    if (total <= 0) {
+      _progress = const AlwaysStoppedAnimation<double>(1);
+      _done = true;
+      return;
+    }
+    _controller.duration = Duration(microseconds: total);
+    _curved?.dispose();
+    _progress = _curved = CurvedAnimation(parent: _controller, curve: Interval(delay.inMicroseconds / total, 1));
+    _done = false;
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_started) {
+      _started = true;
+      _start();
+    } else if (!KeikaiTheme.motionOf(context) && !_done) {
+      _controller.stop();
+      _progress = const AlwaysStoppedAnimation<double>(1);
+      _done = true;
+    }
+  }
+
+  @override
+  void didUpdateWidget(KkOneShot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.trigger != widget.trigger) _start();
+  }
+
+  @override
+  void dispose() {
+    _curved?.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _progress, _done, widget.child);
+}
+
+/// The boot wipe: the child is revealed from the left in [steps] jumps. Every
+/// panel, chart and readout enters this way.
+class KkBoot extends StatelessWidget {
+  const KkBoot({
+    super.key,
+    this.duration = KkMotion.boot,
+    this.steps = KkMotion.bootSteps,
+    this.delay = Duration.zero,
+    this.trigger,
+    this.stagger = true,
+    this.enabled = true,
+    this.axis = Axis.horizontal,
+    required this.child,
+  });
+
+  final Duration duration;
+  final int steps;
+  final Duration delay;
+  final Object? trigger;
+  final bool stagger;
+  final bool enabled;
+
+  /// Horizontal wipes left to right; vertical wipes top to bottom.
+  final Axis axis;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return KkOneShot(
+      duration: duration,
+      delay: delay,
+      trigger: trigger,
+      stagger: stagger,
+      enabled: enabled,
+      child: child,
+      builder: (BuildContext context, Animation<double> progress, bool done, Widget? child) {
+        return ClipRect(
+          clipBehavior: done ? Clip.none : Clip.hardEdge,
+          clipper: _WipeClipper(progress, steps, axis),
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+class _WipeClipper extends CustomClipper<Rect> {
+  _WipeClipper(this.progress, this.steps, this.axis) : super(reclip: progress);
+
+  final Animation<double> progress;
+  final int steps;
+  final Axis axis;
+
+  @override
+  Rect getClip(Size size) {
+    final double t = KkSteps(steps).transform(progress.value.clamp(0.0, 1.0));
+    return axis == Axis.horizontal
+        ? Rect.fromLTWH(0, 0, size.width * t, size.height)
+        : Rect.fromLTWH(0, 0, size.width, size.height * t);
+  }
+
+  @override
+  bool shouldReclip(_WipeClipper oldClipper) =>
+      oldClipper.progress != progress || oldClipper.steps != steps || oldClipper.axis != axis;
+}
+
+/// The boot flicker: opacity stutters 0 → .9 → .1 → 1 → .35 → 1. Panel bodies
+/// do this right after the panel has wiped in.
+class KkFlicker extends StatelessWidget {
+  const KkFlicker({
+    super.key,
+    this.duration = KkMotion.flicker,
+    this.keyframes = KkKeyframes.flicker,
+    this.delay = Duration.zero,
+    this.trigger,
+    this.stagger = true,
+    this.enabled = true,
+    required this.child,
+  });
+
+  final Duration duration;
+  final KkKeyframes keyframes;
+  final Duration delay;
+  final Object? trigger;
+  final bool stagger;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return KkOneShot(
+      duration: duration,
+      delay: delay,
+      trigger: trigger,
+      stagger: stagger,
+      enabled: enabled,
+      child: child,
+      builder: (BuildContext context, Animation<double> progress, bool done, Widget? child) =>
+          FadeTransition(opacity: keyframes.animate(progress), child: child),
+    );
+  }
+}
+
+/// Grows the child from nothing along one axis in [steps] jumps: panel header
+/// bands grow from the left, bars from the bottom.
+class KkGrow extends StatelessWidget {
+  const KkGrow({
+    super.key,
+    this.axis = Axis.horizontal,
+    this.alignment = Alignment.centerLeft,
+    this.duration = KkMotion.headGrow,
+    this.steps = KkMotion.headGrowSteps,
+    this.delay = Duration.zero,
+    this.trigger,
+    this.stagger = true,
+    this.enabled = true,
+    required this.child,
+  });
+
+  final Axis axis;
+
+  /// The edge the child grows from.
+  final Alignment alignment;
+  final Duration duration;
+  final int steps;
+  final Duration delay;
+  final Object? trigger;
+  final bool stagger;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return KkOneShot(
+      duration: duration,
+      delay: delay,
+      trigger: trigger,
+      stagger: stagger,
+      enabled: enabled,
+      child: child,
+      builder: (BuildContext context, Animation<double> progress, bool done, Widget? child) {
+        return AnimatedBuilder(
+          animation: progress,
+          child: child,
+          builder: (BuildContext context, Widget? child) {
+            final double t = KkSteps(steps).transform(progress.value.clamp(0.0, 1.0));
+            return Transform.scale(
+              scaleX: axis == Axis.horizontal ? t : 1,
+              scaleY: axis == Axis.vertical ? t : 1,
+              alignment: alignment,
+              child: child,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Animates a number toward [value] in [steps] jumps whenever it changes: the
+/// 9-step transition of meters and progress bars, the 10-step swing of a
+/// gauge needle.
+class KkSteppedValue extends StatefulWidget {
+  const KkSteppedValue({
+    super.key,
+    required this.value,
+    this.duration = KkMotion.meter,
+    this.steps = KkMotion.meterSteps,
+    this.from,
+    required this.builder,
+  });
+
+  final double value;
+  final Duration duration;
+  final int steps;
+
+  /// The value to start from when first shown. Defaults to [value] (no
+  /// entrance); pass 0 to sweep up from zero.
+  final double? from;
+  final Widget Function(BuildContext context, double value) builder;
+
+  @override
+  State<KkSteppedValue> createState() => _KkSteppedValueState();
+}
+
+class _KkSteppedValueState extends State<KkSteppedValue> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(vsync: this, value: 1)
+    ..addListener(_onTick);
+  late double _from = widget.from ?? widget.value;
+  late double _to = widget.value;
+  double _shown = 0;
+  bool _started = false;
+
+  double _current() {
+    final double t = KkSteps(widget.steps).transform(_controller.value.clamp(0.0, 1.0));
+    return _from + (_to - _from) * t;
+  }
+
+  void _onTick() {
+    final double v = _current();
+    if (v != _shown) setState(() => _shown = v);
+  }
+
+  void _run() {
+    if (!KeikaiTheme.motionOf(context) || _from == _to) {
+      _controller.value = 1;
+      _shown = _to;
+      return;
+    }
+    _controller.duration = KeikaiTheme.of(context).motion.scaled(widget.duration);
+    _controller.forward(from: 0);
+    _shown = _current();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_started) {
+      _started = true;
+      _run();
+    }
+  }
+
+  @override
+  void didUpdateWidget(KkSteppedValue oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _from = _current();
+      _to = widget.value;
+      _run();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _shown);
+}
