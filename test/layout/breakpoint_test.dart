@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
-import 'package:keikai/src/layout/layout.dart';
 
 import 'layout_util.dart';
 
@@ -24,7 +23,7 @@ void main() {
   });
 
   group('KkBreakpoint', () {
-    testWidgets('builds from the class of its own width', (WidgetTester tester) async {
+    testChecked('builds from the class of its own width', (WidgetTester tester) async {
       const List<(double, KkWindowClass)> cases = <(double, KkWindowClass)>[
         (300, KkWindowClass.compact),
         (599.5, KkWindowClass.compact),
@@ -60,7 +59,7 @@ void main() {
       }
     });
 
-    testWidgets('rebuilds when the width crosses a threshold', (WidgetTester tester) async {
+    testChecked('rebuilds when the width crosses a threshold', (WidgetTester tester) async {
       final List<KkWindowClass> log = <KkWindowClass>[];
       Widget build(double width) => SizedBox(
         width: width,
@@ -77,7 +76,7 @@ void main() {
       expect(log, <KkWindowClass>[KkWindowClass.compact, KkWindowClass.medium, KkWindowClass.expanded]);
     });
 
-    testWidgets('uses the theme breakpoints', (WidgetTester tester) async {
+    testChecked('uses the theme breakpoints', (WidgetTester tester) async {
       KkWindowClass? seen;
       await pumpRaw(
         tester,
@@ -97,7 +96,7 @@ void main() {
       expect(seen, KkWindowClass.medium);
     });
 
-    testWidgets('with no width limit it falls back to the window width', (WidgetTester tester) async {
+    testChecked('with no width limit it falls back to the window width', (WidgetTester tester) async {
       KkWindowClass? seen;
       await pumpRaw(
         tester,
@@ -118,7 +117,7 @@ void main() {
   });
 
   group('KkWindowScope', () {
-    testWidgets('falls back to the window, then to expanded', (WidgetTester tester) async {
+    testChecked('falls back to the window, then to expanded', (WidgetTester tester) async {
       KkWindowClass? seen;
       Widget probe() => Builder(
         builder: (BuildContext context) {
@@ -136,7 +135,7 @@ void main() {
       expect(seen, isNotNull);
     });
 
-    testWidgets('the nearest scope wins and dependents rebuild when it changes', (WidgetTester tester) async {
+    testChecked('the nearest scope wins and dependents rebuild when it changes', (WidgetTester tester) async {
       final List<KkWindowClass> log = <KkWindowClass>[];
       final Widget probe = Builder(
         builder: (BuildContext context) {
@@ -212,7 +211,7 @@ void main() {
       expect(const KkResponsive<int>(compact: 1, large: 2) == const KkResponsive<int>(compact: 1, large: 3), isFalse);
     });
 
-    testWidgets('of reads the window class of the context', (WidgetTester tester) async {
+    testChecked('of reads the window class of the context', (WidgetTester tester) async {
       const KkResponsive<int> span = KkResponsive<int>(compact: 4, expanded: 6);
       int? seen;
       await pumpRaw(
@@ -231,7 +230,7 @@ void main() {
       expect(seen, 6);
     });
 
-    testWidgets('a span builder from a responsive value drives a grid cell', (WidgetTester tester) async {
+    testChecked('a span builder from a responsive value drives a grid cell', (WidgetTester tester) async {
       const KkResponsive<int> span = KkResponsive<int>(compact: 4, medium: 4, expanded: 6, xlarge: 4);
       int pick(int columns) => span.resolve(const KkMetrics().windowClass(columns == 4 ? 0 : (columns == 8 ? 600 : (columns == 12 ? 840 : 1600))));
       for (final (double width, double expected) in <(double, double)>[
@@ -253,7 +252,7 @@ void main() {
   });
 
   group('conveniences', () {
-    testWidgets('KkCenter and KkAlign', (WidgetTester tester) async {
+    testChecked('KkCenter and KkAlign', (WidgetTester tester) async {
       await pumpRaw(tester, SizedBox(width: 200, height: 100, child: KkCenter(child: box('a', 20, 10))));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(90, 45, 20, 10));
       await pumpRaw(
@@ -269,7 +268,7 @@ void main() {
       expect(rectOf(tester, 'c').size, const Size(20, 10));
     });
 
-    testWidgets('KkPadding', (WidgetTester tester) async {
+    testChecked('KkPadding', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkPadding(
@@ -282,7 +281,7 @@ void main() {
       expect(rectOf(tester, 'a').topLeft, const Offset(1, 2));
     });
 
-    testWidgets('KkSized', (WidgetTester tester) async {
+    testChecked('KkSized', (WidgetTester tester) async {
       await pumpRaw(tester, KkSized(width: 30, child: box('a', null, 10)));
       expect(rectOf(tester, 'a').size, const Size(30, 10));
       await pumpRaw(tester, const KkSized.square(24, key: ValueKey<String>('s')));
@@ -298,7 +297,7 @@ void main() {
       expect(rectOf(tester, 's').size, const Size(300, 200));
     });
 
-    testWidgets('KkAspect', (WidgetTester tester) async {
+    testChecked('KkAspect', (WidgetTester tester) async {
       // Width bounded: height follows.
       await pumpRaw(tester, SizedBox(width: 320, child: KkAspect(ratio: 16 / 9, child: box('a'))));
       expect(rectOf(tester, 'a').size, const Size(320, 180));
@@ -356,7 +355,7 @@ void main() {
       expect(r.ratio, 2);
     });
 
-    testWidgets('KkListView builds lazily and spaces rows by the gap', (WidgetTester tester) async {
+    testChecked('KkListView builds lazily and spaces rows by the gap', (WidgetTester tester) async {
       final Set<int> built = <int>{};
       await pumpRaw(
         tester,
@@ -384,7 +383,7 @@ void main() {
       expect(built.any((int i) => i > 20), isTrue);
     });
 
-    testWidgets('KkListView without a gap, horizontal, and shrink-wrapped', (WidgetTester tester) async {
+    testChecked('KkListView without a gap, horizontal, and shrink-wrapped', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -437,7 +436,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('KkSafeArea', (WidgetTester tester) async {
+    testChecked('KkSafeArea', (WidgetTester tester) async {
       const MediaQueryData mq = MediaQueryData(
         size: Size(400, 300),
         padding: EdgeInsets.fromLTRB(5, 24, 7, 10),
@@ -476,6 +475,64 @@ void main() {
         ),
       );
       expect(tester.takeException(), isNull);
+    });
+
+    testChecked('KkSafeArea: what it deals with is gone for its child, the rest is left', (WidgetTester tester) async {
+      const MediaQueryData mq = MediaQueryData(
+        size: Size(400, 300),
+        padding: EdgeInsets.fromLTRB(5, 24, 7, 10),
+        viewPadding: EdgeInsets.fromLTRB(5, 24, 7, 10),
+        viewInsets: EdgeInsets.only(bottom: 120),
+      );
+      MediaQueryData? inner;
+      Widget probe() => Builder(
+        builder: (BuildContext context) {
+          inner = MediaQuery.of(context);
+          return const SizedBox.expand();
+        },
+      );
+      await pumpRaw(tester, MediaQuery(data: mq, child: KkSafeArea(child: probe())));
+      expect(inner!.padding, EdgeInsets.zero);
+      expect(inner!.viewInsets, EdgeInsets.zero);
+      expect(inner!.size, const Size(400, 300));
+      // Sides it was told to leave, and the keyboard, stay for the child.
+      await pumpRaw(tester, MediaQuery(data: mq, child: KkSafeArea(top: false, keyboard: false, child: probe())));
+      expect(inner!.padding, const EdgeInsets.only(top: 24));
+      expect(inner!.viewInsets, const EdgeInsets.only(bottom: 120));
+      await pumpRaw(tester, MediaQuery(data: mq, child: KkSafeArea(bottom: false, child: probe())));
+      expect(inner!.padding, const EdgeInsets.only(bottom: 10));
+      expect(inner!.viewInsets, const EdgeInsets.only(bottom: 120));
+      // Nested: the inner one has nothing left to add.
+      await pumpRaw(
+        tester,
+        const MediaQuery(
+          data: mq,
+          child: SizedBox(
+            width: 400,
+            height: 300,
+            child: KkSafeArea(child: KkSafeArea(child: SizedBox.expand(key: ValueKey<String>('a')))),
+          ),
+        ),
+      );
+      expect(rectOf(tester, 'a'), const Rect.fromLTRB(5, 24, 393, 180));
+    });
+
+    testChecked('KkSafeArea paints its fill under the intrusions', (WidgetTester tester) async {
+      await pumpRaw(
+        tester,
+        const MediaQuery(
+          data: MediaQueryData(size: Size(400, 300), padding: EdgeInsets.only(top: 24)),
+          child: SizedBox(
+            width: 400,
+            height: 300,
+            child: KkSafeArea(fill: Color(0xFF112233), child: SizedBox.expand()),
+          ),
+        ),
+      );
+      expect(
+        tester.renderObject<RenderBox>(find.byType(KkSafeArea)),
+        paints..rect(rect: const Rect.fromLTWH(0, 0, 400, 300), color: const Color(0xFF112233)),
+      );
     });
   });
 }
