@@ -17,6 +17,20 @@ Future<void> _settleRoute(WidgetTester tester) async {
 
 Duration _ms(int value) => Duration(milliseconds: value);
 
+/// Paints nothing and records the loop time of every paint.
+class _TimeLog extends CustomPainter {
+  _TimeLog(this.time, this.log) : super(repaint: time);
+
+  final ValueListenable<Duration> time;
+  final List<Duration> log;
+
+  @override
+  void paint(Canvas canvas, Size size) => log.add(time.value);
+
+  @override
+  bool shouldRepaint(_TimeLog oldDelegate) => oldDelegate.time != time;
+}
+
 /// Records what a [KkOneShot] hands to its builder.
 class _Probe {
   Animation<double>? progress;
@@ -831,6 +845,61 @@ void main() {
       expect(time!.value - t1, _ms(200));
     });
 
+    testChecked('KkLoop is on the shared clock in the frame that shows it', (WidgetTester tester) async {
+      final List<Duration> first = <Duration>[];
+      final List<Duration> second = <Duration>[];
+      Widget loop(List<Duration> log, {bool enabled = true}) => KkLoop(
+        enabled: enabled,
+        builder: (BuildContext context, ValueListenable<Duration> time) =>
+            CustomPaint(size: const Size(10, 10), painter: _TimeLog(time, log)),
+      );
+      Widget build({bool both = true, bool enabled = true}) => KkRow(
+        children: <Widget>[
+          loop(first),
+          if (both) loop(second, enabled: enabled),
+        ],
+      );
+      await pumpKk(tester, build(both: false), motion: true);
+      await tester.pump(_ms(1234));
+      expect(first.last, _ms(1234));
+      // A loop that appears now paints its first frame where the running one is, not at zero.
+      await tester.pumpWidget(kkHarness(build(), motion: true));
+      expect(kkFrameTime(), _ms(1234));
+      expect(second, <Duration>[_ms(1234)]);
+      await tester.pump(_ms(16));
+      expect(second, <Duration>[_ms(1234), _ms(1250)]);
+      expect(first.last, _ms(1250));
+      // Stopped, it rests at zero. Started again, it is back on the clock in that same frame.
+      await tester.pumpWidget(kkHarness(build(enabled: false), motion: true));
+      expect(second.last, Duration.zero);
+      await tester.pump(_ms(100));
+      second.clear();
+      await tester.pumpWidget(kkHarness(build(), motion: true));
+      expect(second, <Duration>[_ms(1350)]);
+      expect(first.last, _ms(1350));
+    });
+
+    testChecked('KkLoop starts on the scaled clock when the theme slows time', (WidgetTester tester) async {
+      final List<Duration> log = <Duration>[];
+      const KeikaiThemeData slow = KeikaiThemeData(motion: KkMotion(timeScale: 2));
+      Widget build(bool show) => show
+          ? KkLoop(
+              builder: (BuildContext context, ValueListenable<Duration> time) =>
+                  CustomPaint(size: const Size(10, 10), painter: _TimeLog(time, log)),
+            )
+          : const SizedBox(width: 10, height: 10);
+      await pumpKk(tester, build(false), motion: true, theme: slow);
+      tester.binding.scheduleFrame();
+      await tester.pump(_ms(1000));
+      await tester.pumpWidget(kkHarness(build(true), motion: true, theme: slow));
+      expect(log, <Duration>[_ms(500)]);
+      await tester.pump(_ms(100));
+      expect(log, <Duration>[_ms(500), _ms(550)]);
+      // Back at full speed, the frame that brings the new scale already shows the unscaled clock.
+      await tester.pumpWidget(kkHarness(build(true), motion: true));
+      expect(log.last, _ms(1100));
+    });
+
     testChecked('loops pause inside a disabled TickerMode', (WidgetTester tester) async {
       final List<int> phases = <int>[];
       await pumpKk(
@@ -915,6 +984,38 @@ void main() {
       await pumpKk(tester, const KkHazard(width: 96, height: 32, running: true));
       await tester.pump(_ms(100));
       expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testChecked('a hazard that starts to run is in step with a running one from its first frame', (
+      WidgetTester tester,
+    ) async {
+      // Where the painter of a hazard puts its stripes right now.
+      Rect stripes(String key) {
+        final CustomPaint paint = tester.widget<CustomPaint>(
+          find.descendant(of: find.byKey(ValueKey<String>(key)), matching: find.byType(CustomPaint)),
+        );
+        final TestRecordingCanvas canvas = TestRecordingCanvas();
+        paint.painter!.paint(canvas, const Size(96, 24));
+        final RecordedInvocation draw = canvas.invocations.lastWhere(
+          (RecordedInvocation call) => call.invocation.memberName == #drawPath,
+        );
+        return (draw.invocation.positionalArguments.first as Path).getBounds();
+      }
+
+      Widget build({required bool both}) => KkColumn(
+        children: <Widget>[
+          const KkHazard(key: ValueKey<String>('first'), width: 96, height: 24, running: true),
+          if (both) const KkHazard(key: ValueKey<String>('second'), width: 96, height: 24, running: true),
+        ],
+      );
+      await pumpKk(tester, build(both: false), motion: true);
+      final Rect atRest = stripes('first');
+      await tester.pump(_ms(1325));
+      expect(stripes('first'), isNot(atRest), reason: 'the stripes have travelled');
+      await tester.pumpWidget(kkHarness(build(both: true), motion: true));
+      expect(stripes('second'), stripes('first'));
+      await tester.pump(_ms(16));
+      expect(stripes('second'), stripes('first'));
     });
 
     testChecked('KkMarquee scrolls its text and is announced once', (WidgetTester tester) async {

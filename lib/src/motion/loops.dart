@@ -131,14 +131,22 @@ class _KkLoopState extends State<KkLoop> with SingleTickerProviderStateMixin {
   bool _running = false;
   double _scale = 1;
 
-  void _tick(Duration _) {
+  /// The shared frame clock, at the theme's time scale.
+  Duration _now() {
     final Duration now = kkFrameTime();
-    _time.value = _scale == 1.0 ? now : Duration(microseconds: (now.inMicroseconds / _scale).round());
+    return _scale == 1.0 ? now : Duration(microseconds: (now.inMicroseconds / _scale).round());
   }
+
+  void _tick(Duration _) => _time.value = _now();
 
   void _sync() {
     _scale = KeikaiTheme.of(context).motion.timeScale;
     final bool shouldRun = widget.enabled && KeikaiTheme.motionOf(context);
+    // The frame that starts the loop, or brings a new time scale, is painted
+    // before the next tick, so the clock is read here. Left at zero, a loop
+    // would show its starting position in its first frame and jump to the
+    // shared position on the next.
+    if (shouldRun) _time.value = _now();
     if (shouldRun == _running) return;
     _running = shouldRun;
     if (shouldRun) {
