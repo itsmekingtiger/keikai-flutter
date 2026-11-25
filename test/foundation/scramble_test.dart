@@ -127,6 +127,62 @@ void main() {
       expect(frames.last, '0000000000');
     });
 
+    testChecked('values of the same length do not churn in unison', (WidgetTester tester) async {
+      List<String> texts() => tester.widgetList<Text>(shown()).map((Text t) => t.data!).toList();
+      await pumpKk(
+        tester,
+        const KkColumn(
+          children: <Widget>[KkScramble('042.7'), KkScramble('078.3'), KkScramble('113.9'), KkScramble('256.0')],
+        ),
+        motion: true,
+      );
+      // Nothing has settled in the first noise frame: four readouts show four different numbers.
+      expect(texts().toSet(), hasLength(4));
+      for (int ms = 0; ms < 460; ms += 23) {
+        expect(texts().toSet().length, greaterThan(1), reason: 'at ${ms}ms');
+        await tester.pump(const Duration(milliseconds: 23));
+      }
+      await tester.pump(const Duration(milliseconds: 23));
+      expect(texts(), <String>['042.7', '078.3', '113.9', '256.0']);
+    });
+
+    testChecked('the same value churns its own way in each cell of a grid', (WidgetTester tester) async {
+      List<String> texts() => tester.widgetList<Text>(shown()).map((Text t) => t.data!).toList();
+      await pumpKk(
+        tester,
+        const KkColumn(
+          children: <Widget>[
+            KkStagger(index: 0, child: KkScramble('0000000000', duration: Duration(seconds: 1))),
+            KkStagger(index: 1, child: KkScramble('0000000000', duration: Duration(seconds: 1))),
+            KkStagger(index: 1, child: KkScramble('0000000000', duration: Duration(seconds: 1))),
+          ],
+        ),
+        motion: true,
+      );
+      for (int step = 0; step < 5; step++) {
+        final List<String> now = texts();
+        expect(now[0], isNot(now[1]), reason: 'step $step');
+        // The noise stays a pure function of the value and its place: same cell, same digits.
+        expect(now[1], now[2], reason: 'step $step');
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    });
+
+    testChecked('the same value in the same place always churns the same way', (WidgetTester tester) async {
+      final List<List<String>> runs = <List<String>>[];
+      for (int run = 0; run < 2; run++) {
+        final List<String> frames = <String>[];
+        await pumpKk(tester, KkScramble('31337', key: ValueKey<int>(run)), motion: true);
+        for (int ms = 0; ms < 460; ms += 46) {
+          frames.add(text(tester));
+          await tester.pump(const Duration(milliseconds: 46));
+        }
+        runs.add(frames);
+      }
+      expect(runs[0], runs[1]);
+      expect(runs[0].toSet().length, greaterThan(4));
+    });
+
     testChecked('scrambles again when the value changes', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('100'), motion: true);
       await tester.pump(const Duration(milliseconds: 500));
@@ -164,7 +220,9 @@ void main() {
     });
 
     testChecked('reduced motion from the platform turns it off', (WidgetTester tester) async {
-      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
       addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
       await pumpKk(tester, const KkScramble('31337'), motion: true);
       expect(text(tester), '31337');

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../foundation/motion.dart';
 import '../foundation/theme.dart';
+import 'stagger.dart';
 
 /// The text of a scramble at [progress] (0 to 1): digits that have not settled
 /// yet show a pseudo-random digit; they settle from the front.
@@ -61,11 +62,26 @@ int _hash(int a, int b, int c) {
   return h & 0x7FFFFFFF;
 }
 
+/// A seed for [kkScrambleText] made of every character of [text], of [run]
+/// and of [cell]. Two values of the same length then get different noise,
+/// while the same value in the same place always gets the same.
+int _seedFor(String text, int run, int cell) {
+  int seed = _hash(run, cell, text.length);
+  for (final int unit in text.codeUnits) {
+    seed = _hash(seed, unit, 0);
+  }
+  return seed;
+}
+
 /// A value that scrambles when it changes: the digits churn for 0.46s and
 /// settle from the front. Readouts, stats, gauges and totals update this way.
 ///
 /// Only digits scramble unless [letters] is true; punctuation and units stay
 /// put, so the text never changes width in a tabular face.
+///
+/// The noise is made from the value and from the cell of the grid it is in
+/// (the ambient [KkStagger] index), so the readouts of a screen churn each in
+/// their own way and not in unison.
 class KkScramble extends StatefulWidget {
   const KkScramble(
     this.text, {
@@ -99,10 +115,10 @@ class KkScramble extends StatefulWidget {
 }
 
 class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, value: 1)
-    ..addListener(_onTick);
+  late final AnimationController _controller = AnimationController(vsync: this, value: 1)..addListener(_onTick);
   int _step = -1;
   int _generation = 0;
+  int _seed = 0;
   bool _started = false;
 
   void _onTick() {
@@ -116,6 +132,7 @@ class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateM
       return;
     }
     _generation++;
+    _seed = _seedFor(widget.text, _generation, KkStagger.of(context));
     _controller.duration = KeikaiTheme.of(context).motion.scaled(widget.duration);
     _controller.forward(from: 0);
   }
@@ -146,13 +163,7 @@ class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateM
     final double p = _controller.value;
     final String shown = p >= 1
         ? widget.text
-        : kkScrambleText(
-            widget.text,
-            p,
-            step: (p * widget.steps).floor(),
-            seed: _generation * 31 + widget.text.length,
-            letters: widget.letters,
-          );
+        : kkScrambleText(widget.text, p, step: (p * widget.steps).floor(), seed: _seed, letters: widget.letters);
     return Text(
       shown,
       style: widget.style,
