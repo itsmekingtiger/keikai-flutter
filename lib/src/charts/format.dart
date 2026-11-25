@@ -11,8 +11,8 @@ import 'scale.dart';
 /// A negative value keeps its sign in front of the padding; [plus] adds a
 /// `+` to positive values. NaN and infinity print as dashes of the same width.
 String kkFixed(num value, {int digits = 1, int decimals = 0, bool plus = false}) {
-  final int d = math.max(1, digits);
-  final int f = math.max(0, decimals);
+  final int d = digits.clamp(1, 40);
+  final int f = decimals.clamp(0, 20);
   if (value is double && !value.isFinite) {
     return f > 0 ? '${'-' * d}.${'-' * f}' : '-' * d;
   }
@@ -23,6 +23,14 @@ String kkFixed(num value, {int digits = 1, int decimals = 0, bool plus = false})
   final bool zero = !body.contains(RegExp('[1-9]'));
   final String sign = zero ? '' : (value < 0 ? '-' : (plus ? '+' : ''));
   return '$sign$padded';
+}
+
+/// A number as plainly as it can be written: whole values without decimals,
+/// others with [decimals] of them, and `--` for NaN and infinity.
+String kkPlain(double value, {int decimals = 1}) {
+  if (!value.isFinite) return '--';
+  if (value == value.roundToDouble() && value.abs() < 1e15) return value.round().toString();
+  return value.toStringAsFixed(decimals.clamp(0, 20));
 }
 
 /// Seconds since the Unix epoch for [time], which may be a [DateTime] or a

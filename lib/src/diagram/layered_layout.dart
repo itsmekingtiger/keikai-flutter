@@ -581,7 +581,22 @@ class _Layered {
           }
         }
       }
-      for (int i = 0; i < layer.length; i++) {
+      // The rest, vertices with a live wire first so the live line is the
+      // one that stays straight.
+      double liveliest(int id) {
+        double g = 0;
+        for (final double gain in v[id].upGain) {
+          g = math.max(g, gain);
+        }
+        return g;
+      }
+
+      final List<int> turn = List<int>.generate(layer.length, (int i) => i)
+        ..sort((int a, int b) {
+          final int c = liveliest(layer[b]).compareTo(liveliest(layer[a]));
+          return c != 0 ? c : a.compareTo(b);
+        });
+      for (final int i in turn) {
         final int id = layer[i];
         final _V vertex = v[id];
         if (up[id] >= 0 || vertex.up.isEmpty) continue;

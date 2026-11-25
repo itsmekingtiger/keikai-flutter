@@ -50,7 +50,9 @@ void main() {
       expect(tester.getSize(find.byType(KkProgress)).width, 160);
       final Finder bar = find.descendant(of: find.byType(KkProgress), matching: find.byType(CustomPaint));
       expect(tester.getSize(bar), const Size(160, 6));
-      final Rect head = tester.getRect(find.descendant(of: find.byType(KkProgress), matching: find.byType(KkRow)).first);
+      final Rect head = tester.getRect(
+        find.descendant(of: find.byType(KkProgress), matching: find.byType(KkRow)).first,
+      );
       expect(tester.getRect(bar).top - head.bottom, 6);
       expect(find.text('042'), findsOneWidget);
       expect(find.text('%'), findsOneWidget);
@@ -302,7 +304,13 @@ void main() {
             shrinkWrap: true,
             gap: 10,
             children: <Widget>[
-              KkSkeleton(key: ValueKey<String>('lines'), widths: <double>[1, 0.5, 0, 7], lines: 5, lineHeight: 8, gap: 4),
+              KkSkeleton(
+                key: ValueKey<String>('lines'),
+                widths: <double>[1, 0.5, 0, 7],
+                lines: 5,
+                lineHeight: 8,
+                gap: 4,
+              ),
               KkSkeleton.block(key: ValueKey<String>('block'), height: 96),
             ],
           ),
@@ -390,7 +398,11 @@ void main() {
       int presses = 0;
       await pumpKk(
         tester,
-        KkEmpty(cjk: '照会中', en: 'querying', action: KkButton(label: 'cancel', onPressed: () => presses++)),
+        KkEmpty(
+          cjk: '照会中',
+          en: 'querying',
+          action: KkButton(label: 'cancel', onPressed: () => presses++),
+        ),
       );
       await tester.tap(find.text('CANCEL'));
       expect(presses, 1);

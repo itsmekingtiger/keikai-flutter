@@ -94,6 +94,94 @@ void main() {
       expect(rectOf(tester, 'box').size, const Size(48, 28));
     });
 
+    testWidgets('shrinkWrap makes an aligned box hug its child', (WidgetTester tester) async {
+      // A tag: fixed height, content width, child centred.
+      await pumpRaw(
+        tester,
+        KkBox(
+          key: const ValueKey<String>('box'),
+          height: 22,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: Alignment.center,
+          shrinkWrap: true,
+          child: box('c', 40, 10),
+        ),
+      );
+      expect(rectOf(tester, 'box').size, const Size(56, 22));
+      expect(rectOf(tester, 'c'), const Rect.fromLTWH(8, 6, 40, 10));
+      // A minimum width larger than the child: the alignment places it.
+      await pumpRaw(
+        tester,
+        KkBox(
+          key: const ValueKey<String>('box'),
+          minWidth: 100,
+          alignment: Alignment.centerRight,
+          shrinkWrap: true,
+          child: box('c', 40, 10),
+        ),
+      );
+      expect(rectOf(tester, 'box').size, const Size(100, 10));
+      expect(rectOf(tester, 'c').left, 60);
+      // Without a child it is as small as its insets allow.
+      await pumpRaw(
+        tester,
+        const KkBox(key: ValueKey<String>('box'), alignment: Alignment.center, shrinkWrap: true, padding: EdgeInsets.all(3)),
+      );
+      expect(rectOf(tester, 'box').size, const Size(6, 6));
+      // Tight constraints still win.
+      await pumpRaw(
+        tester,
+        SizedBox(
+          width: 200,
+          height: 50,
+          child: KkBox(
+            key: const ValueKey<String>('box'),
+            alignment: Alignment.center,
+            shrinkWrap: true,
+            child: box('c', 40, 10),
+          ),
+        ),
+      );
+      expect(rectOf(tester, 'box').size, const Size(200, 50));
+      expect(rectOf(tester, 'c'), const Rect.fromLTWH(80, 20, 40, 10));
+      final RenderKkBox r = tester.renderObject<RenderKkBox>(byId('box'));
+      expect(r.shrinkWrap, isTrue);
+      expect(r.getDryLayout(r.constraints), r.size);
+      // Without an alignment the flag changes nothing.
+      await pumpRaw(tester, KkBox(key: const ValueKey<String>('box'), shrinkWrap: true, child: box('c', 40, 10)));
+      expect(rectOf(tester, 'box').size, const Size(40, 10));
+    });
+
+    testWidgets('aligned boxes in a wrap: filling ones take a run each, hugging ones share it', (
+      WidgetTester tester,
+    ) async {
+      Widget chip(String id, {required bool shrinkWrap}) => KkBox(
+        key: ValueKey<String>(id),
+        height: 20,
+        alignment: Alignment.center,
+        shrinkWrap: shrinkWrap,
+        child: const SizedBox(width: 30, height: 10),
+      );
+      await pumpRaw(
+        tester,
+        SizedBox(
+          width: 100,
+          child: KkWrap(gap: 4, children: <Widget>[chip('a', shrinkWrap: false), chip('b', shrinkWrap: false)]),
+        ),
+      );
+      expect(rectOf(tester, 'a').width, 100);
+      expect(rectOf(tester, 'b').top, 24);
+      await pumpRaw(
+        tester,
+        SizedBox(
+          width: 100,
+          child: KkWrap(gap: 4, children: <Widget>[chip('a', shrinkWrap: true), chip('b', shrinkWrap: true)]),
+        ),
+      );
+      expect(rectOf(tester, 'a').width, 30);
+      expect(rectOf(tester, 'b').topLeft, const Offset(34, 0));
+    });
+
     testWidgets('min and max sizes', (WidgetTester tester) async {
       await pumpRaw(
         tester,

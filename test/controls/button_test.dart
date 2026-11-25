@@ -187,7 +187,11 @@ void main() {
     });
 
     testWidgets('a real mouse pointer hovers and leaves', (WidgetTester tester) async {
-      await pumpKk(tester, KkButton(label: 'x', onPressed: () {}), padding: const EdgeInsets.all(20));
+      await pumpKk(
+        tester,
+        KkButton(label: 'x', onPressed: () {}),
+        padding: const EdgeInsets.all(20),
+      );
       expect(surfaceOf(tester, find.byType(KkButton)).fill, c.bg100);
       final TestGesture mouse = await hoverOn(tester, find.byType(KkButton));
       expect(surfaceOf(tester, find.byType(KkButton)).fill, c.bg300);
@@ -197,7 +201,11 @@ void main() {
     });
 
     testWidgets('pressing shifts the button down 1px', (WidgetTester tester) async {
-      await pumpKk(tester, KkButton(label: 'ack', onPressed: () {}), padding: const EdgeInsets.all(20));
+      await pumpKk(
+        tester,
+        KkButton(label: 'ack', onPressed: () {}),
+        padding: const EdgeInsets.all(20),
+      );
       final double rest = tester.getTopLeft(find.byType(KkSurface)).dy;
       final TestGesture press = await tester.startGesture(tester.getCenter(find.byType(KkButton)));
       await tester.pump(const Duration(milliseconds: 200));
@@ -209,7 +217,11 @@ void main() {
     });
 
     testWidgets('the alert theme turns the signal red', (WidgetTester tester) async {
-      await pumpKk(tester, KkButton(label: 'ack', onPressed: () {}), condition: KkCondition.alert);
+      await pumpKk(
+        tester,
+        KkButton(label: 'ack', onPressed: () {}),
+        condition: KkCondition.alert,
+      );
       expect(surfaceOf(tester, find.byType(KkButton)).edge, KkColors.alertTheme.signal);
       expect(surfaceOf(tester, find.byType(KkButton)).fill, KkColors.alertTheme.bg100);
     });
@@ -283,7 +295,12 @@ void main() {
         KkBox(
           width: 10,
           height: 6,
-          child: KkButton(label: 'acknowledge', icon: KkIcons.check, trailingIcon: KkIcons.chevronRight, onPressed: () {}),
+          child: KkButton(
+            label: 'acknowledge',
+            icon: KkIcons.check,
+            trailingIcon: KkIcons.chevronRight,
+            onPressed: () {},
+          ),
         ),
       );
       expect(tester.takeException(), isNull);
@@ -311,11 +328,7 @@ void main() {
     testWidgets('a child replaces the text and inherits the ink', (WidgetTester tester) async {
       await pumpKk(
         tester,
-        KkButton(
-          variant: KkButtonVariant.primary,
-          onPressed: () {},
-          child: const KkText('T-00:42'),
-        ),
+        KkButton(variant: KkButtonVariant.primary, onPressed: () {}, child: const KkText('T-00:42')),
       );
       final RenderParagraph text = tester.renderObject<RenderParagraph>(find.text('T-00:42'));
       expect(text.text.style!.color, c.onFill);
@@ -452,6 +465,33 @@ void main() {
       expect(<Color?>[p.edge, p.fill, ink], <Color>[c.offline, c.bg100, c.inkFaint]);
     });
 
+    testWidgets('disabled filled, tonal and toggled buttons are empty frames, not lit blocks', (
+      WidgetTester tester,
+    ) async {
+      CustomPaint frame() => tester.widget<CustomPaint>(
+        find.descendant(of: find.byType(KkPlate), matching: find.byType(CustomPaint)).first,
+      );
+
+      for (final (KkIconButtonVariant variant, bool? toggled) in <(KkIconButtonVariant, bool?)>[
+        (KkIconButtonVariant.filled, null),
+        (KkIconButtonVariant.tonal, null),
+        (KkIconButtonVariant.plain, true),
+        (KkIconButtonVariant.filled, true),
+      ]) {
+        await pumpKk(tester, KkIconButton(icon: KkIcons.settings, variant: variant, toggled: toggled));
+        final RenderKkSurface p = surfaceOf(tester, find.byType(KkIconButton));
+        expect(p.edge, isNull, reason: '$variant $toggled: no solid edge plate');
+        expect(p.fill!.a, 0, reason: '$variant $toggled');
+        expect(frame().painter, isNotNull, reason: '$variant $toggled: outlined instead');
+        expect(tester.widget<KkIcon>(find.byType(KkIcon)).color, c.inkFaint);
+      }
+
+      // A live filled button is a real plate, with no outline painter.
+      await pumpKk(tester, KkIconButton(icon: KkIcons.settings, variant: KkIconButtonVariant.filled, onPressed: () {}));
+      expect(surfaceOf(tester, find.byType(KkIconButton)).edge, c.signal);
+      expect(frame().painter, isNull);
+    });
+
     testWidgets('the badge is pinned 5px above and 7px outside the top-right corner', (WidgetTester tester) async {
       await pumpKk(
         tester,
@@ -546,7 +586,12 @@ void main() {
           children: <Widget>[
             KkFab(key: const ValueKey<String>('md'), icon: KkIcons.plus, onPressed: () => presses++),
             KkFab(key: const ValueKey<String>('sm'), icon: KkIcons.plus, size: KkFabSize.sm, onPressed: () {}),
-            KkFab.extended(key: const ValueKey<String>('ext'), label: 'new report', icon: KkIcons.plus, onPressed: () {}),
+            KkFab.extended(
+              key: const ValueKey<String>('ext'),
+              label: 'new report',
+              icon: KkIcons.plus,
+              onPressed: () {},
+            ),
           ],
         ),
       );

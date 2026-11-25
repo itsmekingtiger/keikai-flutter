@@ -294,6 +294,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('takes a sensible width where none is given', (WidgetTester tester) async {
+    await pumpKk(
+      tester,
+      KkScroll(
+        axis: Axis.horizontal,
+        child: KkDataLog(entries: <KkLogEntry>[_entry(1), _entry(2)]),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    // 96 + 60 + 92 columns, five 12px gaps and paddings, two borders, 280 for the message.
+    expect(tester.getSize(find.byType(KkDataLog)).width, 590);
+    await pumpKk(
+      tester,
+      KkRow(
+        cross: KkCrossAlign.start,
+        children: <Widget>[
+          KkDataLog(entries: <KkLogEntry>[_entry(1)], timeWidth: 0, sourceWidth: 0, levelWidth: 0),
+        ],
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(tester.getSize(find.byType(KkDataLog)).width, 342);
+  });
+
   test('entries with the same content are the same entry', () {
     expect(_entry(1), _entry(1));
     expect(_entry(1).hashCode, _entry(1).hashCode);

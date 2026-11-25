@@ -97,6 +97,10 @@ class KkSkeleton extends StatelessWidget {
     );
     final String? label = semanticLabel;
     if (label == null) return ExcludeSemantics(child: body);
-    return Semantics(container: true, label: label, child: ExcludeSemantics(child: body));
+    return Semantics(
+      container: true,
+      label: label,
+      child: ExcludeSemantics(child: body),
+    );
   }
 }

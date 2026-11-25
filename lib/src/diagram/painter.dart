@@ -374,7 +374,9 @@ class KkDiagramPainter {
     if (box == null || !metrics.showText) return;
     final bool beside = box.left >= place.shape.right - 0.5;
     final bool focus = node.id == focused;
-    if (_ground.a > 0) canvas.drawRect(box.inflate(1), Paint()..color = _ground);
+    if (_ground.a > 0 && geometry.coveredTexts.contains(node.id)) {
+      canvas.drawRect(box.inflate(1), Paint()..color = _ground);
+    }
     final double k = 1 / type.scale;
     TextStyle code = type.mono(metrics.codePx * k, weight: FontWeight.w600, color: focus ? colors.focus : colors.ink);
     if (focus) {
@@ -453,9 +455,13 @@ class KkDiagramPainter {
   }
 
   /// Draws the selection: a focus-coloured ring round the selected symbol
-  /// and, unless [info] is empty, a plate with a leader line carrying the
-  /// node's code and the [info] lines.
-  void paintSelection(Canvas canvas, {double scale = 1, List<String>? info, bool plate = true}) {
+  /// and, when [plate] is true, a plate with a leader line carrying the
+  /// node's code and the [info] lines (by default the node's own, or
+  /// [defaultInfo]).
+  ///
+  /// [view] is the part of the canvas that can be seen; the plate is put on
+  /// the side of the node where it stays inside it and covers the least.
+  void paintSelection(Canvas canvas, {double scale = 1, List<String>? info, bool plate = true, Rect? view}) {
     final String? id = selected;
     if (id == null) return;
     final KkDiagramNode? node = _diagram.nodeById(id);
@@ -464,7 +470,7 @@ class KkDiagramPainter {
     canvas.save();
     canvas.translate(origin.dx, origin.dy);
     canvas.drawPath(
-      kkNodePath(node.kind, place.shape.inflate(5)),
+      kkNodePath(node.kind, place.shape.inflate(4)),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2 / scale
@@ -491,43 +497,68 @@ class KkDiagramPainter {
         (width + pad * 2).ceilToDouble(),
         pad * 2 + painters.first.height + (painters.length - 1) * (10 * metrics.textScale + lead),
       );
-      // Up and to the right by default; another corner when that one would
-      // leave the view or cover more of the other nodes.
+      // Up and to the right by default; another side when that one would
+      // leave the view or cover more of the diagram.
       final Rect shape = place.shape;
-      final Rect view = Rect.fromLTRB(
-        -origin.dx + 2,
-        -origin.dy + 2,
-        geometry.size.width + origin.dx - 2,
-        geometry.size.height + origin.dy - 2,
-      );
+      final Rect seen =
+          (view?.shift(-origin) ??
+                  Rect.fromLTRB(
+                    -origin.dx,
+                    -origin.dy,
+                    geometry.size.width + origin.dx,
+                    geometry.size.height + origin.dy,
+                  ))
+              .deflate(2);
       final double below = place.text != null && place.text!.top >= shape.bottom ? place.text!.height + metrics.textGap : 0;
       bool right = true;
-      bool up = true;
+      int rise = 1; // 1 above, 0 level, -1 below
       Rect box = Rect.zero;
       double least = double.infinity;
-      for (final (bool r, bool u) in const <(bool, bool)>[(true, true), (false, true), (true, false), (false, false)]) {
-        final Rect candidate =
-            Offset(r ? shape.right + 16 : shape.left - 16 - size.width, u ? shape.top - 12 - size.height : shape.bottom + 12 + below) &
-            size;
-        final Rect inside = candidate.intersect(view);
+      const List<(bool, int)> sides = <(bool, int)>[(true, 1), (true, 0), (false, 1), (false, 0), (true, -1), (false, -1)];
+      for (int s = 0; s < sides.length; s++) {
+        final (bool r, int v) = sides[s];
+        final double top = switch (v) {
+          1 => shape.top - 12 - size.height,
+          0 => shape.center.dy - size.height / 2,
+          _ => shape.bottom + 12 + below,
+        };
+        final Rect candidate = Offset(r ? shape.right + 16 : shape.left - 16 - size.width, top.roundToDouble()) & size;
+        final Rect inside = candidate.intersect(seen);
         double cost = candidate.width * candidate.height - math.max(0, inside.width) * math.max(0, inside.height);
-        cost *= 10;
+        cost = cost * 20 + s;
         for (final MapEntry<String, KkNodePlacement> other in geometry.nodes.entries) {
           if (other.key == id) continue;
           final Rect hit = candidate.intersect(other.value.bounds);
-          if (hit.width > 0 && hit.height > 0) cost += hit.width * hit.height;
+          if (hit.width > 0 && hit.height > 0) cost += hit.width * hit.height * 4;
         }
-        if (cost < least - 0.5) {
+        for (int e = 0; e < geometry.routes.length; e++) {
+          final List<Offset> pts = geometry.routes[e].points;
+          for (int k = 1; k < pts.length; k++) {
+            final Rect leg = Rect.fromPoints(pts[k - 1], pts[k]).inflate(1);
+            if (leg.overlaps(candidate)) cost += 120;
+          }
+        }
+        if (cost < least) {
           least = cost;
           right = r;
-          up = u;
+          rise = v;
           box = candidate;
         }
       }
-      final Offset from = Offset(right ? shape.right : shape.left, up ? shape.top : shape.bottom);
-      final Offset corner = Offset(right ? box.left : box.right, up ? box.bottom : box.top);
-      final double run = math.min((corner.dx - from.dx).abs(), (corner.dy - from.dy).abs());
-      final Offset knee = from + Offset(right ? run : -run, up ? -run : run);
+      final Offset from;
+      final Offset corner;
+      final Offset knee;
+      if (rise == 0) {
+        from = Offset(right ? shape.right : shape.left, shape.center.dy);
+        corner = Offset(right ? box.left : box.right, shape.center.dy);
+        knee = corner;
+      } else {
+        final bool up = rise > 0;
+        from = Offset(right ? shape.right : shape.left, up ? shape.top : shape.bottom);
+        corner = Offset(right ? box.left : box.right, up ? box.bottom : box.top);
+        final double run = math.min((corner.dx - from.dx).abs(), (corner.dy - from.dy).abs());
+        knee = from + Offset(right ? run : -run, up ? -run : run);
+      }
       final Paint line = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1 / scale

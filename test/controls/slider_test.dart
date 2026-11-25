@@ -197,6 +197,16 @@ void main() {
       expect(ringOf(tester, find.byType(KkSlider)).offset, 4);
     });
 
+    testWidgets('two key presses before a rebuild move two steps', (WidgetTester tester) async {
+      final List<double> changes = <double>[];
+      await pumpKk(tester, _slider(initial: 50, autofocus: true, onChanged: changes.add));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(changes, <double>[51, 52]);
+    });
+
     testWidgets('keys move one division at a time', (WidgetTester tester) async {
       final List<double> changes = <double>[];
       await pumpKk(
@@ -226,10 +236,7 @@ void main() {
       int calls = 0;
       await pumpKk(
         tester,
-        KkBox(
-          width: 208,
-          child: KkSlider(value: 40, enabled: false, onChanged: (double v) => calls++),
-        ),
+        KkBox(width: 208, child: KkSlider(value: 40, enabled: false, onChanged: (double v) => calls++)),
       );
       await tester.tapAt(tester.getTopLeft(_track()) + const Offset(150, 11));
       expect(calls, 0);
@@ -262,9 +269,7 @@ void main() {
       expect(track.size, const Size(200, 22));
       expect(marks.size, const Size(200, 12));
       expect(marks.top - track.bottom, 8);
-      final Rect head = tester.getRect(
-        find.descendant(of: find.byType(KkSlider), matching: find.byType(KkRow)).first,
-      );
+      final Rect head = tester.getRect(find.descendant(of: find.byType(KkSlider), matching: find.byType(KkRow)).first);
       expect(track.top - head.bottom, 8);
       expect(find.text('062'), findsOneWidget);
       expect(find.text('%'), findsOneWidget);
@@ -280,10 +285,7 @@ void main() {
     testWidgets('track only: no head, just the 22px row', (WidgetTester tester) async {
       await pumpKk(
         tester,
-        KkRow(
-          shrinkWrap: true,
-          children: <Widget>[KkSlider(value: 20, showValue: false, onChanged: (double v) {})],
-        ),
+        KkRow(shrinkWrap: true, children: <Widget>[KkSlider(value: 20, showValue: false, onChanged: (double v) {})]),
       );
       expect(tester.getSize(find.byType(KkSlider)), const Size(200, 22));
     });

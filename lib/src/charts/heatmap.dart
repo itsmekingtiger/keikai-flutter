@@ -7,6 +7,7 @@ import '../foundation/motion.dart';
 import '../foundation/theme.dart';
 import '../motion/entrances.dart';
 import '../painting/text.dart';
+import 'format.dart';
 import 'plot.dart';
 import 'series.dart';
 
@@ -278,7 +279,7 @@ class _KkHeatmapState extends State<KkHeatmap> {
     }
     final double low = (widget.min != null && widget.min!.isFinite) ? widget.min! : math.min(0, lo);
     final double high = (widget.max != null && widget.max!.isFinite) ? widget.max! : hi;
-    String text(double v) => widget.format?.call(v) ?? (v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1));
+    String text(double v) => !v.isFinite ? '--' : (widget.format?.call(v) ?? kkPlain(v));
 
     final KkCascade cascade = KkCascade(
       count: rows * columns,

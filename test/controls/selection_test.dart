@@ -442,9 +442,7 @@ void main() {
 
     testWidgets('the box is 16 square with an 8px gap to the label', (WidgetTester tester) async {
       await pumpKk(tester, KkCheckbox(value: true, label: 'notify', onChanged: (bool? v) {}));
-      final Rect box = tester.getRect(
-        find.descendant(of: find.byType(KkCheckbox), matching: find.byType(CustomPaint)),
-      );
+      final Rect box = tester.getRect(find.descendant(of: find.byType(KkCheckbox), matching: find.byType(CustomPaint)));
       expect(box.size, const Size(16, 16));
       expect(tester.getRect(find.text('NOTIFY')).left - box.right, 8);
       expect(tester.getSize(find.byType(KkCheckbox)).height, 16);
@@ -558,7 +556,10 @@ void main() {
       );
       final Finder marks = find.descendant(of: find.byType(KkRadioGroup<String>), matching: find.byType(CustomPaint));
       expect(tester.getTopLeft(marks.at(1)).dy, tester.getTopLeft(marks.at(0)).dy);
-      expect(tester.getRect(marks.at(1)).left - tester.getRect(find.text('AUTO')).right, moreOrLessEquals(16, epsilon: 0.01));
+      expect(
+        tester.getRect(marks.at(1)).left - tester.getRect(find.text('AUTO')).right,
+        moreOrLessEquals(16, epsilon: 0.01),
+      );
       expect(tester.getTopLeft(marks.last).dy, greaterThan(tester.getTopLeft(marks.first).dy), reason: 'wraps');
       expect(tester.takeException(), isNull);
     });

@@ -11,6 +11,7 @@ import '../layout/layers.dart';
 import '../motion/loops.dart';
 import '../painting/text.dart';
 import '../widgets/icon.dart';
+import 'format.dart';
 import 'plot.dart';
 
 /// One thing on a radar scope.
@@ -256,7 +257,7 @@ class _KkRadarState extends State<KkRadar> {
           ? 'no contacts'
           : <String>[
               for (final KkRadarContact contact in widget.contacts)
-                '${contact.id} bearing ${contact.bearing.round()} range ${contact.range.round()}'
+                '${contact.id} bearing ${kkPlain(contact.bearing, decimals: 0)} range ${kkPlain(contact.range)}'
                     '${contact.level == null ? '' : ' ${contact.level!.word}'}',
             ].join(', '),
       child: scope,
@@ -340,7 +341,7 @@ class _RadarGroundPainter extends CustomPainter {
       final TextStyle style = theme.type.mono(6, color: c.inkFaint);
       for (int i = 1; i <= count; i++) {
         final double value = range * i / count;
-        final String text = rangeFormat?.call(value) ?? (value == value.roundToDouble() ? value.round().toString() : value.toStringAsFixed(1));
+        final String text = rangeFormat?.call(value) ?? kkPlain(value);
         kkPaintText(canvas, text, style, Offset(2.5, -_Scope.radius * i / count + 2), scaler: scaler);
       }
     }

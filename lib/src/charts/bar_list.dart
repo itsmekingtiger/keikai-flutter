@@ -13,6 +13,7 @@ import '../motion/entrances.dart';
 import '../widgets/icon.dart';
 import '../widgets/pressable.dart';
 import '../widgets/text.dart';
+import 'format.dart';
 import 'plot.dart';
 import 'series.dart';
 
@@ -121,7 +122,7 @@ class KkBarList extends StatelessWidget {
     String text(KkBarListItem item) {
       if (item.display != null) return item.display!;
       if (!item.value.isFinite) return '--';
-      return format?.call(item.value) ?? item.value.round().toString();
+      return format?.call(item.value) ?? kkPlain(item.value);
     }
 
     final Widget list = KkOneShot(

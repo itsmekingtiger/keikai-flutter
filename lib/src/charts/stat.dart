@@ -60,7 +60,7 @@ class KkDelta extends StatelessWidget {
     final bool finite = value.isFinite;
     final String amount = !finite
         ? '--'
-        : (format?.call(value.abs()) ?? '${value.abs().toStringAsFixed(decimals)}$unit');
+        : (format?.call(value.abs()) ?? '${value.abs().toStringAsFixed(decimals.clamp(0, 20))}$unit');
     final KkIconData arrow = !finite || value == 0
         ? KkIcons.minus
         : (value > 0 ? KkIcons.caretUp : KkIcons.caretDown);

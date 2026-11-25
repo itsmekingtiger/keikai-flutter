@@ -15,7 +15,9 @@ import '../painting/shapes.dart';
 /// of content height.
 ///
 /// With an [alignment] the box grows to fill bounded constraints and places
-/// its child inside; without one the child fills the box.
+/// its child inside; without one the child fills the box. Add [shrinkWrap] to
+/// an aligned box to make it hug its child instead (a tag, a badge, a key cap:
+/// fixed height, content width, text centred).
 class KkBox extends SingleChildRenderObjectWidget {
   const KkBox({
     super.key,
@@ -27,6 +29,7 @@ class KkBox extends SingleChildRenderObjectWidget {
     this.maxHeight = double.infinity,
     this.padding = EdgeInsets.zero,
     this.alignment,
+    this.shrinkWrap = false,
     this.fill,
     this.edges,
     this.decoration,
@@ -46,6 +49,11 @@ class KkBox extends SingleChildRenderObjectWidget {
   final double maxHeight;
   final EdgeInsets padding;
   final Alignment? alignment;
+
+  /// With an [alignment]: take only the space the child needs instead of all
+  /// that is available. The alignment then places the child wherever a fixed
+  /// or minimum size makes the box larger than it.
+  final bool shrinkWrap;
 
   /// Flat background colour. Shorthand for a [decoration] with only a fill.
   final Color? fill;
@@ -78,6 +86,7 @@ class KkBox extends SingleChildRenderObjectWidget {
     additional: _additional,
     padding: padding,
     alignment: alignment,
+    shrinkWrap: shrinkWrap,
     decoration: _decoration,
     clip: clip,
     opaque: opaque,
@@ -89,6 +98,7 @@ class KkBox extends SingleChildRenderObjectWidget {
       ..additional = _additional
       ..padding = padding
       ..alignment = alignment
+      ..shrinkWrap = shrinkWrap
       ..decoration = _decoration
       ..clip = clip
       ..opaque = opaque;
@@ -101,12 +111,14 @@ class RenderKkBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
     BoxConstraints additional = const BoxConstraints(),
     EdgeInsets padding = EdgeInsets.zero,
     Alignment? alignment,
+    bool shrinkWrap = false,
     KkDecoration? decoration,
     bool clip = false,
     bool? opaque,
   }) : _additional = additional,
        _padding = padding,
        _alignment = alignment,
+       _shrinkWrap = shrinkWrap,
        _decoration = decoration,
        _clip = clip,
        opaque = opaque;
@@ -132,6 +144,14 @@ class RenderKkBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
   set alignment(Alignment? value) {
     if (value == _alignment) return;
     _alignment = value;
+    markNeedsLayout();
+  }
+
+  bool _shrinkWrap;
+  bool get shrinkWrap => _shrinkWrap;
+  set shrinkWrap(bool value) {
+    if (value == _shrinkWrap) return;
+    _shrinkWrap = value;
     markNeedsLayout();
   }
 
@@ -209,8 +229,10 @@ class RenderKkBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
     final BoxConstraints own = _additional.enforce(constraints);
     final EdgeInsets inset = _inset;
     final RenderBox? c = child;
+    // An aligned box fills bounded space unless it is told to hug its child.
+    final bool fills = _alignment != null && !_shrinkWrap;
     if (c == null) {
-      final Size s = _alignment != null
+      final Size s = fills
           ? own.constrain(
               Size(
                 own.hasBoundedWidth ? own.maxWidth : inset.horizontal,
@@ -223,7 +245,7 @@ class RenderKkBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
     final BoxConstraints inner = own.deflate(inset);
     final BoxConstraints cc = _alignment != null ? inner.loosen() : inner;
     final Size cs = layoutChild(c, cc);
-    final Size s = _alignment != null
+    final Size s = fills
         ? own.constrain(
             Size(
               own.hasBoundedWidth ? own.maxWidth : cs.width + inset.horizontal,

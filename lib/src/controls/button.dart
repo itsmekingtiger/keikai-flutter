@@ -211,8 +211,7 @@ class KkButton extends StatelessWidget {
                   ),
                 )
               else ...<Widget>[
-                if (cjkWord != null && cjkWord.isNotEmpty)
-                  KkText.cjk(cjkWord, size: cjkType, color: ink, squeeze: 0.8),
+                if (cjkWord != null && cjkWord.isNotEmpty) KkText.cjk(cjkWord, size: cjkType, color: ink, squeeze: 0.8),
                 if (text != null && text.isNotEmpty)
                   KkFlexible(
                     child: KkText.en(text, size: type, spacing: 0.08, color: ink, overflow: TextOverflow.ellipsis),
@@ -245,7 +244,7 @@ class KkButton extends StatelessWidget {
             visible: s.focused,
             offset: 2,
             width: m.stroke2,
-            child: KkSurface(
+            child: KkPlate(
               shape: KkShape.plate(m.chamferMd),
               edge: look.edge,
               fill: look.fill,

@@ -374,6 +374,25 @@ class KkDiagramGeometry {
     return clip(-dx, a.dx - r.left) && clip(dx, r.right - a.dx) && clip(-dy, a.dy - r.top) && clip(dy, r.bottom - a.dy) && t0 <= t1;
   }
 
+  /// The ids of the nodes whose text has a wire running under it. The painter
+  /// gives those a backing so the wire does not strike through the letters.
+  late final Set<String> coveredTexts = <String>{
+    for (final MapEntry<String, KkNodePlacement> e in nodes.entries)
+      if (e.value.text case final Rect text)
+        if (wireCrosses(text.inflate(1))) e.key,
+  };
+
+  /// Whether any wire passes through [rect].
+  bool wireCrosses(Rect rect) {
+    for (final KkEdgeRoute route in routes) {
+      final List<Offset> pts = route.points;
+      for (int k = 1; k < pts.length; k++) {
+        if (_segmentHitsRect(pts[k - 1], pts[k], rect)) return true;
+      }
+    }
+    return false;
+  }
+
   /// The id of the node whose symbol or text is under [point], topmost first,
   /// or null.
   String? nodeAt(Offset point) {

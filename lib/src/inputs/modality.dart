@@ -9,15 +9,20 @@ import 'package:flutter/services.dart';
 /// `:focus-visible` does. The framework's own highlight mode cannot be used
 /// for this: it treats the mouse as "traditional" input, the same as keys.
 abstract final class KkInputModality {
-  static bool _installed = false;
+  static bool _routed = false;
   static int _sequence = 0;
   static int _lastKey = 0;
   static int _lastPointer = 0;
 
   static void _ensure() {
-    if (_installed) return;
-    _installed = true;
-    HardwareKeyboard.instance.addHandler(_onKey);
+    // The keyboard drops its handlers when its state is cleared (the test
+    // binding does that between tests), so the handler is put back each time
+    // rather than installed once.
+    HardwareKeyboard.instance
+      ..removeHandler(_onKey)
+      ..addHandler(_onKey);
+    if (_routed) return;
+    _routed = true;
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
   }
 

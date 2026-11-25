@@ -430,11 +430,11 @@ class _Grammar extends StatelessWidget {
               child: KkWidgetFrame(
                 cjk: '記号と状態',
                 en: 'five symbols · five levels',
-                meta: 'ONE SELECTED',
+                meta: 'HUB · OFFLINE SELECTED',
                 child: KkDiagramView(
                   diagram: _symbolGrid(),
                   layout: const KkManualLayout(size: Size(520, 360), normalised: false),
-                  selected: 'hub2',
+                  selected: 'hub4',
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.all(24),
                 ),

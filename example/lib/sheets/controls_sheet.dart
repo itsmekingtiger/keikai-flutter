@@ -132,13 +132,7 @@ class _TagSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const List<KkLevel?> levels = <KkLevel?>[
-      KkLevel.nominal,
-      KkLevel.caution,
-      KkLevel.critical,
-      KkLevel.offline,
-      null,
-    ];
+    const List<KkLevel?> levels = <KkLevel?>[KkLevel.nominal, KkLevel.caution, KkLevel.critical, KkLevel.offline, null];
     return SheetSection(
       code: 'C-01',
       cjk: '標識',
@@ -175,20 +169,23 @@ class _TagSection extends StatelessWidget {
                   variant: KkStatusTagVariant.solid,
                 ),
               ),
-              SheetItem(caption: 'NO LEVEL', child: KkStatusTag('standby', cjk: '待機')),
+              SheetItem(
+                caption: 'NO LEVEL',
+                child: KkStatusTag('standby', cjk: '待機'),
+              ),
               SheetItem(
                 caption: 'NO LEVEL · SOLID',
                 child: KkStatusTag('sec-04', variant: KkStatusTagVariant.solid),
               ),
-              SheetItem(caption: 'ICON', child: KkStatusTag('live', icon: KkIcons.pulse)),
+              SheetItem(
+                caption: 'ICON',
+                child: KkStatusTag('live', icon: KkIcons.pulse),
+              ),
               SheetItem(
                 caption: 'NO GLYPH',
                 child: KkStatusTag('caution', level: KkLevel.caution, glyph: false),
               ),
-              SheetItem(
-                caption: 'WORD ONLY',
-                child: KkStatusTag.status(KkLevel.offline, showCjk: false),
-              ),
+              SheetItem(caption: 'WORD ONLY', child: KkStatusTag.status(KkLevel.offline, showCjk: false)),
               SheetItem(caption: 'KBD', child: KkKbd('F5')),
               SheetItem(caption: 'KBD', child: KkKbd('ESC')),
               SheetItem(caption: 'KBD', child: KkKbd('CTRL+K')),
@@ -217,13 +214,7 @@ class _ButtonSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     KkButton button(KkButtonVariant variant, String label, String cjk, {bool live = true, bool loading = false}) {
-      return KkButton(
-        label: label,
-        cjk: cjk,
-        variant: variant,
-        loading: loading,
-        onPressed: live ? _noop : null,
-      );
+      return KkButton(label: label, cjk: cjk, variant: variant, loading: loading, onPressed: live ? _noop : null);
     }
 
     return SheetSection(
@@ -465,25 +456,34 @@ class _BadgeFabSection extends StatelessWidget {
               SheetItem(caption: 'COUNT', child: KkBadge(count: 3)),
               SheetItem(caption: 'COUNT', child: KkBadge(count: 12)),
               SheetItem(caption: 'OVER MAX', child: KkBadge(count: 128)),
-              SheetItem(caption: 'LABEL', child: KkBadge(label: 'NEW')),
-              SheetItem(caption: 'CAUTION', child: KkBadge(count: 4, level: KkLevel.caution)),
-              SheetItem(caption: 'NOMINAL', child: KkBadge(count: 0, level: KkLevel.nominal)),
-              SheetItem(caption: 'OFFLINE', child: KkBadge(count: 2, level: KkLevel.offline)),
+              SheetItem(
+                caption: 'LABEL',
+                child: KkBadge(label: 'NEW'),
+              ),
+              SheetItem(
+                caption: 'CAUTION',
+                child: KkBadge(count: 4, level: KkLevel.caution),
+              ),
+              SheetItem(
+                caption: 'NOMINAL',
+                child: KkBadge(count: 0, level: KkLevel.nominal),
+              ),
+              SheetItem(
+                caption: 'OFFLINE',
+                child: KkBadge(count: 2, level: KkLevel.offline),
+              ),
               SheetItem(caption: 'DOT', child: KkBadge.dot()),
-              SheetItem(caption: 'DOT · CAUTION', child: KkBadge.dot(level: KkLevel.caution)),
+              SheetItem(
+                caption: 'DOT · CAUTION',
+                child: KkBadge.dot(level: KkLevel.caution),
+              ),
               SheetItem(
                 caption: 'ANCHOR',
-                child: KkBadgeAnchor(
-                  badge: KkBadge(count: 5),
-                  child: KkStatusTag('ch.12'),
-                ),
+                child: KkBadgeAnchor(badge: KkBadge(count: 5), child: KkStatusTag('ch.12')),
               ),
               SheetItem(
                 caption: 'ANCHOR · DOT',
-                child: KkBadgeAnchor(
-                  badge: KkBadge.dot(),
-                  child: KkIcon(KkIcons.bell, size: 16),
-                ),
+                child: KkBadgeAnchor(badge: KkBadge.dot(), child: KkIcon(KkIcons.bell, size: 16)),
               ),
             ],
           ),
@@ -678,12 +678,18 @@ class _SegmentedChipSection extends StatelessWidget {
                 caption: 'INPUT · CJK',
                 child: KkChip.input(label: 'coolant', cjk: '冷却', onRemove: _noop),
               ),
-              const SheetItem(caption: 'DISABLED', child: KkChip(label: 'add note', icon: KkIcons.plus)),
+              const SheetItem(
+                caption: 'DISABLED',
+                child: KkChip(label: 'add note', icon: KkIcons.plus),
+              ),
               const SheetItem(
                 caption: 'DISABLED · ON',
                 child: KkChip.filter(label: 'critical', selected: true),
               ),
-              const SheetItem(caption: 'DISABLED · INPUT', child: KkChip.input(label: 'op-07')),
+              const SheetItem(
+                caption: 'DISABLED · INPUT',
+                child: KkChip.input(label: 'op-07'),
+              ),
             ],
           ),
         ],
@@ -750,8 +756,14 @@ class _SelectionSection extends StatelessWidget {
                 caption: 'ERROR',
                 child: KkCheckbox(value: false, error: true, label: 'confirm purge', onChanged: _noopTristate),
               ),
-              const SheetItem(caption: 'DISABLED', child: KkCheckbox(value: false, label: 'interlock')),
-              const SheetItem(caption: 'DISABLED · CHECKED', child: KkCheckbox(value: true, label: 'interlock')),
+              const SheetItem(
+                caption: 'DISABLED',
+                child: KkCheckbox(value: false, label: 'interlock'),
+              ),
+              const SheetItem(
+                caption: 'DISABLED · CHECKED',
+                child: KkCheckbox(value: true, label: 'interlock'),
+              ),
               const SheetItem(
                 caption: 'DISABLED · MIXED',
                 child: KkCheckbox(value: null, tristate: true, label: 'interlock'),
@@ -839,10 +851,22 @@ class _SelectionSection extends StatelessWidget {
               ),
               const SheetItem(
                 caption: 'CUSTOM WORDS',
-                child: KkSwitch(value: true, offLabel: 'SAFE', onLabel: 'ARMED', label: 'interlock', onChanged: _noopBool),
+                child: KkSwitch(
+                  value: true,
+                  offLabel: 'SAFE',
+                  onLabel: 'ARMED',
+                  label: 'interlock',
+                  onChanged: _noopBool,
+                ),
               ),
-              const SheetItem(caption: 'DISABLED · OFF', child: KkSwitch(value: false, label: 'bus b')),
-              const SheetItem(caption: 'DISABLED · ON', child: KkSwitch(value: true, label: 'bus b')),
+              const SheetItem(
+                caption: 'DISABLED · OFF',
+                child: KkSwitch(value: false, label: 'bus b'),
+              ),
+              const SheetItem(
+                caption: 'DISABLED · ON',
+                child: KkSwitch(value: true, label: 'bus b'),
+              ),
               const SheetItem(
                 caption: 'BARE',
                 child: KkSwitch(value: false, onChanged: _noopBool, semanticLabel: 'Enable channel'),
@@ -986,14 +1010,30 @@ class _ProgressSection extends StatelessWidget {
                 child: KkProgress.indeterminate(cjk: '接続', en: 'handshake'),
               ),
               SheetItem(caption: 'BAR ONLY', width: 240, child: KkProgress(value: 0.3, showValue: false)),
-              SheetItem(caption: 'ZERO', width: 240, child: KkProgress(value: 0, en: 'queue')),
+              SheetItem(
+                caption: 'ZERO',
+                width: 240,
+                child: KkProgress(value: 0, en: 'queue'),
+              ),
               SheetItem(caption: 'RING · 25', child: KkRing(value: 0.25)),
-              SheetItem(caption: 'CAUTION · 62', child: KkRing(value: 0.62, level: KkLevel.caution)),
-              SheetItem(caption: 'CRITICAL · 90', child: KkRing(value: 0.9, level: KkLevel.critical)),
-              SheetItem(caption: 'NOMINAL · FULL', child: KkRing(value: 1, level: KkLevel.nominal)),
+              SheetItem(
+                caption: 'CAUTION · 62',
+                child: KkRing(value: 0.62, level: KkLevel.caution),
+              ),
+              SheetItem(
+                caption: 'CRITICAL · 90',
+                child: KkRing(value: 0.9, level: KkLevel.critical),
+              ),
+              SheetItem(
+                caption: 'NOMINAL · FULL',
+                child: KkRing(value: 1, level: KkLevel.nominal),
+              ),
               SheetItem(caption: 'INDETERMINATE', child: KkRing.indeterminate()),
               SheetItem(caption: '32', child: KkRing(value: 0.5, size: 32, showValue: false)),
-              SheetItem(caption: '64 · LABEL', child: KkRing(value: 0.7, size: 64, strokeWidth: 6, label: 'T-12')),
+              SheetItem(
+                caption: '64 · LABEL',
+                child: KkRing(value: 0.7, size: 64, strokeWidth: 6, label: 'T-12'),
+              ),
             ],
           ),
         ],
@@ -1058,10 +1098,10 @@ class _EmptySection extends StatelessWidget {
         children: <Widget>[
           SheetItem(
             caption: 'SKELETON · LINES',
-            width: 240,
+            width: 200,
             child: KkSkeleton(widths: <double>[1, 0.8, 0.55]),
           ),
-          SheetItem(caption: 'SKELETON · BLOCK 96', width: 240, child: KkSkeleton.block(height: 96)),
+          SheetItem(caption: 'SKELETON · BLOCK 96', width: 200, child: KkSkeleton.block(height: 96)),
           SheetItem(
             caption: 'EMPTY',
             width: 280,

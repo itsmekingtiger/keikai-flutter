@@ -114,8 +114,10 @@ class KkNavDrawer<T> extends StatelessWidget {
 
     final Widget content = KkBox(
       padding: EdgeInsets.symmetric(horizontal: m.space2, vertical: m.space3),
-      // `between` keeps the foot on the bottom edge whenever there is room.
+      // As tall as its content unless it is stretched; `between` then keeps
+      // the foot on the bottom edge.
       child: KkColumn(
+        shrinkWrap: true,
         main: KkMainAlign.between,
         gap: m.space4,
         children: <Widget>[
@@ -157,8 +159,9 @@ class KkNavDrawer<T> extends StatelessWidget {
         child: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             if (!constraints.hasBoundedHeight) return content;
+            // Fills a height it is stretched to, and scrolls past a limit.
             return KkScroll(
-              child: KkBox(minHeight: constraints.maxHeight, child: content),
+              child: KkBox(minHeight: constraints.minHeight, child: content),
             );
           },
         ),

@@ -28,9 +28,7 @@ RenderKkSurface surfaceOf(WidgetTester tester, Finder owner) {
 
 /// The focus ring of the control found by [owner].
 RenderKkFocusRing ringOf(WidgetTester tester, Finder owner) {
-  return tester.renderObject<RenderKkFocusRing>(
-    find.descendant(of: owner, matching: find.byType(KkFocusRing)).first,
-  );
+  return tester.renderObject<RenderKkFocusRing>(find.descendant(of: owner, matching: find.byType(KkFocusRing)).first);
 }
 
 /// Holds one value for a controlled widget under test.

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -109,6 +110,7 @@ class KkSlider extends StatefulWidget {
   /// [value] clamped to [min] … [max] and, with [divisions], snapped to the
   /// nearest step.
   static double snap(double value, {double min = 0, double max = 100, int? divisions}) {
+    if (!(max > min)) return min;
     final double v = value.isNaN ? min : value.clamp(min, max);
     if (divisions == null || divisions <= 0) return v;
     final double step = (max - min) / divisions;
@@ -117,14 +119,7 @@ class KkSlider extends StatefulWidget {
 
   /// The value under a pointer at [dx] on a track [width] wide with a thumb
   /// [thumb] wide. The thumb's centre follows the pointer.
-  static double valueAt(
-    double dx,
-    double width, {
-    double min = 0,
-    double max = 100,
-    int? divisions,
-    double thumb = 8,
-  }) {
+  static double valueAt(double dx, double width, {double min = 0, double max = 100, int? divisions, double thumb = 8}) {
     final double travel = width - thumb;
     final double fraction = travel <= 0 ? 0 : ((dx - thumb / 2) / travel).clamp(0.0, 1.0);
     return snap(min + fraction * (max - min), min: min, max: max, divisions: divisions);
@@ -185,7 +180,10 @@ class _KkSliderState extends State<KkSlider> {
 
   double get _value => KkSlider.snap(widget.value, min: widget.min, max: widget.max, divisions: widget.divisions);
 
-  double get _fraction => (_value - widget.min) / (widget.max - widget.min);
+  double get _fraction {
+    final double range = widget.max - widget.min;
+    return range > 0 ? (_value - widget.min) / range : 0;
+  }
 
   /// One keyboard step: a division, or a hundredth of the range.
   double get _step {
@@ -214,7 +212,9 @@ class _KkSliderState extends State<KkSlider> {
     } else if (steps == double.negativeInfinity) {
       _emit(widget.min);
     } else {
-      _emit(_value + steps * _step);
+      // Step from the value last sent, so two key presses inside one frame
+      // move two steps.
+      _emit((_sent ?? _value) + steps * _step);
     }
   }
 
@@ -238,6 +238,7 @@ class _KkSliderState extends State<KkSlider> {
 
   void _dragStart(DragStartDetails details) {
     if (!_live) return;
+    _sent = null;
     setState(() => _dragging = true);
     widget.onChangeStart?.call(_value);
     _moveTo(details.localPosition);
@@ -336,34 +337,37 @@ class _KkSliderState extends State<KkSlider> {
         gap: m.space2,
         children: <Widget>[
           if (hasHead)
-            KkRow(
-              gap: m.space2,
-              cross: KkCrossAlign.baseline,
-              clip: Clip.hardEdge,
-              children: <Widget>[
-                if (cjk != null) KkText.cjk(cjk, size: 14, height: 1.55, color: c.ink, squeeze: 0.8),
-                if (en != null)
-                  KkText.en(en, size: 11, weight: FontWeight.w600, height: 1.55, spacing: 0.14, color: c.inkDim),
-                const KkSpacer(),
-                if (widget.showValue)
-                  KkRow(
-                    shrinkWrap: true,
-                    cross: KkCrossAlign.baseline,
-                    gap: 3,
-                    children: <Widget>[
-                      KkText.num(valueText, size: 18, weight: FontWeight.w500, color: c.ink),
-                      if (unit != null && unit.isNotEmpty)
-                        KkText.en(
-                          unit,
-                          size: 11,
-                          weight: FontWeight.w600,
-                          spacing: 0.06,
-                          color: c.inkDim,
-                          upper: false,
-                        ),
-                    ],
-                  ),
-              ],
+            // The slider's own semantics carry the label and the value.
+            ExcludeSemantics(
+              child: KkRow(
+                gap: m.space2,
+                cross: KkCrossAlign.baseline,
+                clip: Clip.hardEdge,
+                children: <Widget>[
+                  if (cjk != null) KkText.cjk(cjk, size: 14, height: 1.55, color: c.ink, squeeze: 0.8),
+                  if (en != null)
+                    KkText.en(en, size: 11, weight: FontWeight.w600, height: 1.55, spacing: 0.14, color: c.inkDim),
+                  const KkSpacer(),
+                  if (widget.showValue)
+                    KkRow(
+                      shrinkWrap: true,
+                      cross: KkCrossAlign.baseline,
+                      gap: 3,
+                      children: <Widget>[
+                        KkText.num(valueText, size: 18, weight: FontWeight.w500, color: c.ink),
+                        if (unit != null && unit.isNotEmpty)
+                          KkText.en(
+                            unit,
+                            size: 11,
+                            weight: FontWeight.w600,
+                            spacing: 0.06,
+                            color: c.inkDim,
+                            upper: false,
+                          ),
+                      ],
+                    ),
+                ],
+              ),
             ),
           // The row makes the slider take the width it is offered.
           KkRow(children: <Widget>[KkExpanded(child: track)]),
@@ -371,12 +375,15 @@ class _KkSliderState extends State<KkSlider> {
             CustomPaint(
               size: const Size(0, 12),
               painter: _MarksPainter(
-                marks: marks,
-                min: widget.min,
-                max: widget.max,
+                positions: <double>[
+                  for (final KkSliderMark mark in marks)
+                    widget.max > widget.min
+                        ? ((mark.value - widget.min) / (widget.max - widget.min)).clamp(0.0, 1.0)
+                        : 0.0,
+                ],
+                labels: <String>[for (final KkSliderMark mark in marks) mark.label ?? _format(mark.value)],
                 style: theme.type.mono(10, color: c.inkFaint),
                 scaler: MediaQuery.textScalerOf(context),
-                format: _format,
               ),
             ),
         ],
@@ -441,47 +448,31 @@ class _SliderPainter extends CustomPainter {
 }
 
 class _MarksPainter extends CustomPainter {
-  const _MarksPainter({
-    required this.marks,
-    required this.min,
-    required this.max,
-    required this.style,
-    required this.scaler,
-    required this.format,
-  });
+  const _MarksPainter({required this.positions, required this.labels, required this.style, required this.scaler});
 
-  final List<KkSliderMark> marks;
-  final double min;
-  final double max;
+  /// Where each mark sits, as a share of the width.
+  final List<double> positions;
+  final List<String> labels;
   final TextStyle style;
   final TextScaler scaler;
-  final String Function(double value) format;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0) return;
-    for (int i = 0; i < marks.length; i++) {
-      final KkSliderMark mark = marks[i];
-      final double f = ((mark.value - min) / (max - min)).clamp(0.0, 1.0);
-      final Alignment align = i == marks.length - 1
+    for (int i = 0; i < labels.length; i++) {
+      // The last label ends at its position, the first starts there, the
+      // rest are centred on theirs.
+      final Alignment align = i == labels.length - 1
           ? Alignment.topRight
           : (i == 0 ? Alignment.topLeft : Alignment.topCenter);
-      kkPaintText(
-        canvas,
-        mark.label ?? format(mark.value),
-        style,
-        Offset(f * size.width, 0),
-        align: align,
-        scaler: scaler,
-      );
+      kkPaintText(canvas, labels[i], style, Offset(positions[i] * size.width, 0), align: align, scaler: scaler);
     }
   }
 
   @override
   bool shouldRepaint(_MarksPainter oldDelegate) =>
-      oldDelegate.marks != marks ||
-      oldDelegate.min != min ||
-      oldDelegate.max != max ||
+      !listEquals(oldDelegate.positions, positions) ||
+      !listEquals(oldDelegate.labels, labels) ||
       oldDelegate.style != style ||
       oldDelegate.scaler != scaler;
 }

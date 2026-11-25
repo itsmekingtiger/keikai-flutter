@@ -235,9 +235,7 @@ class _KkSegmentedState<T> extends State<KkSegmented<T>> {
     if (ring == null && (forced?.focused ?? false)) ring = tabStop ?? _edge(last: false);
     if (ring != null && ring >= n) ring = null;
 
-    final List<Widget> children = <Widget>[
-      for (int i = 0; i < n; i++) _segment(context, i, on[i], tabStop, c, m),
-    ];
+    final List<Widget> children = <Widget>[for (int i = 0; i < n; i++) _segment(context, i, on[i], tabStop, c, m)];
     return Focus(
       canRequestFocus: false,
       skipTraversal: true,
@@ -324,9 +322,7 @@ class _KkSegmentedState<T> extends State<KkSegmented<T>> {
       },
     );
     if (!widget.multi) {
-      child = MergeSemantics(
-        child: Semantics(inMutuallyExclusiveGroup: true, child: child),
-      );
+      child = MergeSemantics(child: Semantics(inMutuallyExclusiveGroup: true, child: child));
     }
     return widget.expand ? KkExpanded(child: child) : child;
   }

@@ -62,6 +62,14 @@ class KkDiagramController extends ChangeNotifier {
   /// Whether the view is at its resting position.
   bool get isReset => _zoom == 1 && _pan == Offset.zero;
 
+  /// The size of the view, once it has been laid out.
+  Size get viewSize => _view;
+
+  /// The part of the diagram's own space that shows in the view.
+  Rect get visible => _view.isEmpty
+      ? Offset.zero & _content
+      : Rect.fromPoints(toScene(Offset.zero), toScene(_view.bottomRight(Offset.zero)));
+
   /// Called by the view when it has been laid out.
   void attach({required Size view, required Size content, required double fit, required Alignment alignment}) {
     _view = view;
@@ -555,7 +563,9 @@ class _NodeLayer extends CustomPainter {
     final double scale = controller.scale;
     painter.paintLabels(canvas, progress: t >= 1 ? null : (int i) => entrance.wire(i, t));
     painter.paintNodes(canvas, scale: scale, progress: t >= 1 ? null : (int i) => entrance.node(i, t));
-    if (t >= 1) painter.paintSelection(canvas, scale: scale, info: info, plate: showInfo);
+    if (t >= 1) {
+      painter.paintSelection(canvas, scale: scale, info: info, plate: showInfo, view: controller.visible);
+    }
   }
 
   @override

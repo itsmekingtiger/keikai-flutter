@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -241,7 +242,55 @@ class _KkDataLogState extends State<KkDataLog> {
         child: KkFillColumn(leading: <Widget>[if (widget.showHeader) header], body: rows),
       ),
     );
-    return widget.boot ? KkBoot(child: log) : log;
+    // The lines live in a viewport, which needs a width. Where none is given
+    // (inside a row, a horizontal scroller) the log takes a sensible one.
+    final double fallback =
+        widget.timeWidth + widget.sourceWidth + widget.levelWidth + 5 * m.space3 + 2 * m.stroke1 + 280;
+    return _FallbackWidth(width: fallback, child: widget.boot ? KkBoot(child: log) : log);
+  }
+}
+
+/// Gives its child [width] when the parent sets no limit on the width, and
+/// stays out of the way otherwise.
+class _FallbackWidth extends SingleChildRenderObjectWidget {
+  const _FallbackWidth({required this.width, super.child});
+
+  final double width;
+
+  @override
+  _RenderFallbackWidth createRenderObject(BuildContext context) => _RenderFallbackWidth(width);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderFallbackWidth renderObject) => renderObject.fallback = width;
+}
+
+class _RenderFallbackWidth extends RenderProxyBox {
+  _RenderFallbackWidth(this._fallback);
+
+  double _fallback;
+  double get fallback => _fallback;
+  set fallback(double value) {
+    if (value == _fallback) return;
+    _fallback = value;
+    markNeedsLayout();
+  }
+
+  BoxConstraints _resolve(BoxConstraints c) =>
+      c.hasBoundedWidth ? c : c.tighten(width: _fallback < c.minWidth ? c.minWidth : _fallback);
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      child?.getDryLayout(_resolve(constraints)) ?? constraints.smallest;
+
+  @override
+  void performLayout() {
+    final RenderBox? c = child;
+    if (c == null) {
+      size = constraints.smallest;
+      return;
+    }
+    c.layout(_resolve(constraints), parentUsesSize: true);
+    size = constraints.constrain(c.size);
   }
 }
 

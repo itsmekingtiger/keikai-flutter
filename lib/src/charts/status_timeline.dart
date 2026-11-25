@@ -220,7 +220,7 @@ class _KkStatusTimelineState extends State<KkStatusTimeline> {
 
     String percentText(KkTimelineRow row) {
       final double? p = row.percent ?? _nominalShare(row);
-      return (p == null || !p.isFinite) ? '--' : p.toStringAsFixed(widget.percentDecimals);
+      return (p == null || !p.isFinite) ? '--' : p.toStringAsFixed(widget.percentDecimals.clamp(0, 20));
     }
 
     final Widget grid = KkOneShot(

@@ -86,7 +86,6 @@ class KkSnackbar extends StatelessWidget {
                   edgeWidth: 0,
                   child: KkBox(
                     padding: EdgeInsets.only(left: m.space3, right: m.space2 + m.chamferMd),
-                    alignment: Alignment.center,
                     child: KkRow(
                       shrinkWrap: true,
                       gap: 6,

@@ -93,14 +93,7 @@ class KkDivider extends StatelessWidget {
               if (cjkText != null && cjkText.isNotEmpty)
                 KkText.cjk(cjkText, size: 12, height: 1.55, color: c.ink, squeeze: 0.8),
               if (enText != null && enText.isNotEmpty)
-                KkText.en(
-                  enText,
-                  size: 10,
-                  weight: FontWeight.w600,
-                  height: 1.55,
-                  spacing: 0.16,
-                  color: c.inkDim,
-                ),
+                KkText.en(enText, size: 10, weight: FontWeight.w600, height: 1.55, spacing: 0.16, color: c.inkDim),
             ],
           ),
         KkExpanded(child: ExcludeSemantics(child: rule)),

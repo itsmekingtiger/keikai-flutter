@@ -193,10 +193,8 @@ class KkChip extends StatelessWidget {
                   ),
                 ),
               if (cjkWord != null && cjkWord.isNotEmpty) KkText.cjk(cjkWord, size: 13, color: ink, squeeze: 0.8),
-              if (label.isNotEmpty)
-                KkText.en(label, size: 13, weight: FontWeight.w600, spacing: 0.08, color: ink),
-              if (isInput)
-                _ChipRemove(onPressed: enabled ? remove : null, label: removeLabel, colors: c, metrics: m),
+              if (label.isNotEmpty) KkText.en(label, size: 13, weight: FontWeight.w600, spacing: 0.08, color: ink),
+              if (isInput) _ChipRemove(onPressed: enabled ? remove : null, label: removeLabel, colors: c, metrics: m),
             ],
           ),
         ),

@@ -55,7 +55,7 @@ class KkNodeMetrics {
     this.terminal = const Size(40, 20),
     this.codeSize = 10,
     this.labelSize = 9,
-    this.textGap = 4,
+    this.textGap = 6,
     this.lineGap = 3,
     this.labelSide = KkLabelSide.auto,
     this.showText = true,

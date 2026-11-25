@@ -50,8 +50,9 @@ class KkEmergency extends StatelessWidget {
   /// line joined; an empty string hides them.
   final String? marquee;
 
-  /// Buttons under the titles: acknowledge, silence. Plain text and icons
-  /// among them take the plate's ink.
+  /// Buttons under the titles: acknowledge, silence. The language sets them
+  /// black with alert ink. Plain text and icons among them take the plate's
+  /// ink.
   final List<Widget> actions;
 
   /// Part of the layout rather than a full-screen overlay.
@@ -210,15 +211,20 @@ class _PlatePainter extends CustomPainter {
 ///
 /// Tapping outside the plate never closes it. With [dismissible] true the
 /// Escape key and the system back gesture close it; otherwise only an action
-/// can, by popping the route:
+/// can, by popping the route. Buttons on the plate are black with alert ink:
 ///
 /// ```dart
+/// final KkColors c = context.kk.colors;
 /// showKkEmergency<void>(
 ///   context,
 ///   cjk: '緊急停止',
 ///   en: 'emergency stop',
 ///   actions: (BuildContext context) => <Widget>[
-///     KkButton(en: 'acknowledge', onPressed: () => Navigator.of(context).pop()),
+///     KkButton(
+///       label: 'acknowledge',
+///       style: KkPlateStyle(edge: c.bg000, fill: c.bg000, ink: c.alert),
+///       onPressed: () => Navigator.of(context).pop(),
+///     ),
 ///   ],
 /// );
 /// ```

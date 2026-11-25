@@ -269,8 +269,11 @@ class KkListRow extends StatelessWidget {
                 if (lead != null)
                   KkBox(
                     width: m.space4,
-                    alignment: Alignment.center,
-                    child: KkInk(color: leadInk, child: lead),
+                    child: KkColumn(
+                      shrinkWrap: true,
+                      cross: KkCrossAlign.center,
+                      children: <Widget>[KkInk(color: leadInk, child: lead)],
+                    ),
                   ),
                 KkExpanded(
                   child: KkColumn(

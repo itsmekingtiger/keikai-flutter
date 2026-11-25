@@ -6,6 +6,7 @@ import '../foundation/colors.dart';
 import '../foundation/theme.dart';
 import '../layout/layers.dart';
 import '../painting/text.dart';
+import 'format.dart';
 import 'plot.dart';
 
 /// What the crosshair of a [KkWaterfall] is over.
@@ -163,15 +164,14 @@ class _KkWaterfallState extends State<KkWaterfall> {
     final double? a = widget.startFrequency;
     final double? b = widget.endFrequency;
     if (a == null || b == null || !a.isFinite || !b.isFinite) return const <String>[];
-    String text(double v) =>
-        widget.frequencyFormat?.call(v) ?? (v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1));
+    String text(double v) => !v.isFinite ? '--' : (widget.frequencyFormat?.call(v) ?? kkPlain(v));
     return <String>[for (int i = 0; i < 5; i++) text(a + (b - a) * i / 4)];
   }
 
   double? _frequency(int bin, int bins) {
     final double? a = widget.startFrequency;
     final double? b = widget.endFrequency;
-    if (a == null || b == null || bins <= 0) return null;
+    if (a == null || b == null || !a.isFinite || !b.isFinite || bins <= 0) return null;
     return bins == 1 ? a : a + (b - a) * bin / (bins - 1);
   }
 
@@ -231,10 +231,8 @@ class _KkWaterfallState extends State<KkWaterfall> {
     }
     final double low = (widget.min != null && widget.min!.isFinite) ? widget.min! : lo;
     final double high = (widget.max != null && widget.max!.isFinite) ? widget.max! : hi;
-    String levelText(double v) =>
-        widget.levelFormat?.call(v) ?? (v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1));
-    String frequencyText(double v) =>
-        widget.frequencyFormat?.call(v) ?? (v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1));
+    String levelText(double v) => !v.isFinite ? '--' : (widget.levelFormat?.call(v) ?? kkPlain(v));
+    String frequencyText(double v) => !v.isFinite ? '--' : (widget.frequencyFormat?.call(v) ?? kkPlain(v));
 
     final double natural = widget.spectrumHeight + 1 + widget.height + (axis.isEmpty ? 0 : _WfGeometry.axisHeight);
     final Widget plot = KkPlotPointer(

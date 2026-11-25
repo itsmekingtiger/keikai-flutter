@@ -135,7 +135,10 @@ class KkProgress extends StatelessWidget {
             bar(scanStart: motion ? kkScanOffset(phase, 20) : 0.375),
       );
     } else {
-      track = KkSteppedValue(value: v, builder: (BuildContext context, double shown) => bar(fraction: shown));
+      track = KkSteppedValue(
+        value: v,
+        builder: (BuildContext context, double shown) => bar(fraction: shown),
+      );
     }
 
     return Semantics(
@@ -336,10 +339,7 @@ class KkRing extends StatelessWidget {
         child: KkBox(
           width: size,
           height: size,
-          child: KkLayers(
-            alignment: Alignment.center,
-            children: <Widget>[drawn, ?centre],
-          ),
+          child: KkLayers(alignment: Alignment.center, children: <Widget>[drawn, ?centre]),
         ),
       ),
     );

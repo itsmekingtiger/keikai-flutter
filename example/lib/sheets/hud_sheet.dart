@@ -80,6 +80,7 @@ class _Panels extends StatelessWidget {
                   cjk: '電源系統',
                   en: 'power',
                   meta: '14:02:31Z',
+                  trailing: <Widget>[KkIcon(KkIcons.bolt)],
                   child: _Lines(<(String, String)>[
                     ('main bus', '440.2 V'),
                     ('aux bus', '027.9 V'),
@@ -97,6 +98,7 @@ class _Panels extends StatelessWidget {
                   cjk: '通信回線',
                   en: 'comms',
                   meta: 'CH.12',
+                  trailing: <Widget>[KkIcon(KkIcons.signal)],
                   variant: KkPanelVariant.quiet,
                   child: _Lines(<(String, String)>[
                     ('uplink', '-062 dBm'),

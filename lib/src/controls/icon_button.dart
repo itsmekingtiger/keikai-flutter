@@ -99,8 +99,9 @@ class KkIconButton extends StatelessWidget {
     const Color clear = Color(0x00000000);
     final bool on = toggled ?? false;
     if (!_live) {
-      // Disabled keeps the variant's outline (a pressed toggle keeps signal);
-      // only the outline variant swaps to the offline colour.
+      // Disabled keeps the variant's outline (a pressed toggle keeps signal)
+      // and loses its fill, so the plate becomes an empty frame; only the
+      // outline variant swaps to the offline colour on the panel fill.
       final Color edge = switch (variant) {
         KkIconButtonVariant.outline => c.offline,
         _ when on => c.signal,
@@ -108,12 +109,7 @@ class KkIconButton extends StatelessWidget {
         KkIconButtonVariant.filled => c.signal,
         KkIconButtonVariant.tonal => c.signalDim,
       };
-      return (
-        edge: edge,
-        fill: variant == KkIconButtonVariant.outline ? c.bg100 : clear,
-        ink: c.inkFaint,
-        glow: null,
-      );
+      return (edge: edge, fill: variant == KkIconButtonVariant.outline ? c.bg100 : clear, ink: c.inkFaint, glow: null);
     }
     final bool hover = s.hovered;
     Color edge;
@@ -179,7 +175,7 @@ class KkIconButton extends StatelessWidget {
           visible: s.focused,
           offset: 2,
           width: m.stroke2,
-          child: KkSurface(
+          child: KkPlate(
             shape: KkShape.chamfer(tl: m.chamferSm),
             edge: look.edge,
             fill: look.fill,

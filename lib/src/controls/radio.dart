@@ -166,9 +166,7 @@ class _KkRadioGroupState<T> extends State<KkRadioGroup<T>> {
     }
     tabStop ??= _first();
 
-    final List<Widget> children = <Widget>[
-      for (int i = 0; i < n; i++) _option(i, tabStop, c, m),
-    ];
+    final List<Widget> children = <Widget>[for (int i = 0; i < n; i++) _option(i, tabStop, c, m)];
     final Widget layout = widget.direction == Axis.vertical
         ? KkColumn(shrinkWrap: true, gap: m.space2, cross: KkCrossAlign.start, children: children)
         : KkWrap(gap: m.space4, runGap: m.space2, children: children);

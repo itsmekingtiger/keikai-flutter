@@ -10,6 +10,7 @@ import '../layout/wrap.dart';
 import '../motion/entrances.dart';
 import '../widgets/frame.dart';
 import '../widgets/text.dart';
+import 'format.dart';
 import 'plot.dart';
 import 'series.dart';
 
@@ -82,7 +83,7 @@ class KkCategoryBar extends StatelessWidget {
       item: const Duration(milliseconds: 500),
       step: const Duration(milliseconds: 80),
     );
-    String text(double v) => format?.call(v) ?? v.round().toString();
+    String text(double v) => !v.isFinite ? '--' : (format?.call(v) ?? kkPlain(v));
     final bool hasHead = cjk != null || en != null || meta != null;
     final double? m = marker;
 

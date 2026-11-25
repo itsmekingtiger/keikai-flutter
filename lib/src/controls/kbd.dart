@@ -32,7 +32,12 @@ class KkKbd extends StatelessWidget {
     return KkBox(
       height: 18,
       padding: const EdgeInsets.symmetric(horizontal: 5),
-      edges: KkEdges(top: thin, left: thin, right: thin, bottom: KkSide(edge, width: m.stroke2)),
+      edges: KkEdges(
+        top: thin,
+        left: thin,
+        right: thin,
+        bottom: KkSide(edge, width: m.stroke2),
+      ),
       child: KkRow(
         shrinkWrap: true,
         clip: Clip.hardEdge,

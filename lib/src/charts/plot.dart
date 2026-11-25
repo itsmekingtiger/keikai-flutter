@@ -729,7 +729,10 @@ class _RampPainter extends CustomPainter {
 /// non-finite values, and a range with no extent, give step 0.
 int kkRampStep(double? value, double low, double high) {
   if (value == null || !value.isFinite || !(high > low)) return 0;
-  return ((value - low) / (high - low) * 6).floor().clamp(0, 5);
+  final double t = (value - low) / (high - low) * 6;
+  if (t.isNaN) return 0;
+  if (t.isInfinite) return t > 0 ? 5 : 0;
+  return t.floor().clamp(0, 5);
 }
 
 /// Lets its child keep its natural height unless the parent dictates one.

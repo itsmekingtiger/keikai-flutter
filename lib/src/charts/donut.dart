@@ -12,6 +12,7 @@ import '../layout/layers.dart';
 import '../motion/entrances.dart';
 import '../motion/scramble.dart';
 import '../widgets/text.dart';
+import 'format.dart';
 import 'plot.dart';
 import 'series.dart';
 
@@ -172,7 +173,7 @@ class _KkDonutState extends State<KkDonut> {
     final bool whole = values.every((double v) => v == v.roundToDouble());
     String text(double v) {
       if (!v.isFinite) return '--';
-      return widget.format?.call(v) ?? (whole ? v.round().toString() : v.toStringAsFixed(1));
+      return widget.format?.call(v) ?? (whole ? kkPlain(v) : v.toStringAsFixed(1));
     }
 
     final List<Color> colors = <Color>[
@@ -259,7 +260,8 @@ class _KkDonutState extends State<KkDonut> {
       ),
     );
 
-    String percent(double v) => sum > 0 ? '${(v / sum * 100).toStringAsFixed(widget.percentDecimals)}%' : '--';
+    String percent(double v) =>
+        sum > 0 ? '${(v / sum * 100).toStringAsFixed(widget.percentDecimals.clamp(0, 20))}%' : '--';
 
     final Widget body = KkBox(
       padding: EdgeInsets.all(theme.metrics.space3),

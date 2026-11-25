@@ -119,7 +119,12 @@ class KkBadgeAnchor extends StatelessWidget {
     return KkLayers(
       children: <Widget>[
         child,
-        if (show) KkPositioned(top: top, right: right, child: IgnorePointer(child: badge)),
+        if (show)
+          KkPositioned(
+            top: top,
+            right: right,
+            child: IgnorePointer(child: badge),
+          ),
       ],
     );
   }

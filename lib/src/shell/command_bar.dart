@@ -43,6 +43,7 @@ class KkCommandCell extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: m.space4),
       edges: KkEdges(left: KkSide(c.line, width: m.stroke1)),
       child: KkColumn(
+        shrinkWrap: true,
         main: KkMainAlign.center,
         cross: KkCrossAlign.start,
         gap: 4,
@@ -153,6 +154,7 @@ class KkCommandBar extends StatelessWidget {
       child: KkBox(
         padding: EdgeInsets.only(left: m.space4, right: m.space4 + m.chamferLg),
         child: KkColumn(
+          shrinkWrap: true,
           main: KkMainAlign.center,
           cross: KkCrossAlign.start,
           gap: 3,

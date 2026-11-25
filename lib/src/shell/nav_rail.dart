@@ -172,9 +172,10 @@ class _KkNavRailState extends State<KkNavRail> {
               edges: KkEdges(right: KkSide(c.line, width: m.stroke1)),
             ),
             padding: EdgeInsets.symmetric(vertical: m.space2),
-            // `between` keeps the trailing slot on the bottom edge whether the
-            // rail is given a height or only a minimum one.
+            // As tall as its content unless it is stretched; `between` then
+            // keeps the trailing slot on the bottom edge.
             child: KkColumn(
+              shrinkWrap: true,
               main: KkMainAlign.between,
               children: <Widget>[
                 KkColumn(
