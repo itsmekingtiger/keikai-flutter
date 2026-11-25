@@ -215,11 +215,11 @@ void main() {
     final SemanticsHandle handle = tester.ensureSemantics();
     await pumpKk(tester, const _Host(initial: 1), size: const Size(900, 400));
     expect(
-      tester.getSemantics(find.ancestor(of: find.text('SYSTEMS'), matching: find.byType(KkPressable)).first),
+      tester.getSemantics(find.text('SYSTEMS')),
       isSemantics(isButton: true, isSelected: true, hasSelectedState: true, isEnabled: true, hasEnabledState: true),
     );
     expect(
-      tester.getSemantics(find.ancestor(of: find.text('SITUATION'), matching: find.byType(KkPressable)).first),
+      tester.getSemantics(find.text('SITUATION')),
       isSemantics(isButton: true, isSelected: false, hasSelectedState: true, isEnabled: true, hasEnabledState: true),
     );
     handle.dispose();

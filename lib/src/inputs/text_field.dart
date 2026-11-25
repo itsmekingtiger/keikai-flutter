@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../controls/control_style.dart';
 import '../foundation/colors.dart';
 import '../foundation/icons.dart';
 import '../foundation/theme.dart';
@@ -8,6 +9,7 @@ import '../foundation/tokens.dart';
 import '../layout/box.dart';
 import '../layout/flex.dart';
 import '../widgets/icon.dart';
+import '../widgets/pressable.dart';
 import '../widgets/text.dart';
 import 'field.dart';
 import 'text_input.dart';
@@ -31,6 +33,7 @@ class KkTextField extends StatefulWidget {
   const KkTextField({
     super.key,
     this.controller,
+    this.initialValue,
     this.focusNode,
     this.cjk,
     this.en,
@@ -69,9 +72,12 @@ class KkTextField extends StatefulWidget {
     this.contextMenu = true,
     this.width,
     this.semanticLabel,
-  });
+  }) : assert(controller == null || initialValue == null, 'Give a controller or an initialValue, not both.');
 
   final TextEditingController? controller;
+
+  /// The text to start with when no [controller] is given.
+  final String? initialValue;
   final FocusNode? focusNode;
 
   /// CJK title of the label row.
@@ -150,7 +156,8 @@ class _KkTextFieldState extends State<KkTextField> {
   FocusNode? _ownFocusNode;
   bool _hovered = false;
 
-  TextEditingController get _controller => widget.controller ?? (_ownController ??= TextEditingController());
+  TextEditingController get _controller =>
+      widget.controller ?? (_ownController ??= TextEditingController(text: widget.initialValue));
   FocusNode get _focusNode => widget.focusNode ?? (_ownFocusNode ??= FocusNode(debugLabel: 'KkTextField'));
 
   bool get _counted => widget.showCounter ?? (widget.maxLength != null);
@@ -212,7 +219,8 @@ class _KkTextFieldState extends State<KkTextField> {
     final KkMetrics m = theme.metrics;
     final bool enabled = widget.enabled;
     final bool multiline = widget.maxLines != 1;
-    final bool focused = _focusNode.hasFocus && enabled;
+    final KkStates forced = KkStateOverride.resolve(context, const KkStates());
+    final bool focused = (_focusNode.hasFocus || forced.focused) && enabled;
     final bool hasError = widget.error != null;
     final bool hasLabel = (widget.cjk?.isNotEmpty ?? false) || (widget.en?.isNotEmpty ?? false) || widget.isRequired;
     final String? counter = _counterText();
@@ -267,7 +275,7 @@ class _KkTextFieldState extends State<KkTextField> {
         onTap: enabled && !widget.readOnly ? _focusNode.requestFocus : null,
         child: KkFieldBox(
           focused: focused,
-          hovered: _hovered,
+          hovered: _hovered || forced.hovered,
           error: hasError,
           enabled: enabled,
           multiline: multiline,

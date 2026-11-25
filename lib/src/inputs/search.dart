@@ -51,6 +51,7 @@ class KkSearch<T> extends StatefulWidget {
   const KkSearch({
     super.key,
     this.controller,
+    this.initialQuery,
     this.focusNode,
     this.results = const <Never>[],
     this.onQuery,
@@ -68,9 +69,12 @@ class KkSearch<T> extends StatefulWidget {
     this.width,
     this.clearLabel = 'Clear',
     this.semanticLabel = 'Search',
-  });
+  }) : assert(controller == null || initialQuery == null, 'Give a controller or an initialQuery, not both.');
 
   final TextEditingController? controller;
+
+  /// The text to start with when no [controller] is given.
+  final String? initialQuery;
   final FocusNode? focusNode;
 
   /// The matches for the current text, best first.
@@ -125,7 +129,8 @@ class _KkSearchState<T> extends State<KkSearch<T>> {
   bool _dismissed = false;
   String _lastText = '';
 
-  TextEditingController get _controller => widget.controller ?? (_ownController ??= TextEditingController());
+  TextEditingController get _controller =>
+      widget.controller ?? (_ownController ??= TextEditingController(text: widget.initialQuery));
   FocusNode get _focusNode => widget.focusNode ?? (_ownFocusNode ??= FocusNode(debugLabel: 'KkSearch'));
 
   @override

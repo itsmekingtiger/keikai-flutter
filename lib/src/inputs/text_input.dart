@@ -23,6 +23,7 @@ class KkTextInput extends StatefulWidget {
   const KkTextInput({
     super.key,
     this.controller,
+    this.initialValue,
     this.focusNode,
     this.style,
     this.placeholder,
@@ -53,9 +54,13 @@ class KkTextInput extends StatefulWidget {
     this.scrollController,
     this.semanticLabel,
   }) : assert(maxLines == null || maxLines > 0),
-       assert(minLines == null || minLines > 0);
+       assert(minLines == null || minLines > 0),
+       assert(controller == null || initialValue == null, 'Give a controller or an initialValue, not both.');
 
   final TextEditingController? controller;
+
+  /// The text to start with when no [controller] is given.
+  final String? initialValue;
   final FocusNode? focusNode;
 
   /// Defaults to body 14px / 1.4 in ink.
@@ -121,7 +126,8 @@ class _KkTextInputState extends State<KkTextInput> implements TextSelectionGestu
 
   late final _InputGestures _gestures = _InputGestures(this);
 
-  TextEditingController get _controller => widget.controller ?? (_ownController ??= TextEditingController());
+  TextEditingController get _controller =>
+      widget.controller ?? (_ownController ??= TextEditingController(text: widget.initialValue));
   FocusNode get _focusNode => widget.focusNode ?? (_ownFocusNode ??= FocusNode(debugLabel: 'KkTextInput'));
 
   @override
