@@ -11,6 +11,7 @@ export 'src/app/app.dart';
 export 'src/app/routes.dart';
 export 'src/charts/charts.dart';
 export 'src/controls/controls.dart';
+export 'src/diagram/diagram.dart';
 export 'src/foundation/colors.dart';
 export 'src/foundation/icons.dart';
 export 'src/foundation/level.dart';
