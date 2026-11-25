@@ -1,7 +1,6 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/gestures.dart' show kLongPressTimeout;
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 import 'package:keikai/src/shell/shell_paint.dart';

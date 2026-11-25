@@ -1,7 +1,6 @@
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/semantics.dart' show SemanticsNode;
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
