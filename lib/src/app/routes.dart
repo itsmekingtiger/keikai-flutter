@@ -65,6 +65,79 @@ class KkPageRoute<T> extends PageRoute<T> {
   }
 }
 
+/// A page for the pages API ([Navigator.pages] and [Router]): it creates a
+/// [KkPageRoute], so declarative navigation gets the same stepped wipe as
+/// [Navigator.push].
+///
+/// ```dart
+/// Navigator(
+///   pages: <Page<void>>[
+///     const KkPage<void>(key: ValueKey<String>('board'), child: Board()),
+///     if (sector != null) KkPage<void>(key: ValueKey<String>(sector), child: SectorDetail(sector)),
+///   ],
+///   onDidRemovePage: (Page<Object?> page) => closeSector(),
+/// )
+/// ```
+///
+/// Replacing a page with one of the same type and [key] updates the route in
+/// place: the new [child] is shown and the state below it is kept.
+class KkPage<T> extends Page<T> {
+  const KkPage({
+    required this.child,
+    this.maintainState = true,
+    this.fullscreenDialog = false,
+    this.wipe = true,
+    super.key,
+    super.canPop,
+    super.onPopInvoked,
+    super.name,
+    super.arguments,
+    super.restorationId,
+  });
+
+  /// The content of the page.
+  final Widget child;
+
+  /// Whether the page stays alive while another page covers it.
+  final bool maintainState;
+
+  /// Whether the page is a full-screen dialog rather than a step deeper.
+  final bool fullscreenDialog;
+
+  /// Whether to play the wipe at all.
+  final bool wipe;
+
+  @override
+  Route<T> createRoute(BuildContext context) => _KkPageBasedRoute<T>(page: this);
+}
+
+/// The route of a [KkPage]. It reads everything from the page it holds at
+/// the moment, which the navigator swaps when the page is updated.
+class _KkPageBasedRoute<T> extends KkPageRoute<T> {
+  _KkPageBasedRoute({required KkPage<T> page}) : super(settings: page, builder: _fromPage);
+
+  // Never called: [builder] is overridden to read the current page.
+  static Widget _fromPage(BuildContext context) => const SizedBox.shrink();
+
+  KkPage<T> get _page => settings as KkPage<T>;
+
+  @override
+  WidgetBuilder get builder =>
+      (BuildContext context) => _page.child;
+
+  @override
+  bool get maintainState => _page.maintainState;
+
+  @override
+  bool get fullscreenDialog => _page.fullscreenDialog;
+
+  @override
+  bool get wipe => _page.wipe;
+
+  @override
+  String get debugLabel => '${super.debugLabel}(${_page.name})';
+}
+
 /// Reveals the child from the left in [steps] jumps as [progress] goes 0 to 1.
 class KkWipeClipper extends CustomClipper<Rect> {
   KkWipeClipper(this.progress, this.steps) : super(reclip: progress);
