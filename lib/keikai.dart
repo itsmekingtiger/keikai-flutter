@@ -19,6 +19,7 @@ export 'src/foundation/theme.dart';
 export 'src/foundation/tokens.dart';
 export 'src/foundation/typography.dart';
 export 'src/hud/hud.dart';
+export 'src/inputs/inputs.dart';
 export 'src/layout/layout.dart';
 export 'src/motion/effects.dart';
 export 'src/motion/entrances.dart';
