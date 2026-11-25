@@ -9,6 +9,7 @@ export 'package:flutter/widgets.dart';
 
 export 'src/app/app.dart';
 export 'src/app/routes.dart';
+export 'src/charts/charts.dart';
 export 'src/controls/controls.dart';
 export 'src/foundation/colors.dart';
 export 'src/foundation/icons.dart';
