@@ -161,6 +161,11 @@ class RenderKkIcon extends RenderBox {
   @override
   Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(Size.square(_extent));
 
+  /// An icon has no baseline. Saying so keeps a baseline-aligned row that is
+  /// measured without being laid out from asserting.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => null;
+
   @override
   void performLayout() => size = constraints.constrain(Size.square(_extent));
 
