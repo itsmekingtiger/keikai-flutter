@@ -144,6 +144,11 @@ class RenderKkAspect extends RenderProxyBox {
     return Size(width, width / _ratio);
   }
 
+  /// The child's baseline at the size the ratio gives it.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) =>
+      child?.getDryBaseline(BoxConstraints.tight(getDryLayout(constraints)), baseline);
+
   @override
   void performLayout() {
     final RenderBox? c = child;
@@ -270,17 +275,13 @@ class KkSafeArea extends StatelessWidget {
       right ? mq.padding.right : 0,
       bottom ? math.max(mq.padding.bottom, keyboard ? mq.viewInsets.bottom : 0) : 0,
     );
+    // The child sees no intrusion on the sides this widget has dealt with.
+    MediaQueryData inner = mq.removePadding(removeLeft: left, removeTop: top, removeRight: right, removeBottom: bottom);
+    if (bottom && keyboard) inner = inner.removeViewInsets(removeBottom: true);
     return KkBox(
       padding: inset,
       fill: fill,
-      child: MediaQuery.removePadding(
-        context: context,
-        removeLeft: left,
-        removeTop: top,
-        removeRight: right,
-        removeBottom: bottom,
-        child: child,
-      ),
+      child: MediaQuery(data: inner, child: child),
     );
   }
 }
