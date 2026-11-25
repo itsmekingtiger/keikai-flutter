@@ -664,7 +664,7 @@ class _Alarm extends StatelessWidget {
   }
 }
 
-/// A stand-in button for the emergency plate: black plate, alert ink.
+/// A button on the alarm plate: black plate, alert ink.
 class _PlateAction extends StatelessWidget {
   const _PlateAction(this.label);
 
@@ -672,17 +672,6 @@ class _PlateAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final KeikaiThemeData theme = context.kk;
-    return KkSurface(
-      shape: KkShape.plate(theme.metrics.chamferMd),
-      fill: theme.colors.bg000,
-      edge: theme.colors.bg000,
-      child: KkBox(
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.center,
-        child: KkText.en(label, size: 15, spacing: 0.08, color: theme.colors.alert),
-      ),
-    );
+    return KkButton(label: label, style: KkEmergency.actionStyle(context), onPressed: () {});
   }
 }

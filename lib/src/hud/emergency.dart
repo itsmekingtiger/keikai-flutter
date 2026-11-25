@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../app/routes.dart';
+import '../controls/control_style.dart';
 import '../foundation/colors.dart';
 import '../foundation/theme.dart';
 import '../foundation/tokens.dart';
@@ -54,6 +55,21 @@ class KkEmergency extends StatelessWidget {
   /// black with alert ink. Plain text and icons among them take the plate's
   /// ink.
   final List<Widget> actions;
+
+  /// The plate style of a button on the alarm plate: black plate, alert ink,
+  /// the same on hover. Give it to each action:
+  /// `KkButton(label: 'acknowledge', style: KkEmergency.actionStyle(context), …)`.
+  static KkPlateStyle actionStyle(BuildContext context) {
+    final KkColors c = KeikaiTheme.of(context).colors;
+    return KkPlateStyle(
+      edge: c.bg000,
+      fill: c.bg000,
+      ink: c.alert,
+      hoverEdge: c.bg000,
+      hoverFill: c.bg000,
+      hoverInk: c.alert,
+    );
+  }
 
   /// Part of the layout rather than a full-screen overlay.
   final bool inline;
