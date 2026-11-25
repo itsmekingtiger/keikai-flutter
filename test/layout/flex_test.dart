@@ -553,6 +553,87 @@ void main() {
       await pumpRaw(tester, const KkGap(9, key: ValueKey<String>('gap')));
       expect(rectOf(tester, 'gap').size, const Size(9, 9));
     });
+
+    testChecked('turns with its flex even when its constraints stay the same', (WidgetTester tester) async {
+      // Unbounded on both axes, a gap is handed the same constraints in a row
+      // and in a column, so nothing but the flex can tell it to measure again.
+      Widget build(Axis direction) => UnconstrainedBox(
+        alignment: Alignment.topLeft,
+        child: KkFlex(
+          key: const ValueKey<String>('flex'),
+          direction: direction,
+          cross: KkCrossAlign.start,
+          children: <Widget>[box('a', 10, 10), const KkGap(7, key: ValueKey<String>('gap')), box('b', 10, 10)],
+        ),
+      );
+      await pumpRaw(tester, build(Axis.horizontal));
+      expect(rectOf(tester, 'gap').size, const Size(7, 0));
+      expect(rectOf(tester, 'flex').size, const Size(27, 10));
+      await pumpRaw(tester, build(Axis.vertical));
+      expect(rectOf(tester, 'gap').size, const Size(0, 7));
+      expect(rectOf(tester, 'b').topLeft, const Offset(0, 17));
+      expect(rectOf(tester, 'flex').size, const Size(10, 27));
+      await pumpRaw(tester, build(Axis.horizontal));
+      expect(rectOf(tester, 'gap').size, const Size(7, 0));
+      expect(rectOf(tester, 'b').topLeft, const Offset(17, 0));
+    });
+
+    testChecked('turns with a flex that sits in a row of a scrolling column', (WidgetTester tester) async {
+      Widget build(Axis direction) => SingleChildScrollView(
+        child: KkColumn(
+          shrinkWrap: true,
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            KkRow(
+              shrinkWrap: true,
+              cross: KkCrossAlign.start,
+              children: <Widget>[
+                KkFlex(
+                  direction: direction,
+                  cross: KkCrossAlign.start,
+                  shrinkWrap: true,
+                  children: <Widget>[
+                    box('a', 10, 10),
+                    const KkGap(7, key: ValueKey<String>('gap')),
+                    box('b', 10, 10),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      await pumpRaw(tester, build(Axis.horizontal));
+      expect(rectOf(tester, 'gap').size, const Size(7, 0));
+      await pumpRaw(tester, build(Axis.vertical));
+      expect(rectOf(tester, 'gap').size, const Size(0, 7));
+      expect(rectOf(tester, 'b').topLeft, const Offset(0, 17));
+    });
+
+    testChecked('measures again when it moves to another parent', (WidgetTester tester) async {
+      final GlobalKey gap = GlobalKey();
+      Widget inRow() => UnconstrainedBox(
+        alignment: Alignment.topLeft,
+        child: KkRow(cross: KkCrossAlign.start, children: <Widget>[box('a', 10, 10), KkGap(7, key: gap)]),
+      );
+      Widget inColumn() => UnconstrainedBox(
+        alignment: Alignment.topLeft,
+        child: KkColumn(cross: KkCrossAlign.start, children: <Widget>[box('a', 10, 10), KkGap(7, key: gap)]),
+      );
+      Widget alone() => UnconstrainedBox(alignment: Alignment.topLeft, child: KkGap(7, key: gap));
+
+      await pumpRaw(tester, inRow());
+      final RenderBox render = tester.renderObject<RenderBox>(find.byKey(gap));
+      expect(render.size, const Size(7, 0));
+      await pumpRaw(tester, inColumn());
+      expect(tester.renderObject<RenderBox>(find.byKey(gap)), same(render), reason: 'the render object moved');
+      expect(render.size, const Size(0, 7));
+      await pumpRaw(tester, alone());
+      expect(tester.renderObject<RenderBox>(find.byKey(gap)), same(render));
+      expect(render.size, const Size(7, 7));
+      await pumpRaw(tester, inRow());
+      expect(render.size, const Size(7, 0));
+    });
   });
 
   group('intrinsics and dry layout', () {

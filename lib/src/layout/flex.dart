@@ -190,6 +190,14 @@ class RenderKkGap extends RenderBox {
     markNeedsLayout();
   }
 
+  /// A gap is sized by its parent, so one that moves to another parent
+  /// measures again even when it is handed the same constraints as before.
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    markNeedsLayout();
+  }
+
   Size _sizeFor(BoxConstraints constraints) {
     final RenderObject? p = parent;
     if (p is RenderKkFlex) {
@@ -273,6 +281,11 @@ class RenderKkFlex extends RenderBox
   set direction(Axis value) {
     if (value == _direction) return;
     _direction = value;
+    // A gap is sized by this direction, which the framework does not track
+    // for it: handed the same constraints, it would keep its old size.
+    for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
+      if (child is RenderKkGap) child.markNeedsLayout();
+    }
     markNeedsLayout();
   }
 
