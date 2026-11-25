@@ -719,7 +719,8 @@ class RenderKkFlex extends RenderBox
 
     final int count = childCount;
     final double gaps = count > 1 ? _gap * (count - 1) : 0;
-    _hasOverflow = sizes.allocated + gaps > _mainOf(size) + 0.01 || _childCrossOverflows(sizes);
+    _hasOverflow = sizes.allocated + gaps > _mainOf(size) + 0.01;
+    final double crossExtent = _crossOf(size);
 
     final ({double leading, double between}) spacing = _spacing(sizes);
     double position = spacing.leading;
@@ -730,17 +731,12 @@ class RenderKkFlex extends RenderBox
         baseline = child.getDistanceToBaseline(_textBaseline, onlyReal: true);
       }
       final double crossOffset = _crossOffset(pd, child.size, sizes, baseline);
+      // A child no larger than the line can still leave it: its baseline may
+      // move it past the edge of a row that could not grow.
+      if (crossOffset < -0.01 || crossOffset + _crossOf(child.size) > crossExtent + 0.01) _hasOverflow = true;
       pd.offset = _horizontal ? Offset(position, crossOffset) : Offset(crossOffset, position);
       position += _mainOf(child.size) + _gap + spacing.between;
     }
-  }
-
-  bool _childCrossOverflows(_FlexSizes sizes) {
-    final double cross = _crossOf(sizes.size);
-    for (final Size s in sizes.childSizes) {
-      if (_crossOf(s) > cross + 0.01) return true;
-    }
-    return false;
   }
 
   @override

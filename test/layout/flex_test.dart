@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show ClipRectLayer;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
@@ -1053,6 +1054,64 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tapAt(const Offset(10, 15));
       expect(taps, 1);
+    });
+  });
+
+  group('overflow across the line', () {
+    testChecked('a child that its baseline moves below the row is clipped', (WidgetTester tester) async {
+      // The row may be 30 tall. The 40px letter fills it (baseline 30 down);
+      // the 20px letter is moved 15 down to meet that line and ends at 35.
+      for (final Clip clip in <Clip>[Clip.none, Clip.hardEdge]) {
+        await pumpRaw(
+          tester,
+          SizedBox(
+            height: 30,
+            child: KkRow(
+              key: const ValueKey<String>('row'),
+              cross: KkCrossAlign.baseline,
+              clip: clip,
+              shrinkWrap: true,
+              children: <Widget>[
+                Text('A', key: const ValueKey<String>('big'), style: testStyle(40)),
+                RepaintBoundary(
+                  child: Text('B', key: const ValueKey<String>('small'), style: testStyle(20)),
+                ),
+              ],
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(rectOf(tester, 'row'), const Rect.fromLTWH(0, 0, 60, 30));
+        expect(rectOf(tester, 'small'), const Rect.fromLTWH(40, 15, 20, 20));
+        final RenderKkFlex row = tester.renderObject<RenderKkFlex>(byId('row'));
+        expect(
+          row.describeApproximatePaintClip(row.firstChild!),
+          clip == Clip.none ? isNull : const Rect.fromLTWH(0, 0, 60, 30),
+        );
+        expect(tester.layers.whereType<ClipRectLayer>().length, clip == Clip.none ? 0 : 1);
+      }
+    });
+
+    testChecked('children that fit are not clipped', (WidgetTester tester) async {
+      await pumpRaw(
+        tester,
+        SizedBox(
+          height: 60,
+          child: KkRow(
+            key: const ValueKey<String>('row'),
+            cross: KkCrossAlign.baseline,
+            clip: Clip.hardEdge,
+            shrinkWrap: true,
+            children: <Widget>[
+              Text('A', style: testStyle(40)),
+              Text('B', style: testStyle(20)),
+            ],
+          ),
+        ),
+      );
+      final RenderKkFlex row = tester.renderObject<RenderKkFlex>(byId('row'));
+      expect(row.describeApproximatePaintClip(row.firstChild!), isNull);
+      expect(tester.layers.whereType<ClipRectLayer>(), isEmpty);
     });
   });
 
