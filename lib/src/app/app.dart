@@ -6,7 +6,6 @@ import '../foundation/theme.dart';
 import '../foundation/tokens.dart';
 import '../layout/scroll.dart';
 import '../motion/effects.dart';
-import '../shell/snackbar.dart';
 import 'routes.dart';
 
 /// The root of a KEIKAI application.
@@ -170,8 +169,7 @@ class _KeikaiAppState extends State<KeikaiApp> {
           behavior: widget.scrollBehavior,
           child: KkGlitch(
             trigger: widget.glitchOnAlert ? _alerts : 0,
-            // The snackbar stack sits above every route.
-            child: ColoredBox(color: colors.bg000, child: KkMessenger(child: content)),
+            child: ColoredBox(color: colors.bg000, child: content),
           ),
         ),
       ),
