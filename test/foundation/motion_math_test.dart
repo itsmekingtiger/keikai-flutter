@@ -62,6 +62,29 @@ void main() {
       expect(kkStepDown(1, 1), 1);
     });
 
+    test('kkStepAt counts the steps that have been reached, with the same edges as kkStepDown', () {
+      expect(kkStepAt(0, 4), 0);
+      expect(kkStepAt(0.25 - 1e-6, 4), 0);
+      expect(kkStepAt(0.25, 4), 1);
+      expect(kkStepAt(0.25 + 1e-6, 4), 1);
+      expect(kkStepAt(0.999999, 4), 3);
+      expect(kkStepAt(1, 4), 4);
+      // One step: nothing until the end.
+      expect(kkStepAt(0.999, 1), 0);
+      expect(kkStepAt(1, 1), 1);
+      // A value on an edge up to rounding error has reached that step.
+      expect(15 / 22 * 22, lessThan(15));
+      expect(kkStepAt(15 / 22, 22), 15);
+      for (int n = 1; n <= 64; n++) {
+        for (int k = 0; k <= n; k++) {
+          expect(kkStepAt(k / n, n), k, reason: 'n=$n k=$k');
+        }
+        for (int i = 0; i <= 1000; i++) {
+          expect(kkStepDown(i / 1000, n), kkStepAt(i / 1000, n) / n, reason: 'n=$n t=${i / 1000}');
+        }
+      }
+    });
+
     test('equality and description', () {
       expect(const KkSteps(7), const KkSteps(7));
       expect(const KkSteps(7).hashCode, const KkSteps(7).hashCode);
@@ -184,9 +207,7 @@ void main() {
       expect(kkLoopAt(const Duration(seconds: 3), Duration.zero), 0);
     });
 
-    testChecked('kkFrameTime is the frame timestamp and keeps its value between frames', (
-      WidgetTester tester,
-    ) async {
+    testChecked('kkFrameTime is the frame timestamp and keeps its value between frames', (WidgetTester tester) async {
       kkFrameTime();
       await tester.pumpWidget(const SizedBox.shrink());
       final Duration t0 = kkFrameTime();

@@ -67,6 +67,27 @@ void main() {
       expect(tails.length, greaterThan(1));
     });
 
+    test('a digit settles exactly when its share of the progress is reached, whatever the rounding', () {
+      // 15/22 x 22 is a hair under 15 in floating point; a plain floor would leave the fifteenth digit churning.
+      expect(15 / 22 * 22, lessThan(15));
+      for (int digits = 1; digits <= 40; digits++) {
+        final String target = '7' * digits;
+        for (int settled = 0; settled < digits; settled++) {
+          // The digits that hold the target on every noise step are the settled ones.
+          int held = digits;
+          for (int step = 0; step < 24; step++) {
+            final String s = kkScrambleText(target, settled / digits, step: step, seed: 9);
+            int same = 0;
+            while (same < digits && s[same] == '7') {
+              same++;
+            }
+            if (same < held) held = same;
+          }
+          expect(held, settled, reason: '$settled of $digits');
+        }
+      }
+    });
+
     test('negative progress is treated as zero', () {
       expect(kkScrambleText('123', -2, step: 4), kkScrambleText('123', 0, step: 4));
     });
@@ -125,6 +146,23 @@ void main() {
       // Ten noise steps and the settled value.
       expect(frames.length, inInclusiveRange(9, 11));
       expect(frames.last, '0000000000');
+    });
+
+    testChecked('a frame that lands on a step edge shows the new noise step', (WidgetTester tester) async {
+      // 0.46s in ten steps: with a frame every 46ms each frame is exactly on an edge.
+      await pumpKk(tester, KkScramble('0' * 30), motion: true);
+      final List<String> frames = <String>[];
+      for (int step = 0; step < 10; step++) {
+        final String s = text(tester);
+        // Three more digits are final at every step.
+        expect(s.substring(0, step * 3), '0' * (step * 3), reason: 'step $step');
+        expect(s.substring(step * 3), isNot('0' * (30 - step * 3)), reason: 'step $step');
+        frames.add(s.substring(27));
+        await tester.pump(const Duration(milliseconds: 46));
+      }
+      // The last three digits churn to the end: ten steps, ten different noise frames.
+      expect(frames.toSet(), hasLength(10));
+      expect(text(tester), '0' * 30);
     });
 
     testChecked('values of the same length do not churn in unison', (WidgetTester tester) async {

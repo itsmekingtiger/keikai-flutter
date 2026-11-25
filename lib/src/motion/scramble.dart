@@ -17,7 +17,7 @@ String kkScrambleText(String target, double progress, {int step = 0, int seed = 
     if (_scrambles(u, letters)) scrambleable++;
   }
   if (scrambleable == 0) return target;
-  final int settled = (progress.clamp(0.0, 1.0) * scrambleable).floor();
+  final int settled = kkStepAt(progress.clamp(0.0, 1.0), scrambleable);
   final StringBuffer out = StringBuffer();
   int seen = 0;
   for (int i = 0; i < units.length; i++) {
@@ -127,7 +127,7 @@ class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateM
     // The end is not one more step: whatever the step count, the last tick
     // differs from every noise step and puts the value on screen.
     final double p = _controller.value;
-    final int? s = p >= 1 ? null : (p * widget.steps).floor();
+    final int? s = p >= 1 ? null : kkStepAt(p, widget.steps);
     if (s != _step) setState(() => _step = s);
   }
 
@@ -180,7 +180,7 @@ class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateM
     final double p = _controller.value;
     final String shown = p >= 1
         ? widget.text
-        : kkScrambleText(widget.text, p, step: (p * widget.steps).floor(), seed: _seed, letters: widget.letters);
+        : kkScrambleText(widget.text, p, step: kkStepAt(p, widget.steps), seed: _seed, letters: widget.letters);
     return Text(
       shown,
       style: widget.style,

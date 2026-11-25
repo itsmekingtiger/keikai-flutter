@@ -24,14 +24,23 @@ class KkSteps extends Curve {
   String toString() => 'KkSteps($count)';
 }
 
+/// The slack that lets a value on a step edge count as on it despite rounding.
+const double _kkStepSlack = 1e-9;
+
 /// `steps(count, end)` at [t]: the largest multiple of 1/[count] not above [t].
 ///
 /// A value that sits on a step edge up to rounding error (15/22 × 22 is
 /// 14.999999999999998 in floating point) counts as having reached that step.
 double kkStepDown(double t, int count) {
-  final double stepped = (t * count + 1e-9).floorToDouble() / count;
+  final double stepped = (t * count + _kkStepSlack).floorToDouble() / count;
   return stepped > 1.0 ? 1.0 : stepped;
 }
+
+/// How many of [count] equal steps have been reached at [t] (0 to 1): 0 before
+/// the first edge, [count] at the end.
+///
+/// The edges are those of [kkStepDown], with the same allowance for rounding.
+int kkStepAt(double t, int count) => (t * count + _kkStepSlack).floor();
 
 /// Evaluates CSS-style keyframes at [t] (0 to 1).
 ///
@@ -129,8 +138,7 @@ class KkMotion {
   static const Duration flow = Duration(seconds: 1);
 
   /// [d] multiplied by [timeScale].
-  Duration scaled(Duration d) =>
-      timeScale == 1.0 ? d : Duration(microseconds: (d.inMicroseconds * timeScale).round());
+  Duration scaled(Duration d) => timeScale == 1.0 ? d : Duration(microseconds: (d.inMicroseconds * timeScale).round());
 
   KkMotion copyWith({bool? enabled, double? timeScale, Duration? staggerStep}) => KkMotion(
     enabled: enabled ?? this.enabled,
