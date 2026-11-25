@@ -9,7 +9,7 @@ class HudSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const SheetScaffold(
-      code: 'F-05',
+      code: 'F-06',
       cjk: '計測',
       en: 'instruments',
       note: '상태는 색 + 단어 + 상태 아이콘 세 가지로 말한다. 패널은 선과 명도로 나누고, 경보일 때만 움직인다.',

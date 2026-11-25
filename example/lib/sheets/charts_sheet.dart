@@ -30,7 +30,7 @@ class ChartsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SheetScaffold(
-      code: 'F-06',
+      code: 'F-07',
       cjk: '図表',
       en: 'charts',
       note: '계열 색은 series-1 · 2 · 3 고정 순서. 넷째부터는 OTHER로 묶는다. 상태는 색 + 단어 + 상태 아이콘으로 함께 말한다.',
