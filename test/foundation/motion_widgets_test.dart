@@ -186,6 +186,77 @@ void main() {
       expect(probe.value, 1);
       expect(probe.done, isTrue);
     });
+
+    testChecked('onDone is also called, once, when the animation does not play', (WidgetTester tester) async {
+      Widget keyed(int key, Widget child) => KeyedSubtree(key: ValueKey<int>(key), child: child);
+      // Motion off.
+      final _Probe off = _Probe();
+      await pumpKk(tester, keyed(1, off.build()));
+      expect(off.done, isTrue);
+      expect(off.doneCalls, 1);
+      await tester.pump(_ms(500));
+      expect(off.doneCalls, 1);
+      // Disabled.
+      final _Probe disabled = _Probe();
+      await pumpKk(tester, keyed(2, disabled.build(enabled: false)), motion: true);
+      expect(disabled.done, isTrue);
+      expect(disabled.doneCalls, 1);
+      // Nothing to play.
+      final _Probe empty = _Probe();
+      await pumpKk(tester, keyed(3, empty.build(duration: Duration.zero)), motion: true);
+      expect(empty.done, isTrue);
+      expect(empty.doneCalls, 1);
+      // A rebuild is not a new run. A new trigger is, and it reports again.
+      await pumpKk(tester, keyed(3, empty.build(duration: Duration.zero)), motion: true);
+      expect(empty.doneCalls, 1);
+      await pumpKk(tester, keyed(3, empty.build(duration: Duration.zero, trigger: 1)), motion: true);
+      expect(empty.doneCalls, 2);
+      await tester.pump(_ms(500));
+      expect(empty.doneCalls, 2);
+    });
+
+    testChecked('onDone is called once when motion is switched off mid-flight', (WidgetTester tester) async {
+      final _Probe probe = _Probe();
+      await pumpKk(tester, probe.build(duration: _ms(1000)), motion: true);
+      await tester.pump(_ms(100));
+      expect(probe.doneCalls, 0);
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pump();
+      await tester.pump();
+      expect(probe.done, isTrue);
+      expect(probe.doneCalls, 1);
+      // The run it cut short does not report a second time when its time is up.
+      await tester.pump(_ms(2000));
+      await tester.pump(_ms10);
+      expect(probe.doneCalls, 1);
+    });
+
+    testChecked('onDone of an animation that does not play may rebuild its parent', (WidgetTester tester) async {
+      int settled = 0;
+      int builds = 0;
+      await pumpKk(
+        tester,
+        StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            builds++;
+            return KkOneShot(
+              duration: _ms(200),
+              onDone: () => setState(() => settled++),
+              builder: (BuildContext context, Animation<double> p, bool done, Widget? child) =>
+                  const SizedBox(width: 10, height: 10),
+            );
+          },
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(settled, 1);
+      await tester.pumpAndSettle();
+      expect(settled, 1);
+      expect(builds, 2);
+    });
   });
 
   group('KkBoot', () {

@@ -31,6 +31,11 @@ class KkOneShot extends StatefulWidget {
   /// Add the ambient [KkStagger] index × the theme's stagger step to [delay].
   final bool stagger;
   final bool enabled;
+
+  /// Called once each time the animation ends. That includes the times it
+  /// does not play to its end: with motion off, with [enabled] false, with
+  /// nothing to play, or when motion is switched off while it runs. Then the
+  /// call comes at the end of the frame.
   final VoidCallback? onDone;
 
   /// [progress] is linear from 0 to 1; apply [KkSteps] or [KkKeyframes] to it.
@@ -56,13 +61,26 @@ class _KkOneShotState extends State<KkOneShot> with SingleTickerProviderStateMix
     }
   }
 
+  /// Ends the run without playing it to its end: the progress is 1 and the
+  /// builder is told it is done.
+  ///
+  /// This runs while the tree is being built, where a callback must not call
+  /// setState, so [KkOneShot.onDone] waits for the end of the frame.
+  void _skip() {
+    _controller.stop();
+    _progress = const AlwaysStoppedAnimation<double>(1);
+    _done = true;
+    if (widget.onDone == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+      if (mounted) widget.onDone?.call();
+    });
+  }
+
   void _start() {
     final KeikaiThemeData theme = KeikaiTheme.of(context);
     final bool motion = widget.enabled && KeikaiTheme.motionOf(context);
     if (!motion) {
-      _controller.stop();
-      _progress = const AlwaysStoppedAnimation<double>(1);
-      _done = true;
+      _skip();
       return;
     }
     Duration delay = widget.delay;
@@ -71,8 +89,7 @@ class _KkOneShotState extends State<KkOneShot> with SingleTickerProviderStateMix
     final Duration duration = theme.motion.scaled(widget.duration);
     final int total = delay.inMicroseconds + duration.inMicroseconds;
     if (total <= 0) {
-      _progress = const AlwaysStoppedAnimation<double>(1);
-      _done = true;
+      _skip();
       return;
     }
     _controller.duration = Duration(microseconds: total);
@@ -89,9 +106,7 @@ class _KkOneShotState extends State<KkOneShot> with SingleTickerProviderStateMix
       _started = true;
       _start();
     } else if (!KeikaiTheme.motionOf(context) && !_done) {
-      _controller.stop();
-      _progress = const AlwaysStoppedAnimation<double>(1);
-      _done = true;
+      _skip();
     }
   }
 
