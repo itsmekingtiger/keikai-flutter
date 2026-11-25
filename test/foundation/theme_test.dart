@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart' show testChecked;
+
 /// Captures what a descendant sees.
 class _Seen {
   KeikaiThemeData? theme;
@@ -69,14 +71,14 @@ void main() {
   });
 
   group('KeikaiTheme', () {
-    testWidgets('without a theme the default standby theme is used', (WidgetTester tester) async {
+    testChecked('without a theme the default standby theme is used', (WidgetTester tester) async {
       final _Seen seen = _Seen();
       await tester.pumpWidget(_dir(seen.probe()));
       expect(seen.theme, const KeikaiThemeData());
       expect(seen.motion, isTrue);
     });
 
-    testWidgets('provides its data and sets the body text style in ink', (WidgetTester tester) async {
+    testChecked('provides its data and sets the body text style in ink', (WidgetTester tester) async {
       final _Seen seen = _Seen();
       const KeikaiThemeData data = KeikaiThemeData(condition: KkCondition.alert);
       await tester.pumpWidget(_dir(KeikaiTheme(data: data, child: seen.probe())));
@@ -87,7 +89,7 @@ void main() {
       expect(seen.text!.color, KkColors.alertTheme.ink);
     });
 
-    testWidgets('dependents rebuild when the data changes, and only then', (WidgetTester tester) async {
+    testChecked('dependents rebuild when the data changes, and only then', (WidgetTester tester) async {
       final _Seen seen = _Seen();
       final Widget probe = seen.probe();
       await tester.pumpWidget(_dir(KeikaiTheme(data: const KeikaiThemeData(), child: probe)));
@@ -102,7 +104,7 @@ void main() {
       expect(seen.theme!.isAlert, isTrue);
     });
 
-    testWidgets('the nearest theme wins', (WidgetTester tester) async {
+    testChecked('the nearest theme wins', (WidgetTester tester) async {
       final _Seen seen = _Seen();
       await tester.pumpWidget(
         _dir(
@@ -118,7 +120,7 @@ void main() {
       expect(seen.theme!.metrics.rowUnit, 40);
     });
 
-    testWidgets('motionOf: off when the theme says so or the platform asks for reduced motion', (
+    testChecked('motionOf: off when the theme says so or the platform asks for reduced motion', (
       WidgetTester tester,
     ) async {
       final _Seen seen = _Seen();
@@ -146,7 +148,7 @@ void main() {
   });
 
   group('KkConditionScope', () {
-    testWidgets('turns one region red and leaves the rest alone', (WidgetTester tester) async {
+    testChecked('turns one region red and leaves the rest alone', (WidgetTester tester) async {
       final _Seen outside = _Seen();
       final _Seen inside = _Seen();
       await tester.pumpWidget(
@@ -171,7 +173,7 @@ void main() {
       expect(inside.theme!.metrics.rowUnit, 40);
     });
 
-    testWidgets('nested scopes: the inner one wins, and standby can be restored inside alert', (
+    testChecked('nested scopes: the inner one wins, and standby can be restored inside alert', (
       WidgetTester tester,
     ) async {
       final _Seen seen = _Seen();
@@ -187,7 +189,7 @@ void main() {
       expect(seen.text!.color, KkColors.standby.ink);
     });
 
-    testWidgets('a scope with the condition already in force adds nothing', (WidgetTester tester) async {
+    testChecked('a scope with the condition already in force adds nothing', (WidgetTester tester) async {
       await tester.pumpWidget(
         _dir(
           const KeikaiTheme(
@@ -208,7 +210,7 @@ void main() {
       expect(find.byType(KeikaiTheme), findsNWidgets(2));
     });
 
-    testWidgets('works without a theme above it', (WidgetTester tester) async {
+    testChecked('works without a theme above it', (WidgetTester tester) async {
       final _Seen seen = _Seen();
       await tester.pumpWidget(_dir(KkConditionScope(condition: KkCondition.alert, child: seen.probe())));
       expect(seen.theme!.colors, KkColors.alertTheme);
