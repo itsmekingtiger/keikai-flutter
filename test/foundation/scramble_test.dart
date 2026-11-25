@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart' show testChecked;
 import '../support/harness.dart';
 
 bool _isDigit(String ch) => ch.codeUnitAt(0) >= 0x30 && ch.codeUnitAt(0) <= 0x39;
@@ -95,7 +96,7 @@ void main() {
     Finder shown() => find.byType(Text);
     String text(WidgetTester tester) => tester.widget<Text>(shown()).data!;
 
-    testWidgets('scrambles for 0.46s when first shown and settles on the value', (WidgetTester tester) async {
+    testChecked('scrambles for 0.46s when first shown and settles on the value', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('042.7'), motion: true);
       final Set<String> frames = <String>{};
       for (int ms = 0; ms < 460; ms += 20) {
@@ -113,7 +114,7 @@ void main() {
       expect(text(tester), '042.7');
     });
 
-    testWidgets('the noise changes ten times, not every frame', (WidgetTester tester) async {
+    testChecked('the noise changes ten times, not every frame', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('0000000000'), motion: true);
       final List<String> frames = <String>[];
       for (int ms = 0; ms <= 460; ms += 2) {
@@ -126,7 +127,7 @@ void main() {
       expect(frames.last, '0000000000');
     });
 
-    testWidgets('scrambles again when the value changes', (WidgetTester tester) async {
+    testChecked('scrambles again when the value changes', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('100'), motion: true);
       await tester.pump(const Duration(milliseconds: 500));
       expect(text(tester), '100');
@@ -141,7 +142,7 @@ void main() {
       expect(text(tester), '999');
     });
 
-    testWidgets('onMount false shows the value at once, but still scrambles on change', (WidgetTester tester) async {
+    testChecked('onMount false shows the value at once, but still scrambles on change', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('100', onMount: false), motion: true);
       expect(text(tester), '100');
       await pumpKk(tester, const KkScramble('200', onMount: false), motion: true);
@@ -149,7 +150,7 @@ void main() {
       expect(text(tester), '200');
     });
 
-    testWidgets('with motion off it never scrambles', (WidgetTester tester) async {
+    testChecked('with motion off it never scrambles', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('31337'));
       expect(text(tester), '31337');
       await pumpKk(tester, const KkScramble('40404'));
@@ -157,19 +158,19 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('enabled false never scrambles', (WidgetTester tester) async {
+    testChecked('enabled false never scrambles', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('31337', enabled: false), motion: true);
       expect(text(tester), '31337');
     });
 
-    testWidgets('reduced motion from the platform turns it off', (WidgetTester tester) async {
+    testChecked('reduced motion from the platform turns it off', (WidgetTester tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
       addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
       await pumpKk(tester, const KkScramble('31337'), motion: true);
       expect(text(tester), '31337');
     });
 
-    testWidgets('assistive technology always reads the real value', (WidgetTester tester) async {
+    testChecked('assistive technology always reads the real value', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpKk(tester, const KkScramble('042.7'), motion: true);
       expect(find.bySemanticsLabel('042.7'), findsOneWidget);
@@ -178,7 +179,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('takes a style and alignment, on one line', (WidgetTester tester) async {
+    testChecked('takes a style and alignment, on one line', (WidgetTester tester) async {
       const TextStyle style = TextStyle(fontSize: 32);
       await pumpKk(tester, const KkScramble('7', style: style, textAlign: TextAlign.right));
       final Text t = tester.widget<Text>(shown());
@@ -188,7 +189,7 @@ void main() {
       expect(t.softWrap, isFalse);
     });
 
-    testWidgets('the time scale of the theme stretches it', (WidgetTester tester) async {
+    testChecked('the time scale of the theme stretches it', (WidgetTester tester) async {
       await pumpKk(
         tester,
         const KkScramble('0000000000'),
