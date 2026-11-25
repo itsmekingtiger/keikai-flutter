@@ -20,7 +20,7 @@ Future<RenderKkGrid> _pump(WidgetTester tester, double width, KkGrid grid) async
 
 void main() {
   group('columns', () {
-    testWidgets('4 / 8 / 12 / 16 / 24 by the width of the grid itself', (WidgetTester tester) async {
+    testChecked('4 / 8 / 12 / 16 / 24 by the width of the grid itself', (WidgetTester tester) async {
       const List<(double, int)> expected = <(double, int)>[
         (320, 4),
         (599, 4),
@@ -40,7 +40,7 @@ void main() {
       }
     });
 
-    testWidgets('a fixed column count overrides the width', (WidgetTester tester) async {
+    testChecked('a fixed column count overrides the width', (WidgetTester tester) async {
       final RenderKkGrid r = await _pump(tester, 1000, KkGrid(columns: 5, children: <Widget>[_cell('a', span: 2)]));
       expect(r.resolvedColumns, 5);
       expect(rectOf(tester, 'a').width, closeTo((1000 - 4 * 8) / 5 * 2 + 8, 1e-6));
@@ -48,7 +48,7 @@ void main() {
   });
 
   group('cells', () {
-    testWidgets('a cell spans columns and rows: n×48 + (n−1)×8 tall', (WidgetTester tester) async {
+    testChecked('a cell spans columns and rows: n×48 + (n−1)×8 tall', (WidgetTester tester) async {
       await _pump(tester, 840, KkGrid(children: <Widget>[_cell('a', span: 4, rows: 2), _cell('b', span: 8, rows: 1)]));
       const double col = (840 - 11 * 8) / 12;
       expect(rectOf(tester, 'a').left, 0);
@@ -64,19 +64,19 @@ void main() {
       }
     });
 
-    testWidgets('a child that is not a KkCell is 4 columns by 4 rows', (WidgetTester tester) async {
+    testChecked('a child that is not a KkCell is 4 columns by 4 rows', (WidgetTester tester) async {
       await _pump(tester, 840, KkGrid(children: <Widget>[box('a')]));
       expect(rectOf(tester, 'a').height, 4 * 48 + 3 * 8);
       expect(rectOf(tester, 'a').width, closeTo((840 - 11 * 8) / 12 * 4 + 3 * 8, 1e-6));
     });
 
-    testWidgets('a span never exceeds the columns the grid has', (WidgetTester tester) async {
+    testChecked('a span never exceeds the columns the grid has', (WidgetTester tester) async {
       await _pump(tester, 400, KkGrid(children: <Widget>[_cell('a', span: 12, rows: 1), _cell('b', span: 8, rows: 1)]));
       expect(rectOf(tester, 'a').width, 400);
       expect(rectOf(tester, 'b'), const Rect.fromLTWH(0, 56, 400, 48));
     });
 
-    testWidgets('spanBuilder picks the span from the column count', (WidgetTester tester) async {
+    testChecked('spanBuilder picks the span from the column count', (WidgetTester tester) async {
       int half(int columns) => columns ~/ 2;
       await _pump(tester, 400, KkGrid(children: <Widget>[_cell('a', spanBuilder: half, rows: 1)]));
       expect(rectOf(tester, 'a').width, closeTo((400 - 24) / 4 * 2 + 8, 1e-6));
@@ -84,7 +84,7 @@ void main() {
       expect(rectOf(tester, 'a').width, closeTo((1600 - 15 * 8) / 16 * 8 + 7 * 8, 1e-6));
     });
 
-    testWidgets('the grid is as tall as the rows it used', (WidgetTester tester) async {
+    testChecked('the grid is as tall as the rows it used', (WidgetTester tester) async {
       await _pump(
         tester,
         400,
@@ -97,7 +97,7 @@ void main() {
       expect(rectOf(tester, 'g').height, 0);
     });
 
-    testWidgets('gutter and row unit can be overridden', (WidgetTester tester) async {
+    testChecked('gutter and row unit can be overridden', (WidgetTester tester) async {
       await _pump(
         tester,
         400,
@@ -114,7 +114,7 @@ void main() {
       expect(rectOf(tester, 'g').height, 44);
     });
 
-    testWidgets('changing a cell relays the grid out', (WidgetTester tester) async {
+    testChecked('changing a cell relays the grid out', (WidgetTester tester) async {
       await _pump(tester, 400, KkGrid(children: <Widget>[_cell('a', span: 2, rows: 1)]));
       expect(rectOf(tester, 'a').width, closeTo(196, 1e-6));
       await _pump(tester, 400, KkGrid(children: <Widget>[_cell('a', span: 4, rows: 2)]));
@@ -130,7 +130,7 @@ void main() {
       _cell('c', span: 1, rows: 1),
     ];
 
-    testWidgets('dense: a later, smaller cell moves up into the hole', (WidgetTester tester) async {
+    testChecked('dense: a later, smaller cell moves up into the hole', (WidgetTester tester) async {
       await _pump(tester, 400, KkGrid(children: abc()));
       expect(rectOf(tester, 'a').topLeft, Offset.zero);
       expect(rectOf(tester, 'b').topLeft, const Offset(0, 56));
@@ -138,14 +138,14 @@ void main() {
       expect(rectOf(tester, 'c').right, 400);
     });
 
-    testWidgets('ordered: cells never move back', (WidgetTester tester) async {
+    testChecked('ordered: cells never move back', (WidgetTester tester) async {
       await _pump(tester, 400, KkGrid(dense: false, children: abc()));
       expect(rectOf(tester, 'b').topLeft, const Offset(0, 56));
       expect(rectOf(tester, 'c').top, 56);
       expect(rectOf(tester, 'c').left, closeTo(2 * (94 + 8), 1e-6));
     });
 
-    testWidgets('a tall cell blocks the rows under it', (WidgetTester tester) async {
+    testChecked('a tall cell blocks the rows under it', (WidgetTester tester) async {
       await _pump(
         tester,
         400,
@@ -168,7 +168,7 @@ void main() {
       expect(rectOf(tester, 'c').topLeft, const Offset(204, 112));
     });
 
-    testWidgets('no two cells overlap in a busy grid', (WidgetTester tester) async {
+    testChecked('no two cells overlap in a busy grid', (WidgetTester tester) async {
       final List<Widget> cells = <Widget>[
         for (int i = 0; i < 24; i++) _cell('c$i', span: 1 + (i * 7) % 5, rows: 1 + (i * 3) % 4),
       ];
@@ -187,7 +187,7 @@ void main() {
   });
 
   group('stagger', () {
-    testWidgets('each cell is told its index', (WidgetTester tester) async {
+    testChecked('each cell is told its index', (WidgetTester tester) async {
       final Map<String, int> seen = <String, int>{};
       Widget probe(String id) => Builder(
         builder: (BuildContext context) {
@@ -203,7 +203,7 @@ void main() {
       expect(seen, <String, int>{'a': 0, 'b': 1, 'c': 2});
     });
 
-    testWidgets('indices continue from an outer stagger, and can be turned off', (WidgetTester tester) async {
+    testChecked('indices continue from an outer stagger, and can be turned off', (WidgetTester tester) async {
       final Map<String, int> seen = <String, int>{};
       Widget probe(String id) => Builder(
         builder: (BuildContext context) {
@@ -238,7 +238,7 @@ void main() {
       expect(seen, <String, int>{'a': 10, 'b': 10});
     });
 
-    testWidgets('a cell keeps its span, rows and key when it is given its index', (WidgetTester tester) async {
+    testChecked('a cell keeps its span, rows and key when it is given its index', (WidgetTester tester) async {
       await _pump(
         tester,
         840,
@@ -251,7 +251,7 @@ void main() {
   });
 
   group('measuring', () {
-    testWidgets('intrinsic height and dry layout match the real layout', (WidgetTester tester) async {
+    testChecked('intrinsic height and dry layout match the real layout', (WidgetTester tester) async {
       final RenderKkGrid r = await _pump(
         tester,
         840,
@@ -269,7 +269,7 @@ void main() {
       expect(rectOf(tester, 'c').top, 0);
     });
 
-    testWidgets('inside a scroll view it takes its content height', (WidgetTester tester) async {
+    testChecked('inside a scroll view it takes its content height', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -287,7 +287,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a zero-width grid does not throw', (WidgetTester tester) async {
+    testChecked('a zero-width grid does not throw', (WidgetTester tester) async {
       await pumpRaw(tester, SizedBox(width: 0, child: KkGrid(children: <Widget>[_cell('a'), _cell('b', span: 1)])));
       expect(tester.takeException(), isNull);
       expect(rectOf(tester, 'a').width, 0);

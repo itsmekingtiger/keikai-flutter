@@ -32,6 +32,10 @@ class KkGridParentData extends ContainerBoxParentData<RenderBox> {
 ///
 /// Wrap children in [KkCell] to give them a column span and a row count. Each
 /// cell is told its index, so panels wipe in one after another, 60ms apart.
+///
+/// The grid is as wide as it is allowed to be and as tall as its rows, so it
+/// needs a width limit: in a `KkRow` wrap it in a `KkExpanded`, and put it in
+/// a vertical scroll view rather than a horizontal one.
 class KkGrid extends StatelessWidget {
   const KkGrid({
     super.key,
@@ -302,6 +306,10 @@ class RenderKkGrid extends RenderBox
     final double width = constraints.hasBoundedWidth ? constraints.maxWidth : constraints.minWidth;
     return constraints.constrain(Size(width, _heightFor(_place(_columnsFor(width)).rowCount)));
   }
+
+  /// A grid of panels has no baseline of its own.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => null;
 
   @override
   void performLayout() {
