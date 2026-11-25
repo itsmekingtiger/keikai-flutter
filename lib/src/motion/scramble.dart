@@ -93,7 +93,7 @@ class KkScramble extends StatefulWidget {
     this.letters = false,
     this.textAlign,
     this.enabled = true,
-  });
+  }) : assert(steps > 0);
 
   final String text;
 
@@ -101,7 +101,7 @@ class KkScramble extends StatefulWidget {
   final TextStyle? style;
   final Duration duration;
 
-  /// How many times the noise changes during the scramble.
+  /// How many times the noise changes during the scramble. At least 1.
   final int steps;
 
   /// Scramble when first shown as well as on change.
@@ -116,13 +116,18 @@ class KkScramble extends StatefulWidget {
 
 class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(vsync: this, value: 1)..addListener(_onTick);
-  int _step = -1;
+
+  /// The noise step on screen, or null when the value itself is.
+  int? _step;
   int _generation = 0;
   int _seed = 0;
   bool _started = false;
 
   void _onTick() {
-    final int s = (_controller.value * widget.steps).floor();
+    // The end is not one more step: whatever the step count, the last tick
+    // differs from every noise step and puts the value on screen.
+    final double p = _controller.value;
+    final int? s = p >= 1 ? null : (p * widget.steps).floor();
     if (s != _step) setState(() => _step = s);
   }
 

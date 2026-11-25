@@ -183,6 +183,27 @@ void main() {
       expect(runs[0].toSet().length, greaterThan(4));
     });
 
+    test('the step count must be positive', () {
+      expect(() => KkScramble('31337', steps: 0), throwsAssertionError);
+      expect(() => KkScramble('31337', steps: -3), throwsAssertionError);
+      expect(const KkScramble('31337', steps: 1).steps, 1);
+    });
+
+    testChecked('the last frame is the value, whatever the step count and the frame times', (
+      WidgetTester tester,
+    ) async {
+      for (final int steps in <int>[1, 2, 3, 7, 10, 23]) {
+        for (final int frame in <int>[1, 7, 16, 46, 460]) {
+          await pumpKk(tester, KkScramble('31337', key: ValueKey<String>('$steps/$frame'), steps: steps), motion: true);
+          expect(text(tester), isNot('31337'), reason: 'steps $steps');
+          for (int ms = 0; ms < 460; ms += frame) {
+            await tester.pump(Duration(milliseconds: frame));
+          }
+          expect(text(tester), '31337', reason: 'steps $steps, ${frame}ms frames');
+        }
+      }
+    });
+
     testChecked('scrambles again when the value changes', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('100'), motion: true);
       await tester.pump(const Duration(milliseconds: 500));
