@@ -223,6 +223,10 @@ class RenderKkGap extends RenderBox {
   @override
   Size computeDryLayout(BoxConstraints constraints) => _sizeFor(constraints);
 
+  /// Empty space has no baseline.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => null;
+
   @override
   void performLayout() => size = _sizeFor(constraints);
 }
@@ -552,24 +556,46 @@ class RenderKkFlex extends RenderBox
       ChildLayoutHelper.dryLayoutChild,
       ChildLayoutHelper.getDryBaseline,
     );
+    final ({double leading, double between}) spacing = _spacing(sizes);
     // Re-derive each child's constraints the cheap way: the dry size is what
     // the child would get, so ask for its baseline at exactly that size.
     double? result;
     int i = 0;
-    double mainOffset = 0;
+    double position = spacing.leading;
     for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
       final Size s = sizes.childSizes[i];
-      final double? d = child.getDryBaseline(BoxConstraints.tight(s), baseline);
+      final BoxConstraints tight = BoxConstraints.tight(s);
+      final double? d = child.getDryBaseline(tight, baseline);
       if (d != null) {
         final KkFlexParentData pd = child.parentData! as KkFlexParentData;
-        final double crossOffset = _horizontal ? _crossOffset(pd, s, sizes, d) : mainOffset;
-        final double v = d + crossOffset;
-        if (!_horizontal) return v;
+        if (!_horizontal) return d + position;
+        // A baseline-aligned child is placed by the row's own baseline kind.
+        final double? own = _crossFor(pd) != KkCrossAlign.baseline
+            ? null
+            : (baseline == _textBaseline ? d : child.getDryBaseline(tight, _textBaseline));
+        final double v = d + _crossOffset(pd, s, sizes, own);
         result = result == null ? v : math.min(result, v);
       }
-      mainOffset += _mainOf(s) + _gap;
+      position += _mainOf(s) + _gap + spacing.between;
     }
     return result;
+  }
+
+  /// Space before the first child and extra space between children, by the
+  /// main alignment. Content that does not fit starts at the start.
+  ({double leading, double between}) _spacing(_FlexSizes sizes) {
+    final int count = childCount;
+    final double gaps = count > 1 ? _gap * (count - 1) : 0;
+    final double free = math.max(0, _mainOf(sizes.size) - sizes.allocated - gaps);
+    return switch (_main) {
+      KkMainAlign.start => (leading: 0, between: 0),
+      KkMainAlign.end => (leading: free, between: 0),
+      KkMainAlign.center => (leading: free / 2, between: 0),
+      KkMainAlign.between => (leading: 0, between: count > 1 ? free / (count - 1) : 0),
+      KkMainAlign.around => count > 0 ? (leading: free / count / 2, between: free / count) : (leading: 0, between: 0),
+      KkMainAlign.evenly =>
+        count > 0 ? (leading: free / (count + 1), between: free / (count + 1)) : (leading: 0, between: 0),
+    };
   }
 
   double _crossOffset(KkFlexParentData pd, Size childSize, _FlexSizes sizes, double? baseline) {
@@ -588,31 +614,11 @@ class RenderKkFlex extends RenderBox
     size = sizes.size;
 
     final int count = childCount;
-    final double actualMain = _mainOf(size);
     final double gaps = count > 1 ? _gap * (count - 1) : 0;
-    final double free = math.max(0, actualMain - sizes.allocated - gaps);
-    _hasOverflow = sizes.allocated + gaps > actualMain + 0.01 || _childCrossOverflows(sizes);
+    _hasOverflow = sizes.allocated + gaps > _mainOf(size) + 0.01 || _childCrossOverflows(sizes);
 
-    double leading = 0;
-    double between = 0;
-    switch (_main) {
-      case KkMainAlign.start:
-        break;
-      case KkMainAlign.end:
-        leading = free;
-      case KkMainAlign.center:
-        leading = free / 2;
-      case KkMainAlign.between:
-        between = count > 1 ? free / (count - 1) : 0;
-      case KkMainAlign.around:
-        between = count > 0 ? free / count : 0;
-        leading = between / 2;
-      case KkMainAlign.evenly:
-        between = count > 0 ? free / (count + 1) : 0;
-        leading = between;
-    }
-
-    double position = leading;
+    final ({double leading, double between}) spacing = _spacing(sizes);
+    double position = spacing.leading;
     for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
       final KkFlexParentData pd = child.parentData! as KkFlexParentData;
       double? baseline;
@@ -621,7 +627,7 @@ class RenderKkFlex extends RenderBox
       }
       final double crossOffset = _crossOffset(pd, child.size, sizes, baseline);
       pd.offset = _horizontal ? Offset(position, crossOffset) : Offset(crossOffset, position);
-      position += _mainOf(child.size) + _gap + between;
+      position += _mainOf(child.size) + _gap + spacing.between;
     }
   }
 

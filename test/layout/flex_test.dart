@@ -7,7 +7,7 @@ void main() {
   List<Widget> abc() => <Widget>[box('a', 40, 20), box('b', 60, 30), box('c', 20, 10)];
 
   group('KkRow main axis', () {
-    testWidgets('lays children out left to right with the gap and centres them', (WidgetTester tester) async {
+    testChecked('lays children out left to right with the gap and centres them', (WidgetTester tester) async {
       await pumpRaw(tester, KkRow(key: const ValueKey<String>('row'), gap: 8, children: abc()));
       expect(rectOf(tester, 'row'), const Rect.fromLTWH(0, 0, 800, 30));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 5, 40, 20));
@@ -15,7 +15,7 @@ void main() {
       expect(rectOf(tester, 'c'), const Rect.fromLTWH(116, 10, 20, 10));
     });
 
-    testWidgets('shrinkWrap takes only the content width', (WidgetTester tester) async {
+    testChecked('shrinkWrap takes only the content width', (WidgetTester tester) async {
       await pumpRaw(tester, KkRow(key: const ValueKey<String>('row'), gap: 8, shrinkWrap: true, children: abc()));
       expect(rectOf(tester, 'row').size, const Size(136, 30));
     });
@@ -28,46 +28,46 @@ void main() {
       ),
     );
 
-    testWidgets('start', (WidgetTester tester) async {
+    testChecked('start', (WidgetTester tester) async {
       await pumpAligned(tester, KkMainAlign.start);
       expect(rectOf(tester, 'a').left, 0);
       expect(rectOf(tester, 'c').left, 116);
     });
 
-    testWidgets('end', (WidgetTester tester) async {
+    testChecked('end', (WidgetTester tester) async {
       await pumpAligned(tester, KkMainAlign.end);
       expect(rectOf(tester, 'a').left, 64);
       expect(rectOf(tester, 'c').right, 200);
     });
 
-    testWidgets('center', (WidgetTester tester) async {
+    testChecked('center', (WidgetTester tester) async {
       await pumpAligned(tester, KkMainAlign.center);
       expect(rectOf(tester, 'a').left, 32);
       expect(rectOf(tester, 'c').right, 168);
     });
 
-    testWidgets('between', (WidgetTester tester) async {
+    testChecked('between', (WidgetTester tester) async {
       await pumpAligned(tester, KkMainAlign.between);
       expect(rectOf(tester, 'a').left, 0);
       expect(rectOf(tester, 'b').left, 80);
       expect(rectOf(tester, 'c').left, 180);
     });
 
-    testWidgets('around', (WidgetTester tester) async {
+    testChecked('around', (WidgetTester tester) async {
       await pumpAligned(tester, KkMainAlign.around);
       expect(rectOf(tester, 'a').left, closeTo(64 / 6, 1e-6));
       expect(rectOf(tester, 'b').left, closeTo(80, 1e-6));
       expect(rectOf(tester, 'c').right, closeTo(200 - 64 / 6, 1e-6));
     });
 
-    testWidgets('evenly', (WidgetTester tester) async {
+    testChecked('evenly', (WidgetTester tester) async {
       await pumpAligned(tester, KkMainAlign.evenly);
       expect(rectOf(tester, 'a').left, 16);
       expect(rectOf(tester, 'b').left, 80);
       expect(rectOf(tester, 'c').left, 164);
     });
 
-    testWidgets('between with one child and with none does not divide by zero', (WidgetTester tester) async {
+    testChecked('between with one child and with none does not divide by zero', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -93,28 +93,28 @@ void main() {
       ),
     );
 
-    testWidgets('start', (WidgetTester tester) async {
+    testChecked('start', (WidgetTester tester) async {
       await pumpCross(tester, KkCrossAlign.start);
       expect(rectOf(tester, 'a').top, 0);
     });
 
-    testWidgets('end', (WidgetTester tester) async {
+    testChecked('end', (WidgetTester tester) async {
       await pumpCross(tester, KkCrossAlign.end);
       expect(rectOf(tester, 'a').bottom, 50);
     });
 
-    testWidgets('center', (WidgetTester tester) async {
+    testChecked('center', (WidgetTester tester) async {
       await pumpCross(tester, KkCrossAlign.center);
       expect(rectOf(tester, 'a').top, 15);
     });
 
-    testWidgets('stretch with a tight cross constraint fills it', (WidgetTester tester) async {
+    testChecked('stretch with a tight cross constraint fills it', (WidgetTester tester) async {
       await pumpCross(tester, KkCrossAlign.stretch);
       expect(rectOf(tester, 'a').height, 50);
       expect(rectOf(tester, 'b').height, 50);
     });
 
-    testWidgets('stretch with a loose cross constraint matches the largest child', (WidgetTester tester) async {
+    testChecked('stretch with a loose cross constraint matches the largest child', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkRow(
@@ -129,7 +129,7 @@ void main() {
       expect(rectOf(tester, 'c').height, 30);
     });
 
-    testWidgets('stretch with an unbounded cross constraint matches the largest child', (WidgetTester tester) async {
+    testChecked('stretch with an unbounded cross constraint matches the largest child', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         UnconstrainedBox(
@@ -146,7 +146,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('alignSelf overrides the line alignment for one child', (WidgetTester tester) async {
+    testChecked('alignSelf overrides the line alignment for one child', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -166,7 +166,7 @@ void main() {
       expect(rectOf(tester, 'c').height, 50);
     });
 
-    testWidgets('baseline aligns text of different sizes on one line', (WidgetTester tester) async {
+    testChecked('baseline aligns text of different sizes on one line', (WidgetTester tester) async {
       Widget row() => KkRow(
         key: const ValueKey<String>('row'),
         cross: KkCrossAlign.baseline,
@@ -198,7 +198,7 @@ void main() {
       expect(rectOf(tester, 'row').top, closeTo(100 - bigBase, 1e-6));
     });
 
-    testWidgets('baseline row grows when a small font has the deeper descent', (WidgetTester tester) async {
+    testChecked('baseline row grows when a small font has the deeper descent', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkRow(
@@ -218,7 +218,7 @@ void main() {
       expect(rectOf(tester, 'row').height, greaterThanOrEqualTo(rectOf(tester, 'big').bottom - 1e-6));
     });
 
-    testWidgets('a column reports the baseline of its first child with one', (WidgetTester tester) async {
+    testChecked('a column reports the baseline of its first child with one', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         Baseline(
@@ -242,10 +242,84 @@ void main() {
       final RenderKkFlex col = tester.renderObject<RenderKkFlex>(byId('col'));
       expect(baselineOf(col), closeTo(12 + 5 + textBase, 1e-6));
     });
+
+    testChecked('the baseline of a column with room to spare follows its main alignment', (WidgetTester tester) async {
+      // 200 tall with 12 + 20 + 30 of content and two 5px gaps: 128 to spare.
+      const Map<KkMainAlign, double> textTop = <KkMainAlign, double>{
+        KkMainAlign.start: 17,
+        KkMainAlign.end: 128 + 17,
+        KkMainAlign.center: 64 + 17,
+        KkMainAlign.between: 12 + 5 + 64,
+        KkMainAlign.around: 128 / 6 + 12 + 5 + 128 / 3,
+        KkMainAlign.evenly: 32 + 12 + 5 + 32,
+      };
+      for (final MapEntry<KkMainAlign, double> e in textTop.entries) {
+        // The column hangs from a Baseline, which places it by its real
+        // baseline; the dry one must be the same distance.
+        await pumpRaw(
+          tester,
+          Baseline(
+            baseline: 300,
+            baselineType: TextBaseline.alphabetic,
+            child: SizedBox(
+              width: 200,
+              height: 200,
+              child: KkColumn(
+                key: const ValueKey<String>('col'),
+                main: e.key,
+                cross: KkCrossAlign.start,
+                gap: 5,
+                children: <Widget>[
+                  box('a', 10, 12),
+                  Text('A', key: const ValueKey<String>('t'), style: testStyle(20)),
+                  box('b', 10, 30),
+                ],
+              ),
+            ),
+          ),
+        );
+        final double textBase = baselineOf(tester.renderObject<RenderBox>(byId('t')))!;
+        final double colTop = rectOf(tester, 'col').top;
+        expect(rectOf(tester, 't').top - colTop, closeTo(e.value, 1e-6), reason: '${e.key}');
+        expect(colTop, closeTo(300 - (e.value + textBase), 1e-6), reason: '${e.key}');
+        final RenderKkFlex col = tester.renderObject<RenderKkFlex>(byId('col'));
+        expect(baselineOf(col), closeTo(e.value + textBase, 1e-6), reason: '${e.key}');
+      }
+    });
+
+    testChecked('a row asked for the other baseline kind still places its children by its own', (
+      WidgetTester tester,
+    ) async {
+      await pumpRaw(
+        tester,
+        KkRow(
+          key: const ValueKey<String>('row'),
+          shrinkWrap: true,
+          cross: KkCrossAlign.baseline,
+          children: <Widget>[
+            Text('A', key: const ValueKey<String>('big'), style: testStyle(40)),
+            Text('B', key: const ValueKey<String>('small'), style: testStyle(20)),
+          ],
+        ),
+      );
+      final RenderKkFlex row = tester.renderObject<RenderKkFlex>(byId('row'));
+      final RenderBox small = tester.renderObject<RenderBox>(byId('small'));
+      final RenderBox big = tester.renderObject<RenderBox>(byId('big'));
+      // The small text sits lower by the difference of the alphabetic
+      // baselines; its ideographic baseline is that much lower too.
+      final double shift = baselineOf(big)! - baselineOf(small)!;
+      expect(rectOf(tester, 'small').top, closeTo(shift, 1e-6));
+      final double bigIdeo = big.getDryBaseline(big.constraints, TextBaseline.ideographic)!;
+      final double smallIdeo = small.getDryBaseline(small.constraints, TextBaseline.ideographic)!;
+      expect(
+        row.getDryBaseline(row.constraints, TextBaseline.ideographic),
+        closeTo(bigIdeo < smallIdeo + shift ? bigIdeo : smallIdeo + shift, 1e-6),
+      );
+    });
   });
 
   group('flex shares', () {
-    testWidgets('KkExpanded children split the free space by flex', (WidgetTester tester) async {
+    testChecked('KkExpanded children split the free space by flex', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -263,7 +337,7 @@ void main() {
       expect(rectOf(tester, 'c'), const Rect.fromLTWH(140, 0, 160, 10));
     });
 
-    testWidgets('the gap is taken out before the free space is shared', (WidgetTester tester) async {
+    testChecked('the gap is taken out before the free space is shared', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -283,7 +357,7 @@ void main() {
       expect(rectOf(tester, 'c').right, closeTo(300, 1e-6));
     });
 
-    testWidgets('KkFlexible lets the child stay smaller than its share', (WidgetTester tester) async {
+    testChecked('KkFlexible lets the child stay smaller than its share', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -301,7 +375,7 @@ void main() {
       expect(rectOf(tester, 'c').left, 90);
     });
 
-    testWidgets('KkFlexible caps the child at its share', (WidgetTester tester) async {
+    testChecked('KkFlexible caps the child at its share', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -323,7 +397,7 @@ void main() {
       expect(rectOf(tester, 'b').width, 40);
     });
 
-    testWidgets('KkSpacer pushes the rest to the far edge', (WidgetTester tester) async {
+    testChecked('KkSpacer pushes the rest to the far edge', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -334,7 +408,7 @@ void main() {
       expect(rectOf(tester, 'b').right, 300);
     });
 
-    testWidgets('flex children in an unbounded main axis keep their own size', (WidgetTester tester) async {
+    testChecked('flex children in an unbounded main axis keep their own size', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         UnconstrainedBox(
@@ -356,7 +430,7 @@ void main() {
       expect(rectOf(tester, 'row').width, 60 + 30 + 0 + 20 + 15);
     });
 
-    testWidgets('changing flex through the parent data widget relays out', (WidgetTester tester) async {
+    testChecked('changing flex through the parent data widget relays out', (WidgetTester tester) async {
       Widget build(int flex) => SizedBox(
         width: 300,
         child: KkRow(
@@ -374,7 +448,7 @@ void main() {
   });
 
   group('KkColumn', () {
-    testWidgets('stretches children to a tight width and stacks them with the gap', (WidgetTester tester) async {
+    testChecked('stretches children to a tight width and stacks them with the gap', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -387,7 +461,7 @@ void main() {
       expect(rectOf(tester, 'b'), const Rect.fromLTWH(0, 26, 200, 30));
     });
 
-    testWidgets('with a loose width it is as wide as its widest child and stretches the rest', (
+    testChecked('with a loose width it is as wide as its widest child and stretches the rest', (
       WidgetTester tester,
     ) async {
       await pumpRaw(
@@ -403,7 +477,7 @@ void main() {
       expect(rectOf(tester, 'c').width, 120);
     });
 
-    testWidgets('takes the full height unless shrinkWrap', (WidgetTester tester) async {
+    testChecked('takes the full height unless shrinkWrap', (WidgetTester tester) async {
       await pumpRaw(tester, KkColumn(key: const ValueKey<String>('col'), children: <Widget>[box('a', 10, 20)]));
       expect(rectOf(tester, 'col').height, 600);
       await pumpRaw(
@@ -413,7 +487,7 @@ void main() {
       expect(rectOf(tester, 'col').height, 20);
     });
 
-    testWidgets('expanded child takes the remaining height', (WidgetTester tester) async {
+    testChecked('expanded child takes the remaining height', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -429,7 +503,7 @@ void main() {
       expect(rectOf(tester, 'c').bottom, 300);
     });
 
-    testWidgets('a stretched wrapping text reflows and the column follows its new height', (
+    testChecked('a stretched wrapping text reflows and the column follows its new height', (
       WidgetTester tester,
     ) async {
       // In a loose width the column is first as wide as the wide box; the text is
@@ -452,7 +526,7 @@ void main() {
   });
 
   group('KkGap', () {
-    testWidgets('follows the direction of the enclosing flex', (WidgetTester tester) async {
+    testChecked('follows the direction of the enclosing flex', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkRow(
@@ -475,7 +549,7 @@ void main() {
       expect(rectOf(tester, 'b').top, 17);
     });
 
-    testWidgets('is a square outside a flex', (WidgetTester tester) async {
+    testChecked('is a square outside a flex', (WidgetTester tester) async {
       await pumpRaw(tester, const KkGap(9, key: ValueKey<String>('gap')));
       expect(rectOf(tester, 'gap').size, const Size(9, 9));
     });
@@ -494,7 +568,7 @@ void main() {
       ],
     );
 
-    testWidgets('intrinsic sizes add the gaps', (WidgetTester tester) async {
+    testChecked('intrinsic sizes add the gaps', (WidgetTester tester) async {
       await pumpRaw(tester, sample());
       final RenderKkFlex row = tester.renderObject<RenderKkFlex>(byId('row'));
       // 40 + text (9 em squares of 10) + 20 + two gaps.
@@ -504,7 +578,7 @@ void main() {
       expect(row.getMaxIntrinsicHeight(double.infinity), 30);
     });
 
-    testWidgets('dry layout equals real layout for several constraints', (WidgetTester tester) async {
+    testChecked('dry layout equals real layout for several constraints', (WidgetTester tester) async {
       for (final KkCrossAlign cross in <KkCrossAlign>[
         KkCrossAlign.start,
         KkCrossAlign.center,
@@ -533,7 +607,7 @@ void main() {
       }
     });
 
-    testWidgets('IntrinsicHeight and IntrinsicWidth work around a flex', (WidgetTester tester) async {
+    testChecked('IntrinsicHeight and IntrinsicWidth work around a flex', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         IntrinsicWidth(
@@ -552,7 +626,7 @@ void main() {
       expect(rectOf(tester, 'b').height, 30);
     });
 
-    testWidgets('a baseline row can be measured dry by a parent', (WidgetTester tester) async {
+    testChecked('a baseline row can be measured dry by a parent', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkRow(
@@ -583,7 +657,7 @@ void main() {
   });
 
   group('overflow', () {
-    testWidgets('children wider than the row do not throw, with or without clipping', (WidgetTester tester) async {
+    testChecked('children wider than the row do not throw, with or without clipping', (WidgetTester tester) async {
       for (final Clip clip in <Clip>[Clip.none, Clip.hardEdge]) {
         await pumpRaw(
           tester,
@@ -602,7 +676,7 @@ void main() {
       }
     });
 
-    testWidgets('a clipped overflow paints inside a clip layer and stays hit-testable', (WidgetTester tester) async {
+    testChecked('a clipped overflow paints inside a clip layer and stays hit-testable', (WidgetTester tester) async {
       int taps = 0;
       await pumpRaw(
         tester,
@@ -627,7 +701,7 @@ void main() {
   });
 
   group('hit testing', () {
-    testWidgets('each child takes its own taps and the gap takes none', (WidgetTester tester) async {
+    testChecked('each child takes its own taps and the gap takes none', (WidgetTester tester) async {
       final List<String> log = <String>[];
       Widget target(String id) => GestureDetector(
         behavior: HitTestBehavior.opaque,
