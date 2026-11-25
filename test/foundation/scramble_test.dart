@@ -249,6 +249,48 @@ void main() {
       expect(text(tester), '31337');
     });
 
+    testChecked('reduced motion that arrives mid-scramble shows the value at once', (WidgetTester tester) async {
+      await pumpKk(tester, const KkScramble('0000000000', duration: Duration(seconds: 2)), motion: true);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(text(tester), isNot('0000000000'));
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pump();
+      await tester.pump();
+      expect(text(tester), '0000000000');
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'the scramble has stopped');
+      // Motion coming back does not replay what was cut short.
+      tester.platformDispatcher.clearAccessibilityFeaturesTestValue();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(text(tester), '0000000000');
+    });
+
+    testChecked('motion switched off by the theme, or enabled false, ends a scramble in flight', (
+      WidgetTester tester,
+    ) async {
+      const Duration slow = Duration(seconds: 2);
+      await pumpKk(tester, const KkScramble('0000000000', duration: slow), motion: true);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(text(tester), isNot('0000000000'));
+      await pumpKk(tester, const KkScramble('0000000000', duration: slow));
+      expect(text(tester), '0000000000');
+      await tester.pumpAndSettle();
+
+      await pumpKk(tester, const KkScramble('1111111111', duration: slow), motion: true);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(text(tester), isNot('1111111111'));
+      await pumpKk(tester, const KkScramble('1111111111', duration: slow, enabled: false), motion: true);
+      expect(text(tester), '1111111111');
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(text(tester), '1111111111');
+      // Enabled again, it waits for the next change of value.
+      await pumpKk(tester, const KkScramble('1111111111', duration: slow), motion: true);
+      expect(text(tester), '1111111111');
+    });
+
     testChecked('assistive technology always reads the real value', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpKk(tester, const KkScramble('042.7'), motion: true);

@@ -142,19 +142,31 @@ class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateM
     _controller.forward(from: 0);
   }
 
+  /// Ends a scramble in flight that may no longer run: the value is shown at
+  /// once, as it would have been had motion been off from the start.
+  void _stopIfOff() {
+    if (_controller.isAnimating && (!widget.enabled || !KeikaiTheme.motionOf(context))) _controller.value = 1;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_started) {
       _started = true;
       if (widget.onMount) _run();
+    } else {
+      _stopIfOff();
     }
   }
 
   @override
   void didUpdateWidget(KkScramble oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text) _run();
+    if (oldWidget.text != widget.text) {
+      _run();
+    } else {
+      _stopIfOff();
+    }
   }
 
   @override
