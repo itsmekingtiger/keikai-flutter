@@ -233,6 +233,36 @@ class _RenderHeading extends RenderBox
     return math.max(rows, s.stem?.getMaxIntrinsicHeight(double.infinity) ?? 0);
   }
 
+  /// The size, what the two lines are given and where the main line starts,
+  /// worked out without laying anything out. Mirrors [performLayout].
+  ({Size size, BoxConstraints right, double mainTop}) _measure(BoxConstraints constraints) {
+    final ({RenderBox? stem, RenderBox? top, RenderBox? main}) s = _slots();
+    final Size stemSize = s.stem?.getDryLayout(const BoxConstraints()) ?? Size.zero;
+    final double left = s.stem == null ? 0 : stemSize.width + _columnGap;
+    final double rightMax = constraints.maxWidth.isFinite ? math.max(0.0, constraints.maxWidth - left) : double.infinity;
+    final BoxConstraints right = BoxConstraints(maxWidth: rightMax);
+    final Size topSize = s.top?.getDryLayout(right) ?? Size.zero;
+    final Size mainSize = s.main?.getDryLayout(right) ?? Size.zero;
+    final double rows = topSize.height + (s.top != null ? _rowGap : 0) + mainSize.height;
+    final double height = math.max(rows, stemSize.height);
+    final double width = left + math.max(topSize.width, mainSize.width);
+    final Size size = constraints.constrain(Size(s.stem == null ? width : math.max(width, stemSize.width), height));
+    return (size: size, right: right, mainTop: height - mainSize.height);
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => _measure(constraints).size;
+
+  /// The baseline of the main line, as in [computeDistanceToActualBaseline].
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) {
+    final RenderBox? main = _slots().main;
+    if (main == null) return null;
+    final ({Size size, BoxConstraints right, double mainTop}) r = _measure(constraints);
+    final double? d = main.getDryBaseline(r.right, baseline);
+    return d == null ? null : d + r.mainTop;
+  }
+
   @override
   void performLayout() {
     final ({RenderBox? stem, RenderBox? top, RenderBox? main}) s = _slots();

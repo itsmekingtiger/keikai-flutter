@@ -415,6 +415,10 @@ class RenderKkHexMatrix extends RenderBox
   Size computeDryLayout(BoxConstraints constraints) =>
       constraints.constrain(_sizeFor(childCount, _columnsFor(constraints.maxWidth, childCount)));
 
+  /// A honeycomb has no baseline.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => null;
+
   @override
   void performLayout() {
     final int count = childCount;

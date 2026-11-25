@@ -433,6 +433,11 @@ class _RenderPanelBody extends RenderBox
   Size computeDryLayout(BoxConstraints constraints) =>
       constraints.constrain(firstChild?.getDryLayout(constraints) ?? Size.zero);
 
+  /// The content's baseline; the spine is upright text and has none.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) =>
+      firstChild?.getDryBaseline(constraints, baseline);
+
   @override
   void performLayout() {
     final RenderBox? content = firstChild;

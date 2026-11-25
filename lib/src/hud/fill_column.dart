@@ -85,7 +85,10 @@ class RenderKkFillColumn extends RenderBox
   @override
   double computeMaxIntrinsicHeight(double width) => _sumHeight((RenderBox c) => c.getMaxIntrinsicHeight(width));
 
-  ({Size size, List<Size> sizes}) _compute(BoxConstraints constraints, ChildLayouter layoutChild) {
+  ({Size size, List<Size> sizes, List<BoxConstraints> given}) _compute(
+    BoxConstraints constraints,
+    ChildLayouter layoutChild,
+  ) {
     final int count = childCount;
     final List<Size> sizes = List<Size>.filled(count, Size.zero);
     double width;
@@ -100,6 +103,7 @@ class RenderKkFillColumn extends RenderBox
     }
     final bool fill = constraints.hasTightHeight && _bodyIndex >= 0;
     final BoxConstraints row = BoxConstraints(minWidth: width, maxWidth: width);
+    final List<BoxConstraints> given = List<BoxConstraints>.filled(count, row);
     double used = 0;
     RenderBox? body;
     int i = 0;
@@ -116,10 +120,11 @@ class RenderKkFillColumn extends RenderBox
       final BoxConstraints bc = fill
           ? BoxConstraints.tightFor(width: width, height: left)
           : BoxConstraints(minWidth: width, maxWidth: width, maxHeight: left);
+      given[_bodyIndex] = bc;
       sizes[_bodyIndex] = layoutChild(body, bc);
       used += sizes[_bodyIndex].height;
     }
-    return (size: constraints.constrain(Size(width, used)), sizes: sizes);
+    return (size: constraints.constrain(Size(width, used)), sizes: sizes, given: given);
   }
 
   @override
@@ -127,8 +132,7 @@ class RenderKkFillColumn extends RenderBox
 
   @override
   void performLayout() {
-    final ({Size size, List<Size> sizes}) r = _compute(constraints, ChildLayoutHelper.layoutChild);
-    size = r.size;
+    size = _compute(constraints, ChildLayoutHelper.layoutChild).size;
     double y = 0;
     for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
       (child.parentData! as _FillColumnParentData).offset = Offset(0, y);
@@ -139,6 +143,24 @@ class RenderKkFillColumn extends RenderBox
   @override
   double? computeDistanceToActualBaseline(TextBaseline baseline) =>
       defaultComputeDistanceToFirstActualBaseline(baseline);
+
+  /// The baseline of the first child that has one, as [performLayout] would
+  /// place it.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) {
+    final ({Size size, List<Size> sizes, List<BoxConstraints> given}) r = _compute(
+      constraints,
+      ChildLayoutHelper.dryLayoutChild,
+    );
+    double y = 0;
+    int i = 0;
+    for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
+      final double? d = child.getDryBaseline(r.given[i], baseline);
+      if (d != null) return d + y;
+      y += r.sizes[i].height;
+    }
+    return null;
+  }
 
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
