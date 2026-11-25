@@ -292,6 +292,47 @@ void main() {
       expect(rectOf(tester, 'w').size, const Size(124, 20));
     });
 
+    testChecked('a baseline row that was measured first still puts its children on one baseline', (
+      WidgetTester tester,
+    ) async {
+      // IntrinsicHeight makes the wrap measure the row dry before anything is
+      // laid out. A box keeps the dry and the real baseline of a child in one
+      // cache, so a dry baseline that differs from the real one moves the
+      // label off the line of the value in the real layout.
+      Widget block() => KkRow(
+        cross: KkCrossAlign.baseline,
+        shrinkWrap: true,
+        gap: 8,
+        children: <Widget>[
+          KkColumn(
+            shrinkWrap: true,
+            cross: KkCrossAlign.start,
+            children: <Widget>[
+              KkRow(
+                shrinkWrap: true,
+                children: <Widget>[
+                  KkColumn(children: <Widget>[Text('A', key: const ValueKey<String>('label'), style: testStyle(8))]),
+                  box('tall', 10, 40),
+                ],
+              ),
+            ],
+          ),
+          Text('B', key: const ValueKey<String>('value'), style: testStyle(20)),
+        ],
+      );
+      for (final bool measured in <bool>[false, true]) {
+        final Widget wrap = KkWrap(children: <Widget>[block()]);
+        await pumpRaw(tester, measured ? IntrinsicHeight(child: wrap) : wrap);
+        expect(tester.takeException(), isNull, reason: 'measured first: $measured');
+        // The label is centred in the 40px row: its baseline is 16 + 6 down,
+        // and the 20px value (baseline 15 down) is moved to meet it.
+        final double label = rectOf(tester, 'label').top + baselineOf(_render(tester, 'label'))!;
+        final double value = rectOf(tester, 'value').top + baselineOf(_render(tester, 'value'))!;
+        expect(label, closeTo(22, 1e-6), reason: 'measured first: $measured');
+        expect(value, closeTo(22, 1e-6), reason: 'measured first: $measured');
+      }
+    });
+
     testChecked('inline in a paragraph, on its baseline', (WidgetTester tester) async {
       await pumpRaw(
         tester,

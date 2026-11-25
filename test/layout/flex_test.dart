@@ -654,6 +654,67 @@ void main() {
       expect(baselineOf(inner), closeTo(innerActual, 1e-6));
       expect(baselineOf(outer), closeTo(innerActual, 1e-6));
     });
+
+    testChecked('a flex inside a flex has the same baseline dry as laid out', (WidgetTester tester) async {
+      // The row gives its column no height limit, so the column is as tall as
+      // its text and sits in the middle of the 40px row. Asked at the size it
+      // ended up with instead, the row would hand the column those 40px, the
+      // column would fill them and the text would sit at the top.
+      await pumpRaw(
+        tester,
+        SizedBox(
+          width: 300,
+          height: 200,
+          child: KkColumn(
+            key: const ValueKey<String>('outer'),
+            children: <Widget>[
+              KkRow(
+                key: const ValueKey<String>('row'),
+                children: <Widget>[
+                  KkColumn(
+                    key: const ValueKey<String>('inner'),
+                    children: <Widget>[Text('A', key: const ValueKey<String>('label'), style: testStyle(8))],
+                  ),
+                  box('tall', 10, 40),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'inner'), const Rect.fromLTWH(0, 16, 8, 8));
+      final double labelBase = baselineOf(tester.renderObject<RenderBox>(byId('label')))!;
+      for (final String id in <String>['row', 'outer']) {
+        expect(baselineOf(tester.renderObject<RenderBox>(byId(id))), closeTo(16 + labelBase, 1e-6), reason: id);
+      }
+    });
+
+    testChecked('the dry baseline asks a stretched child at the size of the line', (WidgetTester tester) async {
+      // The column is measured 8px tall, then stretched to the 40px line and
+      // centres its text in it: its baseline is the one of the second layout.
+      await pumpRaw(
+        tester,
+        KkRow(
+          key: const ValueKey<String>('row'),
+          cross: KkCrossAlign.stretch,
+          shrinkWrap: true,
+          children: <Widget>[
+            KkColumn(
+              shrinkWrap: true,
+              main: KkMainAlign.center,
+              cross: KkCrossAlign.start,
+              children: <Widget>[Text('A', key: const ValueKey<String>('label'), style: testStyle(8))],
+            ),
+            box('tall', 10, 40),
+          ],
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'label').top, 16);
+      final double labelBase = baselineOf(tester.renderObject<RenderBox>(byId('label')))!;
+      expect(baselineOf(tester.renderObject<RenderBox>(byId('row'))), closeTo(16 + labelBase, 1e-6));
+    });
   });
 
   group('overflow', () {

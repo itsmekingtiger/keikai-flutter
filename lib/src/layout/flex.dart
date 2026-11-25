@@ -232,7 +232,7 @@ class RenderKkGap extends RenderBox {
 }
 
 class _FlexSizes {
-  const _FlexSizes(this.size, this.allocated, this.maxAscent, this.childSizes);
+  const _FlexSizes(this.size, this.allocated, this.maxAscent, this.childSizes, this.childConstraints);
 
   final Size size;
 
@@ -242,6 +242,9 @@ class _FlexSizes {
   /// Largest distance from a child's top to its baseline, for baseline lines.
   final double maxAscent;
   final List<Size> childSizes;
+
+  /// The constraints each child was last laid out with.
+  final List<BoxConstraints> childConstraints;
 }
 
 /// The render object behind [KkFlex].
@@ -448,7 +451,7 @@ class RenderKkFlex extends RenderBox
 
     final int count = childCount;
     final List<Size> sizes = List<Size>.filled(count, Size.zero);
-    final List<BoxConstraints?> used = List<BoxConstraints?>.filled(count, null);
+    final List<BoxConstraints> used = List<BoxConstraints>.filled(count, const BoxConstraints());
     final double gaps = count > 1 ? _gap * (count - 1) : 0;
 
     BoxConstraints inner(KkFlexParentData pd, double minMainExtent, double maxMainExtent, {double? forceCross}) {
@@ -502,7 +505,7 @@ class RenderKkFlex extends RenderBox
     for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
       final KkFlexParentData pd = child.parentData! as KkFlexParentData;
       if (_crossFor(pd) != KkCrossAlign.baseline || !_horizontal) continue;
-      final double? d = getBaseline(child, used[i]!, _textBaseline);
+      final double? d = getBaseline(child, used[i], _textBaseline);
       if (d == null) continue;
       anyBaseline = true;
       maxAscent = math.max(maxAscent, d);
@@ -521,7 +524,7 @@ class RenderKkFlex extends RenderBox
         final KkFlexParentData pd = child.parentData! as KkFlexParentData;
         if (_crossFor(pd) != KkCrossAlign.stretch) continue;
         if ((_crossOf(sizes[i]) - crossSize).abs() < 0.01) continue;
-        final BoxConstraints prev = used[i]!;
+        final BoxConstraints prev = used[i];
         final double minM = _horizontal ? prev.minWidth : prev.minHeight;
         final double maxM = _horizontal ? prev.maxWidth : prev.maxHeight;
         final BoxConstraints c = inner(pd, minM, maxM, forceCross: crossSize);
@@ -541,7 +544,7 @@ class RenderKkFlex extends RenderBox
     final double content = allocated + gaps;
     final double mainSize = (_shrinkWrap || !boundedMain) ? content : maxMain;
     final Size size = constraints.constrain(_horizontal ? Size(mainSize, crossSize) : Size(crossSize, mainSize));
-    return _FlexSizes(size, allocated, anyBaseline ? maxAscent : 0, sizes);
+    return _FlexSizes(size, allocated, anyBaseline ? maxAscent : 0, sizes, used);
   }
 
   @override
@@ -557,22 +560,23 @@ class RenderKkFlex extends RenderBox
       ChildLayoutHelper.getDryBaseline,
     );
     final ({double leading, double between}) spacing = _spacing(sizes);
-    // Re-derive each child's constraints the cheap way: the dry size is what
-    // the child would get, so ask for its baseline at exactly that size.
     double? result;
     int i = 0;
     double position = spacing.leading;
     for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
       final Size s = sizes.childSizes[i];
-      final BoxConstraints tight = BoxConstraints.tight(s);
-      final double? d = child.getDryBaseline(tight, baseline);
+      // Ask at the constraints the child is laid out with. At any other, even
+      // tight at the size it ends up with, a child that is itself a flex gives
+      // its own children different room and reports a different baseline.
+      final BoxConstraints given = sizes.childConstraints[i];
+      final double? d = child.getDryBaseline(given, baseline);
       if (d != null) {
         final KkFlexParentData pd = child.parentData! as KkFlexParentData;
         if (!_horizontal) return d + position;
         // A baseline-aligned child is placed by the row's own baseline kind.
         final double? own = _crossFor(pd) != KkCrossAlign.baseline
             ? null
-            : (baseline == _textBaseline ? d : child.getDryBaseline(tight, _textBaseline));
+            : (baseline == _textBaseline ? d : child.getDryBaseline(given, _textBaseline));
         final double v = d + _crossOffset(pd, s, sizes, own);
         result = result == null ? v : math.min(result, v);
       }
