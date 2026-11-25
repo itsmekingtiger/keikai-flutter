@@ -699,6 +699,48 @@ void main() {
       expect(phase, kkPhaseAt(kkFrameTime(), const Duration(milliseconds: 2400)));
     });
 
+    testChecked('a new count, period or time scale takes effect in the frame that brings it', (
+      WidgetTester tester,
+    ) async {
+      final List<String> calls = <String>[];
+      Widget build({int period = 400, int phases = 4}) => KkPhaseBuilder(
+        period: _ms(period),
+        phases: phases,
+        builder: (BuildContext context, int phase, Widget? child) {
+          calls.add('$phase/$phases');
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+      await pumpKk(tester, build(), motion: true);
+      await tester.pump(_ms(350));
+      expect(kkFrameTime(), _ms(350));
+      expect(calls.last, '3/4');
+      // Fewer phases: 350ms into 400ms is the second of two, and the index never leaves the new range.
+      await pumpKk(tester, build(phases: 2), motion: true);
+      expect(calls.where((String call) => call.endsWith('/2')), <String>['1/2']);
+      // A longer period: 350ms is the second half of 500ms but the first half of 1.2s.
+      await pumpKk(tester, build(period: 500, phases: 2), motion: true);
+      expect(calls.last, '1/2');
+      calls.clear();
+      await pumpKk(tester, build(period: 1200, phases: 2), motion: true);
+      expect(calls, <String>['0/2']);
+      // A slower time scale stretches the period the same way: 500ms becomes 1s.
+      await pumpKk(tester, build(period: 500, phases: 2), motion: true);
+      expect(calls.last, '1/2');
+      calls.clear();
+      await pumpKk(
+        tester,
+        build(period: 500, phases: 2),
+        motion: true,
+        theme: const KeikaiThemeData(motion: KkMotion(timeScale: 2)),
+      );
+      expect(calls, <String>['0/2']);
+      // No frame went by in between, and the next one agrees.
+      expect(kkFrameTime(), _ms(350));
+      await tester.pump(_ms10);
+      expect(calls, <String>['0/2']);
+    });
+
     testChecked('KkBlink dims its child to 20% for half of each 1.2s', (WidgetTester tester) async {
       await pumpKk(tester, const KkBlink(child: SizedBox(width: 10, height: 10)), motion: true);
       final Set<double> seen = <double>{};

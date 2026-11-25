@@ -46,10 +46,12 @@ class _KkPhaseBuilderState extends State<KkPhaseBuilder> with SingleTickerProvid
 
   void _sync() {
     final bool shouldRun = widget.enabled && KeikaiTheme.motionOf(context);
+    // The build that follows must get the phase of the period and count it was
+    // given. A tick would only put that right one frame later.
+    if (shouldRun) _phase = kkPhaseAt(kkFrameTime(), _period, phases: widget.phases);
     if (shouldRun == _running) return;
     _running = shouldRun;
     if (shouldRun) {
-      _phase = kkPhaseAt(kkFrameTime(), _period, phases: widget.phases);
       (_ticker ??= createTicker(_tick)).start();
     } else {
       _ticker?.stop();
