@@ -585,6 +585,46 @@ void main() {
       expect(shown, 70);
       await tester.pumpAndSettle();
     });
+
+    testChecked('turning motion off mid-flight jumps to the value', (WidgetTester tester) async {
+      double shown = -1;
+      Widget build(double value) => KkSteppedValue(
+        value: value,
+        duration: _ms(1000),
+        steps: 10,
+        builder: (BuildContext context, double v) {
+          shown = v;
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+      await pumpKk(tester, build(0), motion: true);
+      await _settleRoute(tester);
+      await pumpKk(tester, build(100), motion: true);
+      await tester.pump(_ms(250));
+      expect(shown, closeTo(20, 1e-9));
+      // The platform asks for reduced motion.
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pump();
+      await tester.pump();
+      expect(shown, 100);
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'the run has stopped');
+      // Motion coming back does not replay what was cut short.
+      tester.platformDispatcher.clearAccessibilityFeaturesTestValue();
+      await tester.pump();
+      await tester.pump(_ms(100));
+      expect(shown, 100);
+      // The theme switches motion off.
+      await pumpKk(tester, build(40), motion: true);
+      await tester.pump(_ms(250));
+      expect(shown, closeTo(88, 1e-9));
+      await pumpKk(tester, build(40));
+      expect(shown, 40);
+      await tester.pumpAndSettle();
+      expect(shown, 40);
+    });
   });
 
   group('loops', () {

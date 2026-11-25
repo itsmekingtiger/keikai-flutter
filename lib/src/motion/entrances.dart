@@ -340,6 +340,10 @@ class _KkSteppedValueState extends State<KkSteppedValue> with SingleTickerProvid
     if (!_started) {
       _started = true;
       _run();
+    } else if (_controller.isAnimating && !KeikaiTheme.motionOf(context)) {
+      // Motion was switched off while the number was moving: it jumps to
+      // where it was going, as it would have had motion been off all along.
+      _run();
     }
   }
 
