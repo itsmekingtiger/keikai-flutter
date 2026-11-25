@@ -5,6 +5,34 @@
 /// `material.dart` does, so no other import is needed.
 library;
 
+// What an app needs from the services layer besides widgets: keys, the
+// clipboard, text-input types and formatters, and the system chrome.
+export 'package:flutter/services.dart'
+    show
+        Clipboard,
+        ClipboardData,
+        DeviceOrientation,
+        FilteringTextInputFormatter,
+        HapticFeedback,
+        HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        KeyRepeatEvent,
+        KeyUpEvent,
+        LengthLimitingTextInputFormatter,
+        LogicalKeyboardKey,
+        PhysicalKeyboardKey,
+        SystemChrome,
+        SystemNavigator,
+        SystemSound,
+        SystemSoundType,
+        SystemUiMode,
+        SystemUiOverlayStyle,
+        TextCapitalization,
+        TextEditingValue,
+        TextInputAction,
+        TextInputFormatter,
+        TextInputType;
 export 'package:flutter/widgets.dart';
 
 export 'src/app/app.dart';
