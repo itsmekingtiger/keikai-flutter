@@ -1,5 +1,26 @@
+import 'package:flutter/rendering.dart' show debugCheckIntrinsicSizes;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// [testWidgets] with the framework's render-box self-checks switched on.
+///
+/// After every layout Flutter then asks each box in the tree for its
+/// intrinsic sizes, its dry layout and its dry baseline, compares them with
+/// what the real layout produced, and fails the test at the first box that
+/// disagrees with itself. Every layout test runs this way, so a render object
+/// whose `computeDryLayout`, `computeDryBaseline` or intrinsics drift from its
+/// `performLayout` cannot pass.
+void testChecked(String description, WidgetTesterCallback body) {
+  testWidgets(description, (WidgetTester tester) async {
+    debugCheckIntrinsicSizes = true;
+    try {
+      await body(tester);
+    } finally {
+      // The binding insists that debug switches are back off when a test ends.
+      debugCheckIntrinsicSizes = false;
+    }
+  });
+}
 
 /// Pumps [child] on a [size] surface with no app around it.
 ///
