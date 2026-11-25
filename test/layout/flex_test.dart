@@ -430,6 +430,121 @@ void main() {
       expect(rectOf(tester, 'row').width, 60 + 30 + 0 + 20 + 15);
     });
 
+    testChecked('a child that grows when it is stretched takes its room from the expanded ones', (
+      WidgetTester tester,
+    ) async {
+      // The square is 16 wide while the row is measured, then as wide as the
+      // 40px line is tall. The body gives those 24px back instead of ending
+      // past the right edge.
+      await pumpRaw(
+        tester,
+        SingleChildScrollView(
+          child: SizedBox(
+            width: 300,
+            child: KkRow(
+              key: const ValueKey<String>('row'),
+              cross: KkCrossAlign.stretch,
+              clip: Clip.hardEdge,
+              children: <Widget>[
+                KkAspect(key: const ValueKey<String>('thumb'), ratio: 1, child: box('seed', 16, 16)),
+                KkExpanded(child: box('body', null, 40)),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'row'), const Rect.fromLTWH(0, 0, 300, 40));
+      expect(rectOf(tester, 'thumb'), const Rect.fromLTWH(0, 0, 40, 40));
+      expect(rectOf(tester, 'body'), const Rect.fromLTWH(40, 0, 260, 40));
+      final RenderKkFlex row = tester.renderObject<RenderKkFlex>(byId('row'));
+      expect(row.describeApproximatePaintClip(row.firstChild!), isNull, reason: 'nothing overflows');
+    });
+
+    testChecked('the shares after a stretch follow flex, gap and loose children', (WidgetTester tester) async {
+      await pumpRaw(
+        tester,
+        SingleChildScrollView(
+          child: SizedBox(
+            width: 300,
+            child: KkRow(
+              key: const ValueKey<String>('row'),
+              cross: KkCrossAlign.stretch,
+              gap: 10,
+              children: <Widget>[
+                KkAspect(key: const ValueKey<String>('thumb'), ratio: 1, child: box('seed', 16, 16)),
+                KkExpanded(flex: 2, child: box('wide', null, 40)),
+                KkExpanded(child: box('narrow', null, 20)),
+                KkFlexible(child: box('loose', 30, 10)),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      // 300 - 40 (square) - 3 gaps = 230 to share by 2 : 1 : 1.
+      expect(rectOf(tester, 'thumb'), const Rect.fromLTWH(0, 0, 40, 40));
+      expect(rectOf(tester, 'wide'), const Rect.fromLTWH(50, 0, 115, 40));
+      expect(rectOf(tester, 'narrow'), const Rect.fromLTWH(175, 0, 57.5, 40));
+      // The loose child stays 30 wide inside its 57.5 share and is stretched.
+      expect(rectOf(tester, 'loose'), const Rect.fromLTWH(242.5, 0, 30, 40));
+    });
+
+    testChecked('when the new shares make the line taller the stretched children follow once', (
+      WidgetTester tester,
+    ) async {
+      // 106 wide. The text gets 90 at first and wraps to two lines of 10px:
+      // the line is 20 tall, the square becomes 20 wide, the text is left 86
+      // and needs three lines. The square is stretched to 30 and stays 20 wide.
+      await pumpRaw(
+        tester,
+        SingleChildScrollView(
+          child: SizedBox(
+            width: 106,
+            child: KkRow(
+              key: const ValueKey<String>('row'),
+              cross: KkCrossAlign.stretch,
+              children: <Widget>[
+                KkAspect(key: const ValueKey<String>('thumb'), ratio: 1, child: box('seed', 16, 16)),
+                KkExpanded(
+                  child: Text('AAAA AAAA AAAA', key: const ValueKey<String>('text'), style: testStyle(10)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'row'), const Rect.fromLTWH(0, 0, 106, 30));
+      expect(rectOf(tester, 'thumb'), const Rect.fromLTWH(0, 0, 20, 30));
+      expect(rectOf(tester, 'text'), const Rect.fromLTWH(20, 0, 86, 30));
+    });
+
+    testChecked('a column in a free width shares again after a child grew taller', (WidgetTester tester) async {
+      // Stretched to the 80px width, the aspect box becomes 40 tall instead of 10.
+      await pumpRaw(
+        tester,
+        UnconstrainedBox(
+          alignment: Alignment.topLeft,
+          constrainedAxis: Axis.vertical,
+          child: SizedBox(
+            height: 200,
+            child: KkColumn(
+              key: const ValueKey<String>('column'),
+              children: <Widget>[
+                KkAspect(key: const ValueKey<String>('banner'), ratio: 2, child: box('seed', 20, 10)),
+                KkExpanded(child: box('body', 80)),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'column'), const Rect.fromLTWH(0, 0, 80, 200));
+      expect(rectOf(tester, 'banner'), const Rect.fromLTWH(0, 0, 80, 40));
+      expect(rectOf(tester, 'body'), const Rect.fromLTWH(0, 40, 80, 160));
+    });
+
     testChecked('changing flex through the parent data widget relays out', (WidgetTester tester) async {
       Widget build(int flex) => SizedBox(
         width: 300,

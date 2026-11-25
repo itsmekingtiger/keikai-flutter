@@ -255,6 +255,20 @@ class _FlexSizes {
   final List<BoxConstraints> childConstraints;
 }
 
+/// What the children of a flex make of its line.
+class _FlexLine {
+  const _FlexLine(this.cross, this.ascent, this.anyBaseline);
+
+  /// The cross size of the line.
+  final double cross;
+
+  /// Largest distance from a baseline-aligned child's top to its baseline.
+  final double ascent;
+
+  /// Whether any baseline-aligned child has a baseline.
+  final bool anyBaseline;
+}
+
 /// The render object behind [KkFlex].
 class RenderKkFlex extends RenderBox
     with
@@ -504,60 +518,114 @@ class RenderKkFlex extends RenderBox
       }
     }
 
-    // Cross size of the line.
-    double crossSize = 0;
-    for (final Size s in sizes) {
-      crossSize = math.max(crossSize, _crossOf(s));
-    }
-
-    // Baselines (rows only make sense, but columns are tolerated).
-    double maxAscent = 0;
-    double maxDescent = 0;
-    bool anyBaseline = false;
-    i = 0;
-    for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
-      final KkFlexParentData pd = child.parentData! as KkFlexParentData;
-      if (_crossFor(pd) != KkCrossAlign.baseline || !_horizontal) continue;
-      final double? d = getBaseline(child, used[i], _textBaseline);
-      if (d == null) continue;
-      anyBaseline = true;
-      maxAscent = math.max(maxAscent, d);
-      maxDescent = math.max(maxDescent, sizes[i].height - d);
-    }
-    if (anyBaseline) crossSize = math.max(crossSize, maxAscent + maxDescent);
-    crossSize = crossSize.clamp(minCross, maxCross);
+    // The cross size of the line, with the room baseline-aligned children
+    // need above and below the line they share.
+    _FlexLine line = _measureLine(sizes, used, getBaseline, minCross, maxCross);
 
     // Pass 3: stretch. When the cross constraint was not tight the line is as
     // large as its largest child; smaller stretch children are laid out again
     // at exactly that size.
     if (!tightCross) {
-      bool changed = false;
+      // Whether a child that keeps its own main size changed it.
+      bool ownChanged = false;
       i = 0;
       for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
         final KkFlexParentData pd = child.parentData! as KkFlexParentData;
         if (_crossFor(pd) != KkCrossAlign.stretch) continue;
-        if ((_crossOf(sizes[i]) - crossSize).abs() < 0.01) continue;
+        if ((_crossOf(sizes[i]) - line.cross).abs() < 0.01) continue;
         final BoxConstraints prev = used[i];
         final double minM = _horizontal ? prev.minWidth : prev.minHeight;
         final double maxM = _horizontal ? prev.maxWidth : prev.maxHeight;
-        final BoxConstraints c = inner(pd, minM, maxM, forceCross: crossSize);
+        final BoxConstraints c = inner(pd, minM, maxM, forceCross: line.cross);
         used[i] = c;
-        final Size before = sizes[i];
+        final double before = _mainOf(sizes[i]);
         sizes[i] = layoutChild(child, c);
-        if (_mainOf(before) != _mainOf(sizes[i])) changed = true;
+        if (_mainOf(sizes[i]) != before && !(pd.flex > 0 && boundedMain)) ownChanged = true;
       }
-      if (changed) {
-        allocated = 0;
-        for (final Size s in sizes) {
-          allocated += _mainOf(s);
+
+      // Pass 4: a child that keeps its own main size took a different amount
+      // once it was stretched (a square as tall as the line, say), so the
+      // flexible children share what is left now. There are flexible children
+      // only when the main axis is bounded.
+      if (ownChanged && totalFlex > 0) {
+        double own = 0;
+        i = 0;
+        for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
+          if ((child.parentData! as KkFlexParentData).flex <= 0) own += _mainOf(sizes[i]);
         }
+        final double free = math.max(0, maxMain - own - gaps);
+        i = 0;
+        for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
+          final KkFlexParentData pd = child.parentData! as KkFlexParentData;
+          if (pd.flex <= 0) continue;
+          final double share = free * pd.flex / totalFlex;
+          // Not held to the line yet: at another share a child may need
+          // another cross size (text that wraps), and the line follows it.
+          final BoxConstraints c = inner(pd, pd.tight ? share : 0, share);
+          used[i] = c;
+          sizes[i] = layoutChild(child, c);
+        }
+        // Pass 5: the stretch children follow the line once more, this time
+        // at the main size they have, so the passes end here.
+        line = _measureLine(sizes, used, getBaseline, minCross, maxCross);
+        i = 0;
+        for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
+          final KkFlexParentData pd = child.parentData! as KkFlexParentData;
+          if (_crossFor(pd) != KkCrossAlign.stretch) continue;
+          if ((_crossOf(sizes[i]) - line.cross).abs() < 0.01) continue;
+          final double m = _mainOf(sizes[i]);
+          final BoxConstraints c = _box(minMain: m, maxMain: m, minCross: line.cross, maxCross: line.cross);
+          used[i] = c;
+          sizes[i] = layoutChild(child, c);
+        }
+      }
+
+      allocated = 0;
+      for (final Size s in sizes) {
+        allocated += _mainOf(s);
       }
     }
 
+    final double crossSize = line.cross;
+    final double maxAscent = line.ascent;
+    final bool anyBaseline = line.anyBaseline;
     final double content = allocated + gaps;
     final double mainSize = (_shrinkWrap || !boundedMain) ? content : maxMain;
     final Size size = constraints.constrain(_horizontal ? Size(mainSize, crossSize) : Size(crossSize, mainSize));
     return _FlexSizes(size, allocated, anyBaseline ? maxAscent : 0, sizes, used);
+  }
+
+  /// The cross size of the line for the child [sizes] measured with [used],
+  /// kept within [minCross] and [maxCross].
+  _FlexLine _measureLine(
+    List<Size> sizes,
+    List<BoxConstraints> used,
+    ChildBaselineGetter getBaseline,
+    double minCross,
+    double maxCross,
+  ) {
+    double cross = 0;
+    for (final Size s in sizes) {
+      cross = math.max(cross, _crossOf(s));
+    }
+    // Baselines (rows only make sense, but columns are tolerated).
+    double ascent = 0;
+    double descent = 0;
+    bool anyBaseline = false;
+    if (_horizontal) {
+      int i = 0;
+      for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
+        final KkFlexParentData pd = child.parentData! as KkFlexParentData;
+        if (_crossFor(pd) != KkCrossAlign.baseline) continue;
+        final double? d = getBaseline(child, used[i], _textBaseline);
+        if (d == null) continue;
+        anyBaseline = true;
+        ascent = math.max(ascent, d);
+        descent = math.max(descent, sizes[i].height - d);
+      }
+    }
+    if (anyBaseline) cross = math.max(cross, ascent + descent);
+    return _FlexLine(cross.clamp(minCross, maxCross), ascent, anyBaseline);
   }
 
   @override
