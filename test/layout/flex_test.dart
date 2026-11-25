@@ -77,7 +77,13 @@ void main() {
       );
       expect(rectOf(tester, 'a').left, 0);
       for (final KkMainAlign main in KkMainAlign.values) {
-        await pumpRaw(tester, SizedBox(width: 200, child: KkRow(key: const ValueKey<String>('row'), main: main)));
+        await pumpRaw(
+          tester,
+          SizedBox(
+            width: 200,
+            child: KkRow(key: const ValueKey<String>('row'), main: main),
+          ),
+        );
         expect(rectOf(tester, 'row').size, const Size(200, 0));
         expect(tester.takeException(), isNull);
       }
@@ -400,10 +406,7 @@ void main() {
     testChecked('KkSpacer pushes the rest to the far edge', (WidgetTester tester) async {
       await pumpRaw(
         tester,
-        SizedBox(
-          width: 300,
-          child: KkRow(children: <Widget>[box('a', 60, 10), const KkSpacer(), box('b', 40, 10)]),
-        ),
+        SizedBox(width: 300, child: KkRow(children: <Widget>[box('a', 60, 10), const KkSpacer(), box('b', 40, 10)])),
       );
       expect(rectOf(tester, 'b').right, 300);
     });
@@ -610,7 +613,11 @@ void main() {
           height: 300,
           child: KkColumn(
             gap: 10,
-            children: <Widget>[box('a', null, 40), KkExpanded(child: box('b')), box('c', null, 20)],
+            children: <Widget>[
+              box('a', null, 40),
+              KkExpanded(child: box('b')),
+              box('c', null, 20),
+            ],
           ),
         ),
       );
@@ -618,9 +625,7 @@ void main() {
       expect(rectOf(tester, 'c').bottom, 300);
     });
 
-    testChecked('a stretched wrapping text reflows and the column follows its new height', (
-      WidgetTester tester,
-    ) async {
+    testChecked('a stretched wrapping text reflows and the column follows its new height', (WidgetTester tester) async {
       // In a loose width the column is first as wide as the wide box; the text is
       // then laid out again at that width.
       await pumpRaw(
@@ -646,7 +651,11 @@ void main() {
         tester,
         KkRow(
           shrinkWrap: true,
-          children: <Widget>[box('a', 10, 10), const KkGap(7, key: ValueKey<String>('gap')), box('b', 10, 10)],
+          children: <Widget>[
+            box('a', 10, 10),
+            const KkGap(7, key: ValueKey<String>('gap')),
+            box('b', 10, 10),
+          ],
         ),
       );
       expect(rectOf(tester, 'gap').width, 7);
@@ -656,7 +665,11 @@ void main() {
         KkColumn(
           shrinkWrap: true,
           cross: KkCrossAlign.start,
-          children: <Widget>[box('a', 10, 10), const KkGap(7, key: ValueKey<String>('gap')), box('b', 10, 10)],
+          children: <Widget>[
+            box('a', 10, 10),
+            const KkGap(7, key: ValueKey<String>('gap')),
+            box('b', 10, 10),
+          ],
         ),
       );
       expect(rectOf(tester, 'gap').height, 7);
@@ -678,7 +691,11 @@ void main() {
           key: const ValueKey<String>('flex'),
           direction: direction,
           cross: KkCrossAlign.start,
-          children: <Widget>[box('a', 10, 10), const KkGap(7, key: ValueKey<String>('gap')), box('b', 10, 10)],
+          children: <Widget>[
+            box('a', 10, 10),
+            const KkGap(7, key: ValueKey<String>('gap')),
+            box('b', 10, 10),
+          ],
         ),
       );
       await pumpRaw(tester, build(Axis.horizontal));
@@ -729,13 +746,28 @@ void main() {
       final GlobalKey gap = GlobalKey();
       Widget inRow() => UnconstrainedBox(
         alignment: Alignment.topLeft,
-        child: KkRow(cross: KkCrossAlign.start, children: <Widget>[box('a', 10, 10), KkGap(7, key: gap)]),
+        child: KkRow(
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            box('a', 10, 10),
+            KkGap(7, key: gap),
+          ],
+        ),
       );
       Widget inColumn() => UnconstrainedBox(
         alignment: Alignment.topLeft,
-        child: KkColumn(cross: KkCrossAlign.start, children: <Widget>[box('a', 10, 10), KkGap(7, key: gap)]),
+        child: KkColumn(
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            box('a', 10, 10),
+            KkGap(7, key: gap),
+          ],
+        ),
       );
-      Widget alone() => UnconstrainedBox(alignment: Alignment.topLeft, child: KkGap(7, key: gap));
+      Widget alone() => UnconstrainedBox(
+        alignment: Alignment.topLeft,
+        child: KkGap(7, key: gap),
+      );
 
       await pumpRaw(tester, inRow());
       final RenderBox render = tester.renderObject<RenderBox>(find.byKey(gap));
@@ -793,7 +825,10 @@ void main() {
             UnconstrainedBox(
               alignment: Alignment.topLeft,
               clipBehavior: Clip.hardEdge,
-              child: ConstrainedBox(constraints: c, child: sample(cross: cross)),
+              child: ConstrainedBox(
+                constraints: c,
+                child: sample(cross: cross),
+              ),
             ),
           );
           tester.takeException();
@@ -812,7 +847,11 @@ void main() {
             child: KkRow(
               gap: 8,
               cross: KkCrossAlign.stretch,
-              children: <Widget>[box('a', 40, 20), box('b', 10), KkExpanded(child: box('c', null, 30))],
+              children: <Widget>[
+                box('a', 40, 20),
+                box('b', 10),
+                KkExpanded(child: box('c', null, 30)),
+              ],
             ),
           ),
         ),
@@ -820,6 +859,63 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(rectOf(tester, 'iw').height, 30);
       expect(rectOf(tester, 'b').height, 30);
+    });
+
+    testChecked('the intrinsic height of a baseline row has room for the deepest descent', (WidgetTester tester) async {
+      // A 40px letter (baseline 30 down) beside two 10px lines whose first
+      // baseline is 7.5 down: the caption hangs 12.5 below the shared line,
+      // the letter only 10, so the row is 42.5 tall, not 40.
+      Widget row() => KkRow(
+        key: const ValueKey<String>('row'),
+        cross: KkCrossAlign.baseline,
+        shrinkWrap: true,
+        gap: 8,
+        children: <Widget>[
+          Text('A', style: testStyle(40)),
+          KkColumn(
+            key: const ValueKey<String>('caption'),
+            shrinkWrap: true,
+            cross: KkCrossAlign.start,
+            children: <Widget>[
+              Text('B', style: testStyle(10)),
+              Text('C', style: testStyle(10)),
+            ],
+          ),
+        ],
+      );
+      await pumpRaw(tester, SingleChildScrollView(child: row()));
+      final RenderBox free = tester.renderObject<RenderBox>(byId('row'));
+      expect(free.size.height, 42.5);
+      expect(free.getMaxIntrinsicHeight(double.infinity), 42.5);
+      expect(free.getMinIntrinsicHeight(double.infinity), 42.5);
+      expect(free.getMaxIntrinsicHeight(58), 42.5);
+
+      // A parent that sizes the row from its intrinsic height keeps the caption inside.
+      await pumpRaw(tester, IntrinsicHeight(child: row()));
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'row').height, 42.5);
+      expect(rectOf(tester, 'caption').bottom, lessThanOrEqualTo(rectOf(tester, 'row').bottom));
+    });
+
+    testChecked('the intrinsic height counts the baseline of flexible children at their share', (
+      WidgetTester tester,
+    ) async {
+      // The text gets 40 of the 100 and wraps to two lines of 10px. Its first
+      // baseline is 7.5 down, so it hangs 12.5 below the line of the 20px letter
+      // (baseline 15): 15 + 12.5.
+      final Widget row = KkRow(
+        key: const ValueKey<String>('row'),
+        cross: KkCrossAlign.baseline,
+        children: <Widget>[
+          SizedBox(width: 60, child: Text('A', style: testStyle(20))),
+          KkExpanded(child: Text('BBBB BBBB', style: testStyle(10))),
+        ],
+      );
+      await pumpRaw(tester, SingleChildScrollView(child: SizedBox(width: 100, child: row)));
+      final RenderBox render = tester.renderObject<RenderBox>(byId('row'));
+      expect(render.size.height, 27.5);
+      expect(render.getMaxIntrinsicHeight(100), 27.5);
+      expect(render.getMinIntrinsicHeight(100), 27.5);
     });
 
     testChecked('a baseline row can be measured dry by a parent', (WidgetTester tester) async {
@@ -834,7 +930,10 @@ void main() {
               key: const ValueKey<String>('inner'),
               cross: KkCrossAlign.baseline,
               shrinkWrap: true,
-              children: <Widget>[Text('A', style: testStyle(40)), Text('B', style: testStyle(20))],
+              children: <Widget>[
+                Text('A', style: testStyle(40)),
+                Text('B', style: testStyle(20)),
+              ],
             ),
             Text('C', key: const ValueKey<String>('c'), style: testStyle(10)),
           ],

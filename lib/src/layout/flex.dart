@@ -404,27 +404,50 @@ class RenderKkFlex extends RenderBox
     double totalFlex = 0;
     double inflexible = 0;
     double maxCross = 0;
+    // In a row, baseline-aligned children need room above and below the line
+    // they share, which can be more than the tallest child.
+    double ascent = 0;
+    double descent = 0;
+    bool anyBaseline = false;
+    void noteBaseline(RenderBox child, KkFlexParentData pd, double cross, BoxConstraints given) {
+      if (!_horizontal || _crossFor(pd) != KkCrossAlign.baseline) return;
+      final double? d = child.getDryBaseline(given, _textBaseline);
+      if (d == null) return;
+      anyBaseline = true;
+      ascent = math.max(ascent, d);
+      descent = math.max(descent, cross - d);
+    }
+
     for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
-      final int flex = (child.parentData! as KkFlexParentData).flex;
-      if (flex > 0) {
-        totalFlex += flex;
+      final KkFlexParentData pd = child.parentData! as KkFlexParentData;
+      if (pd.flex > 0) {
+        totalFlex += pd.flex;
       } else {
         final double m = childMaxMain(child, double.infinity);
         inflexible += m;
-        maxCross = math.max(maxCross, childCross(child, m));
+        final double cross = childCross(child, m);
+        maxCross = math.max(maxCross, cross);
+        noteBaseline(child, pd, cross, const BoxConstraints());
       }
     }
     if (totalFlex > 0) {
       final double free = mainExtent.isFinite ? math.max(0, mainExtent - inflexible - _gaps()) : double.infinity;
       for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
-        final int flex = (child.parentData! as KkFlexParentData).flex;
-        if (flex > 0) {
-          final double share = free.isFinite ? free * flex / totalFlex : childMaxMain(child, double.infinity);
-          maxCross = math.max(maxCross, childCross(child, share));
+        final KkFlexParentData pd = child.parentData! as KkFlexParentData;
+        if (pd.flex > 0) {
+          final double share = free.isFinite ? free * pd.flex / totalFlex : childMaxMain(child, double.infinity);
+          final double cross = childCross(child, share);
+          maxCross = math.max(maxCross, cross);
+          noteBaseline(
+            child,
+            pd,
+            cross,
+            free.isFinite ? BoxConstraints(minWidth: pd.tight ? share : 0, maxWidth: share) : const BoxConstraints(),
+          );
         }
       }
     }
-    return maxCross;
+    return anyBaseline ? math.max(maxCross, ascent + descent) : maxCross;
   }
 
   @override
@@ -465,11 +488,7 @@ class RenderKkFlex extends RenderBox
 
   // ── layout ──────────────────────────────────────────────────────────────
 
-  _FlexSizes _computeSizes(
-    BoxConstraints constraints,
-    ChildLayouter layoutChild,
-    ChildBaselineGetter getBaseline,
-  ) {
+  _FlexSizes _computeSizes(BoxConstraints constraints, ChildLayouter layoutChild, ChildBaselineGetter getBaseline) {
     final double maxMain = _horizontal ? constraints.maxWidth : constraints.maxHeight;
     final double maxCross = _horizontal ? constraints.maxHeight : constraints.maxWidth;
     final double minCross = _horizontal ? constraints.minHeight : constraints.minWidth;
