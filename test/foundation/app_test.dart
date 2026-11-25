@@ -2,6 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart' show testChecked;
+
 Future<void> _size(WidgetTester tester, Size size) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -24,7 +26,7 @@ RenderKkGlitch _rootGlitch(WidgetTester tester) => tester.renderObject<RenderKkG
 
 void main() {
   group('KeikaiApp', () {
-    testWidgets('shows its home with everything a page needs around it', (WidgetTester tester) async {
+    testChecked('shows its home with everything a page needs around it', (WidgetTester tester) async {
       await _size(tester, const Size(800, 600));
       await tester.pumpWidget(const KeikaiApp(title: 'HQ', home: _Page('home')));
       expect(find.text('home'), findsOneWidget);
@@ -46,7 +48,7 @@ void main() {
       expect(find.byType(CheckedModeBanner), findsNothing);
     });
 
-    testWidgets('paints the screen ground behind every page', (WidgetTester tester) async {
+    testChecked('paints the screen ground behind every page', (WidgetTester tester) async {
       await _size(tester, const Size(300, 200));
       await tester.pumpWidget(const KeikaiApp(home: SizedBox.shrink()));
       expect(
@@ -60,7 +62,7 @@ void main() {
       );
     });
 
-    testWidgets('named routes, push and pop', (WidgetTester tester) async {
+    testChecked('named routes, push and pop', (WidgetTester tester) async {
       await tester.pumpWidget(
         KeikaiApp(
           theme: const KeikaiThemeData(motion: KkMotion.off),
@@ -86,7 +88,7 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('initialRoute, onGenerateRoute and onUnknownRoute', (WidgetTester tester) async {
+    testChecked('initialRoute, onGenerateRoute and onUnknownRoute', (WidgetTester tester) async {
       final GlobalKey<NavigatorState> key = GlobalKey<NavigatorState>();
       await tester.pumpWidget(
         KeikaiApp(
@@ -116,7 +118,7 @@ void main() {
       expect(find.text('unknown'), findsOneWidget);
     });
 
-    testWidgets('a pushed page wipes in from the left in 7 steps and wipes out again', (WidgetTester tester) async {
+    testChecked('a pushed page wipes in from the left in 7 steps and wipes out again', (WidgetTester tester) async {
       await _size(tester, const Size(700, 400));
       await tester.pumpWidget(const KeikaiApp(home: _Page('home')));
       await tester.pump(const Duration(milliseconds: 500));
@@ -156,7 +158,7 @@ void main() {
       expect(find.text('detail'), findsNothing);
     });
 
-    testWidgets('with motion off pages change at once', (WidgetTester tester) async {
+    testChecked('with motion off pages change at once', (WidgetTester tester) async {
       await tester.pumpWidget(
         const KeikaiApp(theme: KeikaiThemeData(motion: KkMotion.off), home: _Page('home')),
       );
@@ -172,7 +174,7 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('a route can opt out of the wipe, and returns a result', (WidgetTester tester) async {
+    testChecked('a route can opt out of the wipe, and returns a result', (WidgetTester tester) async {
       await tester.pumpWidget(const KeikaiApp(home: _Page('home')));
       await tester.pump(const Duration(milliseconds: 500));
       final NavigatorState navigator = Navigator.of(_contextOf(tester, 'home'));
@@ -199,7 +201,7 @@ void main() {
       expect(await result, 'ACK');
     });
 
-    testWidgets('builder wraps the navigator inside the theme', (WidgetTester tester) async {
+    testChecked('builder wraps the navigator inside the theme', (WidgetTester tester) async {
       KeikaiThemeData? seen;
       await tester.pumpWidget(
         KeikaiApp(
@@ -221,7 +223,7 @@ void main() {
       expect(tester.getTopLeft(find.text('home')).dy, 20);
     });
 
-    testWidgets('builder alone, with no navigator', (WidgetTester tester) async {
+    testChecked('builder alone, with no navigator', (WidgetTester tester) async {
       await tester.pumpWidget(
         KeikaiApp(builder: (BuildContext context, Widget? child) => const _Page('bare')),
       );
@@ -231,7 +233,7 @@ void main() {
   });
 
   group('condition', () {
-    testWidgets('setCondition switches the whole app; conditionOf reads it', (WidgetTester tester) async {
+    testChecked('setCondition switches the whole app; conditionOf reads it', (WidgetTester tester) async {
       await tester.pumpWidget(
         const KeikaiApp(theme: KeikaiThemeData(motion: KkMotion.off), home: _Page('home')),
       );
@@ -253,14 +255,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the app starts in the condition of its theme', (WidgetTester tester) async {
+    testChecked('the app starts in the condition of its theme', (WidgetTester tester) async {
       await tester.pumpWidget(
         const KeikaiApp(theme: KeikaiThemeData(condition: KkCondition.alert), home: _Page('home')),
       );
       expect(KeikaiApp.conditionOf(_contextOf(tester, 'home')), KkCondition.alert);
     });
 
-    testWidgets('a controlled condition ignores setCondition and follows the widget', (WidgetTester tester) async {
+    testChecked('a controlled condition ignores setCondition and follows the widget', (WidgetTester tester) async {
       Widget app(KkCondition condition) => KeikaiApp(
         theme: const KeikaiThemeData(motion: KkMotion.off),
         condition: condition,
@@ -276,14 +278,14 @@ void main() {
       expect(KeikaiApp.conditionOf(_contextOf(tester, 'home')), KkCondition.standby);
     });
 
-    testWidgets('setCondition outside an app does nothing', (WidgetTester tester) async {
+    testChecked('setCondition outside an app does nothing', (WidgetTester tester) async {
       await tester.pumpWidget(const Directionality(textDirection: TextDirection.ltr, child: _Page('lone')));
       KeikaiApp.setCondition(_contextOf(tester, 'lone'), KkCondition.alert);
       await tester.pump();
       expect(KeikaiApp.conditionOf(_contextOf(tester, 'lone')), KkCondition.standby);
     });
 
-    testWidgets('turning to alert glitches the screen and flashes red; returning to standby does not', (
+    testChecked('turning to alert glitches the screen and flashes red; returning to standby does not', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const KeikaiApp(home: _Page('home')));
@@ -327,7 +329,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     });
 
-    testWidgets('a controlled app glitches when its condition turns to alert', (WidgetTester tester) async {
+    testChecked('a controlled app glitches when its condition turns to alert', (WidgetTester tester) async {
       Widget app(KkCondition condition) => KeikaiApp(condition: condition, home: const _Page('home'));
       await tester.pumpWidget(app(KkCondition.standby));
       await tester.pump(const Duration(milliseconds: 500));
@@ -338,7 +340,7 @@ void main() {
       expect(_rootGlitch(tester).progress.value, 1);
     });
 
-    testWidgets('glitchOnAlert false, or motion off: no glitch', (WidgetTester tester) async {
+    testChecked('glitchOnAlert false, or motion off: no glitch', (WidgetTester tester) async {
       await tester.pumpWidget(const KeikaiApp(glitchOnAlert: false, home: _Page('home')));
       await tester.pump(const Duration(milliseconds: 500));
       KeikaiApp.setCondition(_contextOf(tester, 'home'), KkCondition.alert);
@@ -355,7 +357,7 @@ void main() {
   });
 
   group('wall scale', () {
-    testWidgets('type is scaled by 1.25 from 2560px', (WidgetTester tester) async {
+    testChecked('type is scaled by 1.25 from 2560px', (WidgetTester tester) async {
       Future<double> scaleAt(double width, {bool wallScale = true, KeikaiThemeData theme = const KeikaiThemeData()}) async {
         await _size(tester, Size(width, 1000));
         await tester.pumpWidget(KeikaiApp(wallScale: wallScale, theme: theme, home: const _Page('home')));
@@ -376,7 +378,7 @@ void main() {
   });
 
   group('KeikaiApp.router', () {
-    testWidgets('runs from a router configuration', (WidgetTester tester) async {
+    testChecked('runs from a router configuration', (WidgetTester tester) async {
       final _Delegate delegate = _Delegate();
       addTearDown(delegate.dispose);
       await tester.pumpWidget(
@@ -429,7 +431,7 @@ void main() {
       return navigator;
     }
 
-    testWidgets('floats over the page with a hard scrim', (WidgetTester tester) async {
+    testChecked('floats over the page with a hard scrim', (WidgetTester tester) async {
       await open(tester, scrim: KkColors.standby.scrim);
       expect(find.text('popup'), findsOneWidget);
       expect(find.text('home'), findsOneWidget, reason: 'the page stays visible behind');
@@ -439,7 +441,7 @@ void main() {
       expect(find.byType(AnimatedModalBarrier), findsNothing, reason: 'the scrim snaps in; it never fades');
     });
 
-    testWidgets('a tap on the scrim dismisses it', (WidgetTester tester) async {
+    testChecked('a tap on the scrim dismisses it', (WidgetTester tester) async {
       await open(tester, scrim: KkColors.standby.scrim);
       await tester.tapAt(const Offset(20, 20));
       await tester.pump();
@@ -448,7 +450,7 @@ void main() {
       expect(find.text('home'), findsOneWidget);
     });
 
-    testWidgets('a tap inside the popup does not dismiss it', (WidgetTester tester) async {
+    testChecked('a tap inside the popup does not dismiss it', (WidgetTester tester) async {
       await open(tester);
       await tester.tap(find.text('popup'));
       await tester.pump();
@@ -456,7 +458,7 @@ void main() {
       expect(find.text('popup'), findsOneWidget);
     });
 
-    testWidgets('Escape dismisses it', (WidgetTester tester) async {
+    testChecked('Escape dismisses it', (WidgetTester tester) async {
       await open(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
@@ -464,7 +466,7 @@ void main() {
       expect(find.text('popup'), findsNothing);
     });
 
-    testWidgets('not dismissible: neither the scrim nor Escape closes it', (WidgetTester tester) async {
+    testChecked('not dismissible: neither the scrim nor Escape closes it', (WidgetTester tester) async {
       final NavigatorState navigator = await open(tester, dismissible: false);
       await tester.tapAt(const Offset(20, 20));
       await tester.pump();
@@ -478,7 +480,7 @@ void main() {
       expect(find.text('popup'), findsNothing);
     });
 
-    testWidgets('hands its animation to the builder: 0 to 1 over 0.42s with motion on', (WidgetTester tester) async {
+    testChecked('hands its animation to the builder: 0 to 1 over 0.42s with motion on', (WidgetTester tester) async {
       Animation<double>? animation;
       await open(tester, motion: true, onAnimation: (Animation<double> a) => animation = a);
       expect(animation, isNotNull);
@@ -490,14 +492,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     });
 
-    testWidgets('with motion off the popup is fully open at once', (WidgetTester tester) async {
+    testChecked('with motion off the popup is fully open at once', (WidgetTester tester) async {
       Animation<double>? animation;
       await open(tester, onAnimation: (Animation<double> a) => animation = a);
       expect(animation!.value, 1);
       await tester.pumpAndSettle();
     });
 
-    testWidgets('announces its barrier label', (WidgetTester tester) async {
+    testChecked('announces its barrier label', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await open(tester);
       expect(find.bySemanticsLabel('Close dialog'), findsOneWidget);
