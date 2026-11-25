@@ -1,13 +1,22 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
-import 'package:keikai/src/layout/layout.dart';
 
 import 'layout_util.dart';
 
 Finder get _handle => find.byType(FocusableActionDetector);
+
+/// The CustomPaint that draws the handle.
+Finder get _handlePaint => find.descendant(of: find.byType(KkSplit), matching: find.byType(CustomPaint)).last;
+
+// The painter is private; its fields are read by name.
+Color _lineColor(WidgetTester tester) => (tester.widget<CustomPaint>(_handlePaint).painter! as dynamic).line as Color;
+
+Color? _gripColor(WidgetTester tester) => (tester.widget<CustomPaint>(_handlePaint).painter! as dynamic).grip as Color?;
 
 /// Lets the double-tap countdown that every press on the handle starts run out.
 Future<void> _settle(WidgetTester tester) => tester.pump(const Duration(milliseconds: 400));
@@ -17,7 +26,7 @@ Future<void> _pump(WidgetTester tester, KkSplit split, {Size size = const Size(4
 
 void main() {
   group('layout', () {
-    testWidgets('shares the space without the handle by the ratio', (WidgetTester tester) async {
+    testChecked('shares the space without the handle by the ratio', (WidgetTester tester) async {
       await _pump(tester, KkSplit(first: box('a'), second: box('b')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 196, 200));
       expect(rectOf(tester, 'b'), const Rect.fromLTWH(204, 0, 196, 200));
@@ -27,7 +36,7 @@ void main() {
       expect(rectOf(tester, 'b').left, 106);
     });
 
-    testWidgets('keeps both panes at their minimum', (WidgetTester tester) async {
+    testChecked('keeps both panes at their minimum', (WidgetTester tester) async {
       await _pump(tester, KkSplit(ratio: 0, first: box('a'), second: box('b')));
       expect(rectOf(tester, 'a').width, 48);
       await _pump(tester, KkSplit(ratio: 1, first: box('a'), second: box('b')));
@@ -38,7 +47,7 @@ void main() {
       expect(rectOf(tester, 'b').width, 20);
     });
 
-    testWidgets('when both minimums cannot fit, the first pane wins', (WidgetTester tester) async {
+    testChecked('when both minimums cannot fit, the first pane wins', (WidgetTester tester) async {
       await _pump(tester, KkSplit(first: box('a'), second: box('b')), size: const Size(60, 100));
       expect(tester.takeException(), isNull);
       expect(rectOf(tester, 'a').width, 48);
@@ -50,14 +59,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('vertical stacks the panes', (WidgetTester tester) async {
+    testChecked('vertical stacks the panes', (WidgetTester tester) async {
       await _pump(tester, KkSplit(axis: Axis.vertical, ratio: 0.5, first: box('a'), second: box('b')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 400, 96));
       expect(tester.getRect(_handle), const Rect.fromLTWH(0, 96, 400, 8));
       expect(rectOf(tester, 'b'), const Rect.fromLTWH(0, 104, 400, 96));
     });
 
-    testWidgets('the handle size is configurable', (WidgetTester tester) async {
+    testChecked('the handle size is configurable', (WidgetTester tester) async {
       await _pump(tester, KkSplit(handleSize: 20, first: box('a'), second: box('b')));
       expect(rectOf(tester, 'a').width, 190);
       expect(tester.getRect(_handle).width, 20);
@@ -66,7 +75,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('without a main-axis limit each pane takes its own size', (WidgetTester tester) async {
+    testChecked('without a main-axis limit each pane takes its own size', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         UnconstrainedBox(
@@ -77,9 +86,45 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(rectOf(tester, 's').size, const Size(158, 60));
       expect(rectOf(tester, 'b').left, 108);
+      // Both panes share the taller one's height, and so does the handle.
+      expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 100, 60));
+      expect(tester.getRect(_handle), const Rect.fromLTWH(100, 0, 8, 60));
+      final RenderKkSplit r = tester.renderObject<RenderKkSplit>(find.byType(KkSplit));
+      expect(r.getDryLayout(r.constraints), const Size(158, 60));
     });
 
-    testWidgets('intrinsics and dry layout', (WidgetTester tester) async {
+    testChecked('without a cross-axis limit a vertical split is as wide as its wider pane', (WidgetTester tester) async {
+      await pumpRaw(
+        tester,
+        UnconstrainedBox(
+          alignment: Alignment.topLeft,
+          constrainedAxis: Axis.vertical,
+          child: KkSplit(
+            key: const ValueKey<String>('s'),
+            axis: Axis.vertical,
+            first: box('a', 100, null),
+            second: box('b', 50, null),
+          ),
+        ),
+        size: const Size(400, 208),
+      );
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 's').size, const Size(100, 208));
+      expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 100, 100));
+      expect(rectOf(tester, 'b'), const Rect.fromLTWH(0, 108, 100, 100));
+    });
+
+    testChecked('a split shorter than its handle shows what fits of it', (WidgetTester tester) async {
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')), size: const Size(5, 100));
+      expect(tester.takeException(), isNull);
+      expect(tester.getRect(_handle), const Rect.fromLTWH(0, 0, 5, 100));
+      expect(rectOf(tester, 'a').width, 0);
+      expect(rectOf(tester, 'b').width, 0);
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')), size: Size.zero);
+      expect(tester.takeException(), isNull);
+    });
+
+    testChecked('intrinsics and dry layout', (WidgetTester tester) async {
       await _pump(tester, KkSplit(first: box('a', 100, 40), second: box('b', 50, 60)));
       final RenderKkSplit r = tester.renderObject<RenderKkSplit>(find.byType(KkSplit));
       expect(r.getMaxIntrinsicWidth(double.infinity), 158);
@@ -91,11 +136,55 @@ void main() {
       expect(r.clampFirst(-10), 48);
       expect(r.clampFirst(1000), 344);
       expect(r.toStringDeep(), contains('ratio: 0.5'));
+      // Each pane is clipped to its own box, the handle is not.
+      expect(r.describeApproximatePaintClip(r.firstChild!), const Rect.fromLTWH(0, 0, 196, 200));
+      expect(r.describeApproximatePaintClip(r.childAfter(r.firstChild!)!), const Rect.fromLTWH(204, 0, 196, 200));
+      expect(r.describeApproximatePaintClip(r.lastChild!), isNull);
+    });
+
+    testChecked('a pane cannot paint over its neighbour', (WidgetTester tester) async {
+      // The first pane's content is wider than the pane.
+      await _pump(
+        tester,
+        KkSplit(
+          first: const OverflowBox(
+            alignment: Alignment.topLeft,
+            maxWidth: 400,
+            child: ColoredBox(color: Color(0xFFFF0000), child: SizedBox(width: 400, height: 200)),
+          ),
+          second: box('b'),
+        ),
+      );
+      final RenderKkSplit r = tester.renderObject<RenderKkSplit>(find.byType(KkSplit));
+      expect(r, paints..clipRect(rect: const Rect.fromLTWH(0, 0, 196, 200)));
+      expect(r, paints..clipRect(rect: const Rect.fromLTWH(0, 0, 196, 200))..clipRect(rect: const Rect.fromLTWH(204, 0, 196, 200)));
+    });
+
+    testChecked('the cross intrinsic asks each pane at the extent it would get', (WidgetTester tester) async {
+      // A pane twice as wide as it is tall, next to a 60px tall one.
+      await _pump(tester, KkSplit(ratio: 0.25, first: const KkAspect(ratio: 2), second: box('b', 50, 60)));
+      final RenderKkSplit r = tester.renderObject<RenderKkSplit>(find.byType(KkSplit));
+      // 408 wide: 400 to share, the first pane gets 100 and is 50 tall.
+      expect(r.getMinIntrinsicHeight(408), 60);
+      // 808 wide: the first pane gets 200 and is 100 tall.
+      expect(r.getMinIntrinsicHeight(808), 100);
+      expect(r.getMaxIntrinsicHeight(808), 100);
+      // With no width to go by, the pane has no height of its own.
+      expect(r.getMinIntrinsicHeight(double.infinity), 60);
+    });
+
+    testChecked('a vertical split: intrinsics the other way round', (WidgetTester tester) async {
+      await _pump(tester, KkSplit(axis: Axis.vertical, first: box('a', 100, 40), second: box('b', 50, 60)));
+      final RenderKkSplit r = tester.renderObject<RenderKkSplit>(find.byType(KkSplit));
+      expect(r.getMinIntrinsicHeight(double.infinity), 108);
+      expect(r.getMaxIntrinsicHeight(double.infinity), 108);
+      expect(r.getMinIntrinsicWidth(double.infinity), 100);
+      expect(r.getMaxIntrinsicWidth(300), 100);
     });
   });
 
   group('dragging', () {
-    testWidgets('the handle follows the pointer and reports the ratio', (WidgetTester tester) async {
+    testChecked('the handle follows the pointer and reports the ratio', (WidgetTester tester) async {
       final List<double> log = <double>[];
       await _pump(tester, KkSplit(onChanged: log.add, first: box('a'), second: box('b')));
       await tester.drag(_handle, const Offset(50, 0));
@@ -108,7 +197,7 @@ void main() {
       await _settle(tester);
     });
 
-    testWidgets('a drag stops at the minimums and the handle stays under the pointer', (WidgetTester tester) async {
+    testChecked('a drag stops at the minimums and the handle stays under the pointer', (WidgetTester tester) async {
       await _pump(tester, KkSplit(first: box('a'), second: box('b')));
       final TestGesture gesture = await tester.startGesture(tester.getCenter(_handle));
       await gesture.moveBy(const Offset(-500, 0));
@@ -124,7 +213,7 @@ void main() {
       await _settle(tester);
     });
 
-    testWidgets('a vertical split drags vertically', (WidgetTester tester) async {
+    testChecked('a vertical split drags vertically', (WidgetTester tester) async {
       await _pump(tester, KkSplit(axis: Axis.vertical, first: box('a'), second: box('b')));
       await tester.drag(_handle, const Offset(0, 30));
       await tester.pump();
@@ -136,7 +225,7 @@ void main() {
       await _settle(tester);
     });
 
-    testWidgets('a controlled split only moves when the parent says so', (WidgetTester tester) async {
+    testChecked('a controlled split only moves when the parent says so', (WidgetTester tester) async {
       final List<double> log = <double>[];
       await _pump(tester, KkSplit(ratio: 0.5, onChanged: log.add, first: box('a'), second: box('b')));
       await tester.drag(_handle, const Offset(50, 0));
@@ -149,7 +238,19 @@ void main() {
       await _settle(tester);
     });
 
-    testWidgets('a double tap returns to the initial ratio', (WidgetTester tester) async {
+    testChecked('handing control back keeps the divider where it was', (WidgetTester tester) async {
+      await _pump(tester, KkSplit(ratio: 0.25, first: box('a'), second: box('b')));
+      expect(rectOf(tester, 'a').width, 98);
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')));
+      expect(rectOf(tester, 'a').width, 98);
+      // And from there it moves by itself.
+      await tester.drag(_handle, const Offset(50, 0));
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, closeTo(148, 1e-6));
+      await _settle(tester);
+    });
+
+    testChecked('a double tap returns to the initial ratio', (WidgetTester tester) async {
       await _pump(tester, KkSplit(initialRatio: 0.25, first: box('a'), second: box('b')));
       expect(rectOf(tester, 'a').width, 98);
       await tester.drag(_handle, const Offset(100, 0));
@@ -164,7 +265,7 @@ void main() {
       await _settle(tester);
     });
 
-    testWidgets('disabled: no handle to grab, the line stays', (WidgetTester tester) async {
+    testChecked('disabled: no handle to grab, the line stays', (WidgetTester tester) async {
       final List<double> log = <double>[];
       await _pump(tester, KkSplit(enabled: false, onChanged: log.add, first: box('a'), second: box('b')));
       expect(_handle, findsNothing);
@@ -174,8 +275,14 @@ void main() {
       expect(rectOf(tester, 'a').width, 196);
     });
 
-    testWidgets('hovering the handle with a mouse lights it without error', (WidgetTester tester) async {
+    testChecked('hovering the handle with a mouse lights it; a disabled handle forgets the pointer', (
+      WidgetTester tester,
+    ) async {
+      FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() => FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic);
       await _pump(tester, KkSplit(first: box('a'), second: box('b')));
+      expect(_lineColor(tester), KkColors.standby.line);
+      expect(_gripColor(tester), KkColors.standby.inkFaint);
       final TestGesture mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: const Offset(10, 10));
       addTearDown(mouse.removePointer);
@@ -183,14 +290,53 @@ void main() {
       await mouse.moveTo(tester.getCenter(_handle));
       await tester.pump();
       expect(tester.takeException(), isNull);
+      expect(_lineColor(tester), KkColors.standby.signal);
+      expect(_gripColor(tester), KkColors.standby.signal);
+      // Disabled under the pointer: the line goes quiet and the grip goes.
+      await _pump(tester, KkSplit(enabled: false, first: box('a'), second: box('b')));
+      expect(_lineColor(tester), KkColors.standby.line);
+      expect(_gripColor(tester), isNull);
+      // Enabled again away from the pointer: it does not come back lit.
       await mouse.moveTo(const Offset(10, 10));
       await tester.pump();
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')));
+      await tester.pump();
+      expect(_lineColor(tester), KkColors.standby.line);
       expect(tester.takeException(), isNull);
+    });
+
+    testChecked('the grip is a row of dashes on the line', (WidgetTester tester) async {
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')));
+      final RenderBox paint = tester.renderObject<RenderBox>(_handlePaint);
+      // The 1px line at x 3 of the 8px handle, then the ground under the grip,
+      // then four 3 × 6 dashes centred on it.
+      expect(
+        paint,
+        paints
+          ..rect(rect: const Rect.fromLTWH(3, 0, 1, 200), color: KkColors.standby.line)
+          ..rect(rect: const Rect.fromLTWH(0, 81, 7, 37), color: KkColors.standby.bg000)
+          ..rect(rect: const Rect.fromLTWH(2, 83, 3, 6), color: KkColors.standby.inkFaint)
+          ..rect(rect: const Rect.fromLTWH(2, 92, 3, 6))
+          ..rect(rect: const Rect.fromLTWH(2, 101, 3, 6))
+          ..rect(rect: const Rect.fromLTWH(2, 110, 3, 6)),
+      );
+      // A vertical split turns it on its side.
+      await _pump(tester, KkSplit(axis: Axis.vertical, first: box('a'), second: box('b')));
+      expect(
+        tester.renderObject<RenderBox>(_handlePaint),
+        paints
+          ..rect(rect: const Rect.fromLTWH(0, 3, 400, 1), color: KkColors.standby.line)
+          ..rect(rect: const Rect.fromLTWH(181, 0, 37, 7), color: KkColors.standby.bg000)
+          ..rect(rect: const Rect.fromLTWH(183, 2, 6, 3), color: KkColors.standby.inkFaint),
+      );
+      // Too short for a grip: only the line.
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')), size: const Size(400, 12));
+      expect(tester.renderObject<RenderBox>(_handlePaint), paintsExactlyCountTimes(#drawRect, 1));
     });
   });
 
   group('keyboard', () {
-    testWidgets('arrows move by 4px, 24px with Shift; Home and End go to the limits', (WidgetTester tester) async {
+    testChecked('arrows move by 4px, 24px with Shift; Home and End go to the limits', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
       await _pump(tester, KkSplit(focusNode: node, first: box('a'), second: box('b')));
@@ -220,7 +366,7 @@ void main() {
       expect(rectOf(tester, 'a').width, 344);
     });
 
-    testWidgets('a vertical split uses up and down', (WidgetTester tester) async {
+    testChecked('a vertical split uses up and down', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
       await _pump(tester, KkSplit(axis: Axis.vertical, focusNode: node, first: box('a'), second: box('b')));
@@ -235,7 +381,7 @@ void main() {
       expect(rectOf(tester, 'a').height, closeTo(92, 1e-6));
     });
 
-    testWidgets('the handle is a slider to assistive technology', (WidgetTester tester) async {
+    testChecked('the handle is a slider to assistive technology', (WidgetTester tester) async {
       final SemanticsHandle semantics = tester.ensureSemantics();
       await _pump(tester, KkSplit(semanticLabel: 'Log width', initialRatio: 0.25, first: box('a'), second: box('b')));
       final SemanticsNode node = tester.getSemantics(find.bySemanticsLabel('Log width'));
@@ -245,9 +391,39 @@ void main() {
       final SemanticsData data = node.getSemanticsData();
       expect(data.hasAction(SemanticsAction.increase), isTrue);
       expect(data.hasAction(SemanticsAction.decrease), isTrue);
+      // The slider itself is the focusable node.
+      expect(data.flagsCollection.isSlider, isTrue);
+      expect(data.flagsCollection.isFocused, Tristate.isFalse);
+      // A step is five percent of the space, as announced.
       tester.semantics.increase(find.semantics.byLabel('Log width'));
       await tester.pump();
-      expect(rectOf(tester, 'a').width, closeTo(122, 1e-6));
+      expect(rectOf(tester, 'a').width, closeTo(0.30 * 392, 1e-6));
+      expect(tester.getSemantics(find.bySemanticsLabel('Log width')).value, '30%');
+      tester.semantics.decrease(find.semantics.byLabel('Log width'));
+      tester.semantics.decrease(find.semantics.byLabel('Log width'));
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, closeTo(0.20 * 392, 1e-6));
+      // Steps stop at the minimums.
+      for (int i = 0; i < 6; i++) {
+        tester.semantics.decrease(find.semantics.byLabel('Log width'));
+      }
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, 48);
+      semantics.dispose();
+    });
+
+    testChecked('the focused handle is announced as focused', (WidgetTester tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await _pump(tester, KkSplit(focusNode: node, first: box('a'), second: box('b')));
+      node.requestFocus();
+      // One frame takes the focus, the next one reports it.
+      await tester.pump();
+      await tester.pump();
+      final SemanticsData data = tester.getSemantics(find.bySemanticsLabel('Split')).getSemanticsData();
+      expect(data.flagsCollection.isFocused, Tristate.isTrue);
+      expect(data.flagsCollection.isSlider, isTrue);
       semantics.dispose();
     });
   });

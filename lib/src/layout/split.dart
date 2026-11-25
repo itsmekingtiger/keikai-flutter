@@ -15,9 +15,14 @@ import '../widgets/pressable.dart';
 /// takes. Give [ratio] and [onChanged] to control it, or leave [ratio] null
 /// and the split keeps its own, starting at [initialRatio].
 ///
-/// The handle is 8px: a 1px line with a dashed grip. Drag it, or focus it and use the
-/// arrow keys (4px, 24px with Shift), Home and End; a double tap puts it back
-/// at [initialRatio].
+/// The handle is 8px: a 1px line with a dashed grip. Drag it, or focus it and
+/// use the arrow keys (4px, 24px with Shift), Home and End; a double tap puts
+/// it back at [initialRatio]. Assistive technology sees a slider that moves in
+/// steps of five percent.
+///
+/// Both panes fill the cross axis. The split needs a limit along [axis] to
+/// have something to share out; without one each pane takes its own size and
+/// the handle does not move.
 class KkSplit extends StatefulWidget {
   const KkSplit({
     super.key,
@@ -93,6 +98,19 @@ class _KkSplitState extends State<KkSplit> {
 
   double get _ratio => widget.ratio ?? _own;
 
+  @override
+  void didUpdateWidget(KkSplit oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Handing control back to the split keeps the divider where it was.
+    if (oldWidget.ratio != null && widget.ratio == null) _own = oldWidget.ratio!;
+    // A disabled handle hears no more of the pointer or the focus.
+    if (!widget.enabled && oldWidget.enabled) {
+      _hovered = false;
+      _focused = false;
+      _dragging = false;
+    }
+  }
+
   RenderKkSplit? get _render => _layoutKey.currentContext?.findRenderObject() as RenderKkSplit?;
 
   void _setRatio(double value) {
@@ -119,6 +137,14 @@ class _KkSplitState extends State<KkSplit> {
   }
 
   void _limit(bool end) => _setExtent(end ? double.infinity : 0);
+
+  /// Moves the divider by [points] of ratio (0.05 is five percent of the
+  /// space), as the slider semantics announce it.
+  void _step(double points) {
+    final RenderKkSplit? r = _render;
+    if (r == null) return;
+    _setExtent((_ratio + points) * r.available);
+  }
 
   late final Map<Type, Action<Intent>> _actions = <Type, Action<Intent>>{
     _NudgeIntent: CallbackAction<_NudgeIntent>(onInvoke: (_NudgeIntent intent) => _nudge(intent.pixels)),
@@ -170,22 +196,24 @@ class _KkSplitState extends State<KkSplit> {
       ),
     );
     if (widget.enabled) {
-      handle = FocusableActionDetector(
-        focusNode: widget.focusNode,
-        mouseCursor: h ? SystemMouseCursors.resizeColumn : SystemMouseCursors.resizeRow,
-        shortcuts: _shortcuts,
-        actions: _actions,
-        onShowHoverHighlight: (bool value) => setState(() => _hovered = value),
-        onShowFocusHighlight: (bool value) => setState(() => _focused = value),
-        child: Semantics(
-          container: true,
-          slider: true,
-          label: widget.semanticLabel ?? 'Split',
-          value: '$percent%',
-          increasedValue: '${math.min(100, percent + 5)}%',
-          decreasedValue: '${math.max(0, percent - 5)}%',
-          onIncrease: () => _nudge(24),
-          onDecrease: () => _nudge(-24),
+      // The semantics node is outside the focus node, so that "focusable" and
+      // "focused" land on the slider itself.
+      handle = Semantics(
+        container: true,
+        slider: true,
+        label: widget.semanticLabel ?? 'Split',
+        value: '$percent%',
+        increasedValue: '${math.min(100, percent + 5)}%',
+        decreasedValue: '${math.max(0, percent - 5)}%',
+        onIncrease: () => _step(0.05),
+        onDecrease: () => _step(-0.05),
+        child: FocusableActionDetector(
+          focusNode: widget.focusNode,
+          mouseCursor: h ? SystemMouseCursors.resizeColumn : SystemMouseCursors.resizeRow,
+          shortcuts: _shortcuts,
+          actions: _actions,
+          onShowHoverHighlight: (bool value) => setState(() => _hovered = value),
+          onShowFocusHighlight: (bool value) => setState(() => _focused = value),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             excludeFromSemantics: true,
@@ -389,34 +417,44 @@ class RenderKkSplit extends RenderBox
   double _mainIntrinsic(double Function(RenderBox child) of) =>
       (_first == null ? 0 : of(_first!)) + (_second == null ? 0 : of(_second!)) + _handleSize;
 
-  double _crossIntrinsic(double Function(RenderBox child) of) =>
-      math.max(_first == null ? 0 : of(_first!), _second == null ? 0 : of(_second!));
+  /// The larger cross extent of the two panes when the split is [main] long:
+  /// each pane is asked at the extent it would really get.
+  double _crossIntrinsic(double main, double Function(RenderBox child, double main) of) {
+    double a = double.infinity;
+    double b = double.infinity;
+    if (main.isFinite) {
+      final double available = math.max(0, main - _handleSize);
+      a = _clampFirst(_ratio * available, available);
+      b = available - a;
+    }
+    return math.max(_first == null ? 0 : of(_first!, a), _second == null ? 0 : of(_second!, b));
+  }
 
   @override
   double computeMinIntrinsicWidth(double height) => _horizontal
       ? _mainIntrinsic((RenderBox c) => c.getMinIntrinsicWidth(height))
-      : _crossIntrinsic((RenderBox c) => c.getMinIntrinsicWidth(double.infinity));
+      : _crossIntrinsic(height, (RenderBox c, double main) => c.getMinIntrinsicWidth(main));
 
   @override
   double computeMaxIntrinsicWidth(double height) => _horizontal
       ? _mainIntrinsic((RenderBox c) => c.getMaxIntrinsicWidth(height))
-      : _crossIntrinsic((RenderBox c) => c.getMaxIntrinsicWidth(double.infinity));
+      : _crossIntrinsic(height, (RenderBox c, double main) => c.getMaxIntrinsicWidth(main));
 
   @override
   double computeMinIntrinsicHeight(double width) => _horizontal
-      ? _crossIntrinsic((RenderBox c) => c.getMinIntrinsicHeight(double.infinity))
+      ? _crossIntrinsic(width, (RenderBox c, double main) => c.getMinIntrinsicHeight(main))
       : _mainIntrinsic((RenderBox c) => c.getMinIntrinsicHeight(width));
 
   @override
   double computeMaxIntrinsicHeight(double width) => _horizontal
-      ? _crossIntrinsic((RenderBox c) => c.getMaxIntrinsicHeight(double.infinity))
+      ? _crossIntrinsic(width, (RenderBox c, double main) => c.getMaxIntrinsicHeight(main))
       : _mainIntrinsic((RenderBox c) => c.getMaxIntrinsicHeight(width));
 
   BoxConstraints _pane(double main, double minCross, double maxCross) => _horizontal
       ? BoxConstraints(minWidth: main, maxWidth: main, minHeight: minCross, maxHeight: maxCross)
       : BoxConstraints(minHeight: main, maxHeight: main, minWidth: minCross, maxWidth: maxCross);
 
-  ({Size size, double available, double first, double cross}) _compute(
+  ({Size size, double available, double first, double cross, double handle}) _compute(
     BoxConstraints constraints,
     ChildLayouter layoutChild,
   ) {
@@ -428,14 +466,19 @@ class RenderKkSplit extends RenderBox
     double mainOf(Size s) => _horizontal ? s.width : s.height;
     double crossOf(Size s) => _horizontal ? s.height : s.width;
 
-    final double paneCross = maxCross.isFinite ? maxCross : 0;
-    final double paneMaxCross = maxCross.isFinite ? maxCross : double.infinity;
+    // With a cross-axis limit both panes fill it. Without one they are
+    // measured first and then both given the larger of their two extents.
+    final bool crossBounded = maxCross.isFinite;
+    final double paneCross = crossBounded ? maxCross : minCross;
+    final double paneMaxCross = crossBounded ? maxCross : double.infinity;
+    // A split shorter than its handle shows as much of the handle as fits.
+    final double handle = maxMain.isFinite ? math.min(_handleSize, maxMain) : _handleSize;
     double available;
     double first;
     Size sa = Size.zero;
     Size sb = Size.zero;
     if (maxMain.isFinite) {
-      available = math.max(0, maxMain - _handleSize);
+      available = maxMain - handle;
       first = _clampFirst(_ratio * available, available);
       if (a != null) sa = layoutChild(a, _pane(first, paneCross, paneMaxCross));
       if (b != null) sb = layoutChild(b, _pane(available - first, paneCross, paneMaxCross));
@@ -449,21 +492,28 @@ class RenderKkSplit extends RenderBox
       first = mainOf(sa);
       available = first + mainOf(sb);
     }
-    final double cross = (maxCross.isFinite ? maxCross : math.max(crossOf(sa), crossOf(sb))).clamp(
-      minCross,
-      maxCross,
-    );
-    final double main = available + _handleSize;
+    double cross = maxCross;
+    if (!crossBounded) {
+      cross = math.max(minCross, math.max(crossOf(sa), crossOf(sb)));
+      // Stretch the shorter pane to the taller one, at the extent it has.
+      if (a != null && crossOf(sa) != cross) sa = layoutChild(a, _pane(mainOf(sa), cross, cross));
+      if (b != null && crossOf(sb) != cross) sb = layoutChild(b, _pane(mainOf(sb), cross, cross));
+    }
+    final double main = available + handle;
     final Size size = constraints.constrain(_horizontal ? Size(main, cross) : Size(cross, main));
-    return (size: size, available: available, first: first, cross: cross);
+    return (size: size, available: available, first: first, cross: cross, handle: handle);
   }
 
   @override
   Size computeDryLayout(BoxConstraints constraints) => _compute(constraints, ChildLayoutHelper.dryLayoutChild).size;
 
+  /// Two panes have no baseline of their own.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => null;
+
   @override
   void performLayout() {
-    final ({Size size, double available, double first, double cross}) r = _compute(
+    final ({Size size, double available, double first, double cross, double handle}) r = _compute(
       constraints,
       ChildLayoutHelper.layoutChild,
     );
@@ -477,13 +527,13 @@ class RenderKkSplit extends RenderBox
     if (handle != null) {
       handle.layout(
         _horizontal
-            ? BoxConstraints.tightFor(width: _handleSize, height: r.cross)
-            : BoxConstraints.tightFor(width: r.cross, height: _handleSize),
+            ? BoxConstraints.tightFor(width: r.handle, height: r.cross)
+            : BoxConstraints.tightFor(width: r.cross, height: r.handle),
       );
       (handle.parentData! as KkSplitParentData).offset = _horizontal ? Offset(r.first, 0) : Offset(0, r.first);
     }
     if (b != null) {
-      final double start = r.first + _handleSize;
+      final double start = r.first + r.handle;
       (b.parentData! as KkSplitParentData).offset = _horizontal ? Offset(start, 0) : Offset(0, start);
     }
   }
@@ -525,6 +575,13 @@ class RenderKkSplit extends RenderBox
     _clipLayer.layer = null;
     _secondClipLayer.layer = null;
     super.dispose();
+  }
+
+  /// A pane is clipped to its own box; the handle is not clipped.
+  @override
+  Rect? describeApproximatePaintClip(RenderObject child) {
+    if (child is! RenderBox || identical(child, _handle)) return null;
+    return (child.parentData! as KkSplitParentData).offset & child.size;
   }
 
   @override
