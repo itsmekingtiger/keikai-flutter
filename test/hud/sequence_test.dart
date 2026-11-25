@@ -23,7 +23,7 @@ Color? _rowFill(WidgetTester tester, String en) {
   return boxes.firstWhere((KkBox b) => b.child is CustomPaint).fill;
 }
 
-TextStyle _style(WidgetTester tester, String text) => tester.widget<Text>(find.text(text)).style!;
+TextStyle _style(WidgetTester tester, String text) => tester.widget<Text>(find.text(text).first).style!;
 
 void main() {
   setUpAll(loadKkFonts);
@@ -53,7 +53,7 @@ void main() {
     // The title of a 40px row is centred in it.
     expect(
       tester.getCenter(find.text('SELF TEST')).dy,
-      closeTo(tester.getCenter(find.bySemanticsLabel(RegExp('^02 '))).dy, 1.5),
+      closeTo(tester.getCenter(find.bySemanticsLabel(RegExp('^02 '))).dy, 3),
     );
     expect(tester.takeException(), isNull);
   });

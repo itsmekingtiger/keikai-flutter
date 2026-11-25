@@ -28,11 +28,13 @@ int kkTickDecimals(double step) {
   return power >= 0 ? 0 : math.min(-power, 12);
 }
 
-double _snap(double value, int decimals) {
-  final double p = math.pow(10, math.min(decimals + 2, 15)).toDouble();
-  final double v = (value * p).roundToDouble() / p;
+/// Rounds away binary noise (0.30000000000000004) for ticks [step] apart.
+double _snap(double value, double step) {
   // Adding 0.0 turns -0.0 into 0.0.
-  return v.isFinite ? v + 0.0 : value;
+  if (!(step >= 1e-9)) return value + 0.0;
+  final double p = math.pow(10, math.min(kkTickDecimals(step) + 2, 15)).toDouble();
+  final double v = (value * p).roundToDouble() / p;
+  return v.isFinite ? v + 0.0 : value + 0.0;
 }
 
 /// Round tick values between [min] and [max], about [count] of them, at steps
@@ -55,13 +57,10 @@ List<double> kkNiceTicks(double min, double max, [int count = 5]) {
   final double first = (lo / step - 1e-9).ceilToDouble();
   final double last = (hi / step + 1e-9).floorToDouble();
   if (!first.isFinite || !last.isFinite || last < first) return <double>[lo, hi];
-  if (last - first > 1000) return <double>[lo, hi];
-  final int decimals = kkTickDecimals(step);
-  final List<double> ticks = <double>[];
-  for (double i = first; i <= last; i += 1) {
-    ticks.add(_snap(i * step, decimals));
-  }
-  return ticks;
+  // Out of floating-point precision: indices can no longer be told apart.
+  if (last - first > 1000 || first + 1 == first || last + 1 == last) return <double>[lo, hi];
+  final int spans = (last - first).round();
+  return <double>[for (int k = 0; k <= spans; k++) _snap((first + k) * step, step)];
 }
 
 /// A tick label for [value] with exactly the decimals ticks [step] apart need.
@@ -164,9 +163,8 @@ class KkLinearScale {
       hi += pad;
     }
     final double step = kkNiceStep(hi - lo, count);
-    final int decimals = kkTickDecimals(step);
-    final double nlo = _snap((lo / step + 1e-9).floorToDouble() * step, decimals);
-    final double nhi = _snap((hi / step - 1e-9).ceilToDouble() * step, decimals);
+    final double nlo = _snap((lo / step + 1e-9).floorToDouble() * step, step);
+    final double nhi = _snap((hi / step - 1e-9).ceilToDouble() * step, step);
     if (!nlo.isFinite || !nhi.isFinite || nlo == nhi) return this;
     return reversed ? copyWith(min: nhi, max: nlo) : copyWith(min: nlo, max: nhi);
   }

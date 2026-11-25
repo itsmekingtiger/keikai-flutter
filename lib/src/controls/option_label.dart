@@ -25,10 +25,21 @@ class KkOptionLabel extends StatelessWidget {
       shrinkWrap: true,
       cross: KkCrossAlign.baseline,
       gap: 6,
+      clip: Clip.hardEdge,
       children: <Widget>[
         if (c != null && c.isNotEmpty) KkText.cjk(c, size: 13, height: 1.2, color: ink, squeeze: 0.8),
         if (l != null && l.isNotEmpty)
-          KkText.en(l, size: 13, weight: FontWeight.w600, height: 1.2, spacing: 0.08, color: ink),
+          KkFlexible(
+            child: KkText.en(
+              l,
+              size: 13,
+              weight: FontWeight.w600,
+              height: 1.2,
+              spacing: 0.08,
+              color: ink,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
       ],
     );
   }

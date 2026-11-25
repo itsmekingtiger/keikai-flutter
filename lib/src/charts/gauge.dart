@@ -333,7 +333,7 @@ class KkGaugePainter extends CustomPainter {
     }
 
     // Ticks inside the track.
-    final int divisions = math.max(1, ticks);
+    final int divisions = ticks.clamp(1, 200);
     final Paint tick = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5

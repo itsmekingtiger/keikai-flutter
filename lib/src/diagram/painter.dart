@@ -124,6 +124,7 @@ class KkDiagramPainter {
   void paint(Canvas canvas, {Duration time = Duration.zero, double scale = 1, List<String>? info}) {
     paintWires(canvas, scale: scale);
     paintFlow(canvas, time, scale: scale);
+    paintLabels(canvas);
     paintNodes(canvas, scale: scale);
     paintHalos(canvas, time, scale: scale);
     paintSelection(canvas, scale: scale, info: info);
@@ -153,10 +154,10 @@ class KkDiagramPainter {
     return e.active ? colors.signal : colors.line;
   }
 
-  /// Draws the wires, their arrow heads and their labels.
+  /// Draws the wires and their arrow heads.
   ///
   /// [progress] gives how much of each wire is drawn (0 to 1) during the
-  /// entrance; heads and labels appear when their wire is complete.
+  /// entrance; a head appears when its wire is complete.
   void paintWires(Canvas canvas, {double scale = 1, double Function(int wire)? progress}) {
     if (geometry.routes.isEmpty) return;
     canvas.save();
@@ -165,7 +166,6 @@ class KkDiagramPainter {
       ..style = PaintingStyle.stroke
       ..strokeJoin = StrokeJoin.miter
       ..strokeMiterLimit = 4;
-    final TextStyle labelStyle = type.mono(9 * metrics.textScale / type.scale, color: colors.inkDim, spacingEm: 0.04);
     for (int i = 0; i < geometry.routes.length; i++) {
       final KkEdgeRoute route = geometry.routes[i];
       if (route.isEmpty || i >= _diagram.edges.length) continue;
@@ -195,15 +195,27 @@ class KkDiagramPainter {
           paint,
         );
       }
-      final String? label = e.label;
-      if (label != null && label.isNotEmpty) {
-        final TextPainter tp = kkLayoutText(label, labelStyle);
-        final Offset at = route.labelAnchor;
-        final Rect box = Rect.fromCenter(center: at, width: tp.width + 8, height: tp.height + 4);
-        canvas.drawRect(box, Paint()..color = colors.bg000);
-        tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2));
-        tp.dispose();
-      }
+    }
+    canvas.restore();
+  }
+
+  /// Draws the wire labels: 9px mono on a ground-black backing, each on a leg
+  /// of its own wire. They are drawn after the flow marks so nothing runs
+  /// through the text.
+  void paintLabels(Canvas canvas, {double Function(int wire)? progress}) {
+    canvas.save();
+    canvas.translate(origin.dx, origin.dy);
+    final TextStyle labelStyle = type.mono(9 * metrics.textScale / type.scale, color: colors.inkDim, spacingEm: 0.04);
+    for (int i = 0; i < geometry.routes.length && i < _diagram.edges.length; i++) {
+      final String? label = _diagram.edges[i].label;
+      if (label == null || label.isEmpty || geometry.routes[i].isEmpty) continue;
+      if (progress != null && progress(i) < 1) continue;
+      final TextPainter tp = kkLayoutText(label, labelStyle);
+      final Offset at = geometry.labelAnchor(i);
+      final Rect box = Rect.fromCenter(center: at, width: tp.width + 8, height: tp.height + 4);
+      canvas.drawRect(box, Paint()..color = colors.bg000);
+      tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2));
+      tp.dispose();
     }
     canvas.restore();
   }
@@ -479,14 +491,39 @@ class KkDiagramPainter {
         (width + pad * 2).ceilToDouble(),
         pad * 2 + painters.first.height + (painters.length - 1) * (10 * metrics.textScale + lead),
       );
-      // Up and to the right when there is room, otherwise the other way.
+      // Up and to the right by default; another corner when that one would
+      // leave the view or cover more of the other nodes.
       final Rect shape = place.shape;
-      final Size all = geometry.size;
-      final bool right = shape.right + 16 + size.width <= all.width + origin.dx - 2 || shape.left - 16 - size.width < -origin.dx + 2;
-      final bool up = shape.top - 12 - size.height >= -origin.dy + 2;
-      final double left = right ? shape.right + 16 : shape.left - 16 - size.width;
-      final double top = up ? shape.top - 12 - size.height : shape.bottom + 12 + (place.text?.height ?? 0);
-      final Rect box = Offset(left, top) & size;
+      final Rect view = Rect.fromLTRB(
+        -origin.dx + 2,
+        -origin.dy + 2,
+        geometry.size.width + origin.dx - 2,
+        geometry.size.height + origin.dy - 2,
+      );
+      final double below = place.text != null && place.text!.top >= shape.bottom ? place.text!.height + metrics.textGap : 0;
+      bool right = true;
+      bool up = true;
+      Rect box = Rect.zero;
+      double least = double.infinity;
+      for (final (bool r, bool u) in const <(bool, bool)>[(true, true), (false, true), (true, false), (false, false)]) {
+        final Rect candidate =
+            Offset(r ? shape.right + 16 : shape.left - 16 - size.width, u ? shape.top - 12 - size.height : shape.bottom + 12 + below) &
+            size;
+        final Rect inside = candidate.intersect(view);
+        double cost = candidate.width * candidate.height - math.max(0, inside.width) * math.max(0, inside.height);
+        cost *= 10;
+        for (final MapEntry<String, KkNodePlacement> other in geometry.nodes.entries) {
+          if (other.key == id) continue;
+          final Rect hit = candidate.intersect(other.value.bounds);
+          if (hit.width > 0 && hit.height > 0) cost += hit.width * hit.height;
+        }
+        if (cost < least - 0.5) {
+          least = cost;
+          right = r;
+          up = u;
+          box = candidate;
+        }
+      }
       final Offset from = Offset(right ? shape.right : shape.left, up ? shape.top : shape.bottom);
       final Offset corner = Offset(right ? box.left : box.right, up ? box.bottom : box.top);
       final double run = math.min((corner.dx - from.dx).abs(), (corner.dy - from.dy).abs());

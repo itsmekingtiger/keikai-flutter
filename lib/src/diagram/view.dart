@@ -553,6 +553,7 @@ class _NodeLayer extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final double t = progress.value;
     final double scale = controller.scale;
+    painter.paintLabels(canvas, progress: t >= 1 ? null : (int i) => entrance.wire(i, t));
     painter.paintNodes(canvas, scale: scale, progress: t >= 1 ? null : (int i) => entrance.node(i, t));
     if (t >= 1) painter.paintSelection(canvas, scale: scale, info: info, plate: showInfo);
   }

@@ -32,6 +32,9 @@ class KkSliderMark {
 /// 8px segments, lit in signal up to the value; the thumb is an 8 × 22 bar.
 /// Drag or tap the track, or use the keyboard: arrows move one step, Page
 /// Up / Down ten, Home and End jump to the ends.
+///
+/// The slider takes the width it is offered; where the width is unbounded
+/// (in a row) it is [minWidth] wide.
 class KkSlider extends StatefulWidget {
   const KkSlider({
     super.key,
@@ -362,7 +365,8 @@ class _KkSliderState extends State<KkSlider> {
                   ),
               ],
             ),
-          track,
+          // The row makes the slider take the width it is offered.
+          KkRow(children: <Widget>[KkExpanded(child: track)]),
           if (marks != null && marks.isNotEmpty)
             CustomPaint(
               size: const Size(0, 12),

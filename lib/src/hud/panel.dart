@@ -329,7 +329,9 @@ class _KkPanelState extends State<KkPanel> {
             ),
           if (critical)
             KkHazard(
-              color: c.onFill,
+              // Dark stripes on the filled band; on the quiet band they take
+              // the frame colour so they stay visible.
+              color: quiet ? frame : c.onFill,
               background: const Color(0x00000000),
               running: true,
               width: m.space12,

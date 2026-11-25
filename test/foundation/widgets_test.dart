@@ -10,6 +10,17 @@ import '../support/harness.dart';
 
 const KkColors _c = KkColors.standby;
 
+/// The render object that draws a [KkIcon] or a [KkGlyph].
+RenderKkIcon _icon(WidgetTester tester, Type type) => tester.renderObject<RenderKkIcon>(
+  find.descendant(of: find.byType(type), matching: find.byWidgetPredicate((Widget w) => w is LeafRenderObjectWidget)),
+);
+
+/// The span of a [KkClock] that carries its style and its parts.
+TextSpan _clockSpan(WidgetTester tester) {
+  final TextSpan root = tester.widget<RichText>(find.byType(RichText)).text as TextSpan;
+  return root.children!.single as TextSpan;
+}
+
 void main() {
   setUpAll(loadKkFonts);
 
@@ -161,6 +172,10 @@ void main() {
     });
 
     testWidgets('hover with a mouse', (WidgetTester tester) async {
+      // Hover highlights follow the framework's highlight mode; the test
+      // platform starts in touch mode, a desktop in traditional mode.
+      FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() => FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic);
       final List<bool> log = <bool>[];
       await pumpKk(tester, pressable(onHover: log.add));
       final TestGesture mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -207,6 +222,7 @@ void main() {
       await tester.pump();
       expect(states!.focused, isTrue);
       node.unfocus();
+      await tester.pump();
       await tester.pump();
       expect(states!.focused, isFalse);
       expect(log, <bool>[true, false]);
@@ -487,9 +503,15 @@ void main() {
       final Rect b = tester.getRect(find.text('POWER'));
       expect(tester.widget<KkSqueeze>(find.byType(KkSqueeze)).scaleX, 0.8);
       expect(b.left - a.right, closeTo(8, 1e-6));
-      // Shared baseline: the small Latin text sits lower than the top of the title.
+      // Shared baseline: the small Latin text starts lower than the title, and
+      // both baselines are on the same line.
       expect(b.top, greaterThan(a.top));
-      expect(b.bottom, lessThanOrEqualTo(a.bottom + 0.5));
+      final RenderBox cjkBox = tester.renderObject<RenderBox>(find.text('電源系統'));
+      final RenderBox enBox = tester.renderObject<RenderBox>(find.text('POWER'));
+      expect(
+        a.top + cjkBox.getDryBaseline(cjkBox.constraints, TextBaseline.alphabetic)!,
+        closeTo(b.top + enBox.getDryBaseline(enBox.constraints, TextBaseline.alphabetic)!, 0.01),
+      );
       // It takes only the width it needs.
       expect(tester.getSize(find.byType(KkLabel)).width, closeTo(b.right, 1e-6));
     });
@@ -662,14 +684,14 @@ void main() {
     testWidgets('an icon is a 16px square in the current ink', (WidgetTester tester) async {
       await pumpKk(tester, const KkIcon(KkIcons.search));
       expect(tester.getSize(find.byType(KkIcon)), const Size(16, 16));
-      final RenderKkIcon r = tester.renderObject<RenderKkIcon>(find.byType(KkIcon));
+      final RenderKkIcon r = _icon(tester, KkIcon);
       expect(r.color, _c.ink);
       expect(r.icon, KkIcons.search);
       await pumpKk(tester, const KkInk(color: Color(0xFF00FF00), child: KkIcon(KkIcons.search, size: 24)));
       expect(tester.getSize(find.byType(KkIcon)), const Size(24, 24));
-      expect(tester.renderObject<RenderKkIcon>(find.byType(KkIcon)).color, const Color(0xFF00FF00));
+      expect(_icon(tester, KkIcon).color, const Color(0xFF00FF00));
       await pumpKk(tester, const KkIcon(KkIcons.close, color: Color(0xFF0000FF)));
-      expect(tester.renderObject<RenderKkIcon>(find.byType(KkIcon)).color, const Color(0xFF0000FF));
+      expect(_icon(tester, KkIcon).color, const Color(0xFF0000FF));
     });
 
     testWidgets('an icon is decorative unless it has a label', (WidgetTester tester) async {
@@ -685,7 +707,7 @@ void main() {
       await pumpKk(tester, const SizedBox(width: 8, height: 30, child: KkIcon(KkIcons.settings)));
       expect(tester.getSize(find.byType(KkIcon)), const Size(8, 30));
       expect(tester.takeException(), isNull);
-      final RenderKkIcon r = tester.renderObject<RenderKkIcon>(find.byType(KkIcon));
+      final RenderKkIcon r = _icon(tester, KkIcon);
       expect(r.getMaxIntrinsicWidth(double.infinity), 16);
       expect(r.getMinIntrinsicHeight(double.infinity), 16);
       expect(r.getDryLayout(const BoxConstraints()), const Size(16, 16));
@@ -694,7 +716,7 @@ void main() {
     testWidgets('a glyph shows the status icon of its level in the level colour', (WidgetTester tester) async {
       for (final KkLevel level in KkLevel.values) {
         await pumpKk(tester, KkGlyph(level: level));
-        final RenderKkIcon r = tester.renderObject<RenderKkIcon>(find.byType(KkGlyph));
+        final RenderKkIcon r = _icon(tester, KkGlyph);
         expect(r.icon, kkStatusIcon(level));
         expect(r.color, _c.level(level));
         expect(tester.getSize(find.byType(KkGlyph)), const Size(12, 12));
@@ -703,12 +725,12 @@ void main() {
 
     testWidgets('a glyph without a level is the info plate in the current ink', (WidgetTester tester) async {
       await pumpKk(tester, const KkInk(color: Color(0xFF00FF00), child: KkGlyph(size: 10)));
-      final RenderKkIcon r = tester.renderObject<RenderKkIcon>(find.byType(KkGlyph));
+      final RenderKkIcon r = _icon(tester, KkGlyph);
       expect(r.icon, KkIcons.statusInfo);
       expect(r.color, const Color(0xFF00FF00));
       expect(r.size, const Size(10, 10));
       await pumpKk(tester, const KkGlyph(level: KkLevel.critical, color: Color(0xFF0000FF)));
-      expect(tester.renderObject<RenderKkIcon>(find.byType(KkGlyph)).color, const Color(0xFF0000FF));
+      expect(_icon(tester, KkGlyph).color, const Color(0xFF0000FF));
     });
   });
 
@@ -766,9 +788,7 @@ void main() {
     testWidgets('the colons blink once a second when motion is on', (WidgetTester tester) async {
       final DateTime fixed = DateTime.utc(2026, 11, 24, 14, 2, 31);
       Color colon() {
-        final RichText rich = tester.widget<RichText>(find.byType(RichText));
-        final TextSpan root = rich.text as TextSpan;
-        final TextSpan c = root.children!.whereType<TextSpan>().firstWhere((TextSpan s) => s.text == ':');
+        final TextSpan c = _clockSpan(tester).children!.whereType<TextSpan>().firstWhere((TextSpan s) => s.text == ':');
         return c.style!.color!;
       }
 
@@ -793,7 +813,7 @@ void main() {
     testWidgets('style and colour', (WidgetTester tester) async {
       final DateTime fixed = DateTime.utc(2026, 11, 24, 14, 2, 31);
       await pumpKk(tester, KkClock(clock: () => fixed));
-      TextSpan root = tester.widget<RichText>(find.byType(RichText)).text as TextSpan;
+      TextSpan root = _clockSpan(tester);
       expect(root.style!.fontFamily, 'packages/keikai/IBM Plex Mono');
       expect(root.style!.fontSize, 15);
       expect(root.style!.fontWeight, FontWeight.w500);
@@ -802,7 +822,7 @@ void main() {
         tester,
         KkClock(clock: () => fixed, color: const Color(0xFF00FF00), style: const TextStyle(fontSize: 22)),
       );
-      root = tester.widget<RichText>(find.byType(RichText)).text as TextSpan;
+      root = _clockSpan(tester);
       expect(root.style!.fontSize, 22);
       expect(root.style!.color, const Color(0xFF00FF00));
     });
@@ -838,8 +858,18 @@ void main() {
       );
       expect(find.text('接続状態'), findsOneWidget);
       expect(find.text('LINK STATE'), findsOneWidget);
-      // 8 + (14 × 1.55) + 8 padding, plus the 1px line.
-      expect(tester.getSize(find.byType(KkWidgetHead)).height, closeTo(8 + 21.7 + 8 + 1, 0.01));
+      // 8px padding above and below the baseline-aligned row, plus the 1px line.
+      // The title is 14px at line-height 1.55 (the engine rounds it to 22).
+      final Rect title = tester.getRect(find.byType(KkSqueeze));
+      final Rect sub = tester.getRect(find.text('LINK STATE'));
+      expect(title.height, closeTo(14 * 1.55, 0.5));
+      expect(sub.height, closeTo(11 * 1.55, 0.5));
+      final double rowTop = title.top < sub.top ? title.top : sub.top;
+      final double rowBottom = title.bottom > sub.bottom ? title.bottom : sub.bottom;
+      expect(rowTop, 8);
+      final double headHeight = tester.getSize(find.byType(KkWidgetHead)).height;
+      expect(headHeight, closeTo(rowBottom + 8 + 1, 1e-6));
+      expect(headHeight, inInclusiveRange(38, 40));
       expect(tester.getSize(find.byType(KkWidgetHead)).width, 320);
       // Meta and trailing are pushed to the right edge, inside the 12px padding.
       expect(tester.getRect(find.byKey(const ValueKey<String>('tail'))).right, closeTo(308, 1e-6));
@@ -851,13 +881,13 @@ void main() {
       expect(tester.widget<Text>(find.text('LINK STATE')).style!.color, _c.inkDim);
       expect(
         find.byType(KkWidgetHead),
-        paints..rect(rect: const Rect.fromLTWH(0, 37.7, 320, 1), color: _c.line),
+        paints..rect(rect: Rect.fromLTWH(0, headHeight - 1, 320, 1), color: _c.line),
       );
     });
 
     testWidgets('KkWidgetHead without the divider, and with a title too long for it', (WidgetTester tester) async {
       await pumpKk(tester, const SizedBox(width: 320, child: KkWidgetHead(cjk: '冷却', divider: false)));
-      expect(tester.getSize(find.byType(KkWidgetHead)).height, closeTo(37.7, 0.01));
+      expect(tester.getSize(find.byType(KkWidgetHead)).height, closeTo(8 + 14 * 1.55 + 8, 0.5));
       await pumpKk(
         tester,
         const SizedBox(
@@ -944,7 +974,8 @@ void main() {
       expect(frame.width, 300);
       expect(body.left, 1);
       expect(body.width, 298);
-      expect(body.top, closeTo(1 + 38.7, 0.01));
+      expect(body.top, closeTo(tester.getRect(find.byType(KkWidgetHead)).bottom, 1e-6));
+      expect(tester.getRect(find.byType(KkWidgetHead)).top, 1);
       expect(tester.getRect(find.byType(KkWidgetFoot)).top, closeTo(body.bottom, 1e-6));
       expect(frame.bottom, closeTo(tester.getRect(find.byType(KkWidgetFoot)).bottom + 1, 1e-6));
     });

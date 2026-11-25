@@ -236,15 +236,22 @@ void main() {
     });
 
     testWidgets('layout: 200 wide at least, a 22px track row, 12px marks, 8px gaps', (WidgetTester tester) async {
+      // In a row the width is unbounded, so the slider falls back to its minimum.
       await pumpKk(
         tester,
-        KkSlider(
-          value: 62,
-          cjk: '冷却流量',
-          en: 'coolant flow',
-          unit: '%',
-          marks: const <KkSliderMark>[KkSliderMark(0), KkSliderMark(50, 'MID'), KkSliderMark(100)],
-          onChanged: (double v) {},
+        KkRow(
+          shrinkWrap: true,
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            KkSlider(
+              value: 62,
+              cjk: '冷却流量',
+              en: 'coolant flow',
+              unit: '%',
+              marks: const <KkSliderMark>[KkSliderMark(0), KkSliderMark(50, 'MID'), KkSliderMark(100)],
+              onChanged: (double v) {},
+            ),
+          ],
         ),
       );
       expect(tester.getSize(find.byType(KkSlider)).width, 200);
@@ -255,7 +262,9 @@ void main() {
       expect(track.size, const Size(200, 22));
       expect(marks.size, const Size(200, 12));
       expect(marks.top - track.bottom, 8);
-      final Rect head = tester.getRect(find.byType(KkRow).first);
+      final Rect head = tester.getRect(
+        find.descendant(of: find.byType(KkSlider), matching: find.byType(KkRow)).first,
+      );
       expect(track.top - head.bottom, 8);
       expect(find.text('062'), findsOneWidget);
       expect(find.text('%'), findsOneWidget);
@@ -269,8 +278,21 @@ void main() {
     });
 
     testWidgets('track only: no head, just the 22px row', (WidgetTester tester) async {
-      await pumpKk(tester, KkSlider(value: 20, showValue: false, onChanged: (double v) {}));
+      await pumpKk(
+        tester,
+        KkRow(
+          shrinkWrap: true,
+          children: <Widget>[KkSlider(value: 20, showValue: false, onChanged: (double v) {})],
+        ),
+      );
       expect(tester.getSize(find.byType(KkSlider)), const Size(200, 22));
+    });
+
+    testWidgets('takes the width it is offered, with or without a head', (WidgetTester tester) async {
+      await pumpKk(tester, KkSlider(value: 20, showValue: false, onChanged: (double v) {}));
+      expect(tester.getSize(find.byType(KkSlider)), const Size(800, 22));
+      await pumpKk(tester, KkSlider(value: 20, en: 'gain', onChanged: (double v) {}));
+      expect(tester.getSize(find.byType(KkSlider)).width, 800);
     });
 
     testWidgets('fills the width it is given and respects a narrower parent', (WidgetTester tester) async {

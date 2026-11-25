@@ -22,6 +22,9 @@ String _percent(double value, int digits) => (value * 100).round().toString().pa
 /// [value] runs from 0 to 1; the lit length snaps down to whole segments, and
 /// a change of value steps there in 9 jumps over 0.45s. A null [value] is
 /// indeterminate: a quarter of the bar scans across in hard steps.
+///
+/// The bar takes the width it is offered; where the width is unbounded (in a
+/// row) it is [minWidth] wide.
 class KkProgress extends StatelessWidget {
   const KkProgress({
     super.key,
@@ -177,7 +180,8 @@ class KkProgress extends StatelessWidget {
                   ],
                 ),
               ),
-            track,
+            // The row makes the bar take the width it is offered.
+            KkRow(children: <Widget>[KkExpanded(child: track)]),
           ],
         ),
       ),

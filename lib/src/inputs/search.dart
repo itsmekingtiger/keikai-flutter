@@ -437,7 +437,10 @@ class _KkSearchState<T> extends State<KkSearch<T>> {
                 if (empty || !enabled)
                   KkBox(width: m.space8, height: m.space8)
                 else
-                  KkIconButton(icon: KkIcons.close, onPressed: _clear, semanticLabel: widget.clearLabel),
+                  // A forced focus look on the bar is not the button's.
+                  KkStateOverride(
+                    child: KkIconButton(icon: KkIcons.close, onPressed: _clear, semanticLabel: widget.clearLabel),
+                  ),
               ],
             ),
           ),

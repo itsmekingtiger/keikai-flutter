@@ -69,6 +69,7 @@ class KkSwitch extends StatelessWidget {
         child: KkRow(
           shrinkWrap: true,
           main: KkMainAlign.center,
+          clip: Clip.hardEdge,
           children: <Widget>[KkText.num(word, size: 11, weight: FontWeight.w700, spacing: 0.06, color: ink)],
         ),
       );
@@ -89,6 +90,7 @@ class KkSwitch extends StatelessWidget {
         return KkRow(
           shrinkWrap: true,
           gap: m.space2,
+          clip: Clip.hardEdge,
           children: <Widget>[
             KkFocusRing(
               visible: s.focused,
@@ -114,7 +116,10 @@ class KkSwitch extends StatelessWidget {
                 ),
               ),
             ),
-            if (hasLabel) KkOptionLabel(label: label, cjk: cjk, color: live ? c.ink : c.inkFaint),
+            if (hasLabel)
+              KkFlexible(
+                child: KkOptionLabel(label: label, cjk: cjk, color: live ? c.ink : c.inkFaint),
+              ),
           ],
         );
       },

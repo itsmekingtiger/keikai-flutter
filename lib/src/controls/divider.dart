@@ -75,7 +75,11 @@ class KkDivider extends StatelessWidget {
     final String? cjkText = cjk;
     final String? enText = en;
     final bool hasLabel = (cjkText?.isNotEmpty ?? false) || (enText?.isNotEmpty ?? false);
-    if (codeText == null && !hasLabel) return ExcludeSemantics(child: rule);
+    if (codeText == null && !hasLabel) {
+      return ExcludeSemantics(
+        child: KkRow(children: <Widget>[KkExpanded(child: rule)]),
+      );
+    }
     return KkRow(
       gap: m.space2,
       children: <Widget>[

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import '../foundation/level.dart';
 import 'geometry.dart';
 import 'layout.dart';
 import 'metrics.dart';
@@ -77,6 +78,11 @@ class _V {
   double mainAfter = 0;
   final List<int> up = <int>[];
   final List<int> down = <int>[];
+
+  /// How much each wire in [up] and [down] matters: live wires pull harder
+  /// and are kept straight first.
+  final List<double> upGain = <double>[];
+  final List<double> downGain = <double>[];
 
   bool get dummy => real < 0;
 }
@@ -254,6 +260,10 @@ class _Layered {
     }
     for (int w = 0; w < wires.length; w++) {
       final _Wire wire = wires[w];
+      final KkDiagramEdge edge = diagram.edges[wire.index];
+      final double gain = (edge.active || edge.flow != KkEdgeFlow.none)
+          ? 3
+          : (edge.level == KkLevel.offline ? 0.5 : 1);
       int prev = wire.a;
       wire.chain.add(prev);
       for (int l = rank[wire.a] + 1; l < rank[wire.b]; l++) {
@@ -263,12 +273,16 @@ class _Layered {
         v.add(lane);
         final int id = v.length - 1;
         v[prev].down.add(id);
+        v[prev].downGain.add(gain);
         lane.up.add(prev);
+        lane.upGain.add(gain);
         wire.chain.add(id);
         prev = id;
       }
       v[prev].down.add(wire.b);
+      v[prev].downGain.add(gain);
       v[wire.b].up.add(prev);
+      v[wire.b].upGain.add(gain);
       wire.chain.add(wire.b);
     }
     int count = 0;
@@ -481,15 +495,17 @@ class _Layered {
       double sum = 0;
       double total = 0;
       if (up) {
-        for (final int id in vertex.up) {
-          final double w = _weight(vertex, v[id]);
+        for (int k = 0; k < vertex.up.length; k++) {
+          final int id = vertex.up[k];
+          final double w = _weight(vertex, v[id]) * vertex.upGain[k];
           sum += w * v[id].pos;
           total += w;
         }
       }
       if (down) {
-        for (final int id in vertex.down) {
-          final double w = _weight(vertex, v[id]);
+        for (int k = 0; k < vertex.down.length; k++) {
+          final int id = vertex.down[k];
+          final double w = _weight(vertex, v[id]) * vertex.downGain[k];
           sum += w * v[id].pos;
           total += w;
         }
@@ -530,8 +546,214 @@ class _Layered {
         _pull(l, up: true, down: true);
       }
     }
-    _straighten();
-    _snap();
+    if (!_placeBlocks(_align())) {
+      _straighten();
+      _snap();
+    }
+  }
+
+  /// Chains vertices of neighbouring ranks that should share one coordinate:
+  /// every vertex is tied to a median neighbour in the rank before, as long as
+  /// the ties between two ranks never cross. Lane points of long wires are
+  /// tied first, so a wire that skips ranks runs straight.
+  ///
+  /// Returns the block of every vertex.
+  List<int> _align() {
+    final int n = v.length;
+    final List<int> up = List<int>.filled(n, -1);
+    final List<int> down = List<int>.filled(n, -1);
+    for (int l = 1; l < layers.length; l++) {
+      final List<int> layer = layers[l];
+      // For each position in this rank, the order of the vertex it is tied
+      // to in the rank before (or -1).
+      final List<int> tied = List<int>.filled(layer.length, -1);
+      int last = -1;
+      for (int i = 0; i < layer.length; i++) {
+        final _V vertex = v[layer[i]];
+        if (!vertex.dummy) continue;
+        for (final int u in vertex.up) {
+          if (v[u].dummy && down[u] < 0 && v[u].order > last) {
+            tied[i] = v[u].order;
+            up[layer[i]] = u;
+            down[u] = layer[i];
+            last = v[u].order;
+            break;
+          }
+        }
+      }
+      for (int i = 0; i < layer.length; i++) {
+        final int id = layer[i];
+        final _V vertex = v[id];
+        if (up[id] >= 0 || vertex.up.isEmpty) continue;
+        int lo = -1;
+        int hi = 1 << 30;
+        for (int j = i - 1; j >= 0; j--) {
+          if (tied[j] >= 0) {
+            lo = tied[j];
+            break;
+          }
+        }
+        for (int j = i + 1; j < layer.length; j++) {
+          if (tied[j] >= 0) {
+            hi = tied[j];
+            break;
+          }
+        }
+        // Candidates: the liveliest wire first, then the median neighbours,
+        // the nearer one first.
+        final List<int> ups = List<int>.of(vertex.up)..sort((int a, int b) => v[a].order.compareTo(v[b].order));
+        final int m0 = (ups.length - 1) ~/ 2;
+        final int m1 = ups.length ~/ 2;
+        double best = 0;
+        for (final double g in vertex.upGain) {
+          best = math.max(best, g);
+        }
+        double gainOf(int u) {
+          double g = 0;
+          for (int k = 0; k < vertex.up.length; k++) {
+            if (vertex.up[k] == u) g = math.max(g, vertex.upGain[k]);
+          }
+          return g;
+        }
+
+        final List<int> medians = <int>[
+          for (final int u in ups)
+            if (gainOf(u) >= best && (best > 1 || u == ups[m0] || u == ups[m1])) u,
+        ];
+        medians.sort((int a, int b) {
+          final int c = (v[a].pos - vertex.pos).abs().compareTo((v[b].pos - vertex.pos).abs());
+          return c != 0 ? c : v[a].order.compareTo(v[b].order);
+        });
+        for (final int u in <int>[ups[m0], ups[m1]]) {
+          if (!medians.contains(u)) medians.add(u);
+        }
+        for (final int u in medians) {
+          if (down[u] < 0 && v[u].order > lo && v[u].order < hi) {
+            tied[i] = v[u].order;
+            up[id] = u;
+            down[u] = id;
+            break;
+          }
+        }
+      }
+    }
+    final List<int> block = List<int>.filled(n, -1);
+    int count = 0;
+    for (int i = 0; i < n; i++) {
+      if (up[i] >= 0) continue;
+      for (int j = i; j >= 0; j = down[j]) {
+        block[j] = count;
+      }
+      count++;
+    }
+    _blockCount = count;
+    return block;
+  }
+
+  int _blockCount = 0;
+
+  /// Gives every block one coordinate: as close as it can get to the middle
+  /// of what it is wired to, without breaking the order or the gaps inside
+  /// any rank. Returns false when the blocks cannot be ordered (which the
+  /// alignment rules should never allow), so the caller can fall back.
+  bool _placeBlocks(List<int> block) {
+    final int count = _blockCount;
+    final List<List<(int, double)>> before = List<List<(int, double)>>.generate(count, (_) => <(int, double)>[]);
+    final List<List<(int, double)>> after = List<List<(int, double)>>.generate(count, (_) => <(int, double)>[]);
+    for (final List<int> layer in layers) {
+      for (int i = 1; i < layer.length; i++) {
+        final int a = block[layer[i - 1]];
+        final int b = block[layer[i]];
+        if (a == b) return false;
+        final double sep = _separation(v[layer[i - 1]], v[layer[i]]);
+        before[b].add((a, sep));
+        after[a].add((b, sep));
+      }
+    }
+    // Order the blocks so that every block comes after those above it.
+    final List<int> waiting = <int>[for (int b = 0; b < count; b++) before[b].length];
+    final List<int> order = <int>[
+      for (int b = 0; b < count; b++)
+        if (waiting[b] == 0) b,
+    ];
+    for (int head = 0; head < order.length; head++) {
+      for (final (int b, double _) in after[order[head]]) {
+        if (--waiting[b] == 0) order.add(b);
+      }
+    }
+    if (order.length != count) return false;
+
+    // Start from the balanced positions.
+    final List<double> wanted = List<double>.filled(count, 0);
+    final List<int> members = List<int>.filled(count, 0);
+    for (int i = 0; i < v.length; i++) {
+      wanted[block[i]] += v[i].pos;
+      members[block[i]]++;
+    }
+    for (int b = 0; b < count; b++) {
+      wanted[b] /= members[b];
+    }
+    final List<double> low = List<double>.filled(count, 0);
+    final List<double> high = List<double>.filled(count, 0);
+    final List<double> x = List<double>.filled(count, 0);
+    void project() {
+      for (final int b in order) {
+        double p = wanted[b];
+        for (final (int a, double sep) in before[b]) {
+          p = math.max(p, low[a] + sep);
+        }
+        low[b] = p;
+      }
+      for (int i = count - 1; i >= 0; i--) {
+        final int b = order[i];
+        double p = wanted[b];
+        for (final (int c, double sep) in after[b]) {
+          p = math.min(p, high[c] - sep);
+        }
+        high[b] = p;
+      }
+      for (int b = 0; b < count; b++) {
+        x[b] = (low[b] + high[b]) / 2;
+      }
+    }
+
+    project();
+    final List<double> sum = List<double>.filled(count, 0);
+    final List<double> total = List<double>.filled(count, 0);
+    for (int round = 0; round < 16; round++) {
+      sum.fillRange(0, count, 0);
+      total.fillRange(0, count, 0);
+      for (int i = 0; i < v.length; i++) {
+        final int b = block[i];
+        for (int k = 0; k < v[i].down.length; k++) {
+          final int d = v[i].down[k];
+          final int o = block[d];
+          if (o == b) continue;
+          final double w = _weight(v[i], v[d]) * v[i].downGain[k];
+          sum[b] += w * x[o];
+          total[b] += w;
+          sum[o] += w * x[b];
+          total[o] += w;
+        }
+      }
+      for (int b = 0; b < count; b++) {
+        if (total[b] > 0) wanted[b] = (x[b] + sum[b] / total[b]) / 2;
+      }
+      project();
+    }
+
+    // On the grid, keeping every gap.
+    for (final int b in order) {
+      double p = kkSnap(x[b]);
+      for (final (int a, double sep) in before[b]) {
+        p = math.max(p, x[a] + sep);
+      }
+      x[b] = p;
+    }
+    for (int i = 0; i < v.length; i++) {
+      v[i].pos = x[block[i]];
+    }
+    return true;
   }
 
   /// Puts all lane points of a long wire on one line when nothing is in the way.

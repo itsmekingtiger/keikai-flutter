@@ -12,7 +12,8 @@ import 'scan.dart';
 ///
 /// By default it is three text lines. [widths] sets each line's share of the
 /// available width; [KkSkeleton.block] is one tall block for a chart or an
-/// image.
+/// image. It takes the width it is offered ([minWidth] where that is
+/// unbounded).
 class KkSkeleton extends StatelessWidget {
   const KkSkeleton({
     super.key,
@@ -61,19 +62,22 @@ class KkSkeleton extends StatelessWidget {
     final KkColors c = theme.colors;
     final KkMetrics m = theme.metrics;
 
-    Widget line(double height) => KkBox(
+    Widget bar(double height) => KkBox(
       height: height,
       fill: c.bg200,
       clip: true,
       child: KkScanBar(color: c.signalDim, period: const Duration(milliseconds: 1400), steps: 14),
     );
 
+    // A full line takes the width it is offered.
+    Widget line(double height) => KkRow(children: <Widget>[KkExpanded(child: bar(height))]);
+
     final double? block = blockHeight;
     final List<double>? shares = widths;
     final Widget body = KkBox(
       minWidth: minWidth,
       child: block != null
-          ? line(block)
+          ? KkColumn(shrinkWrap: true, children: <Widget>[line(block)])
           : KkColumn(
               shrinkWrap: true,
               gap: gap ?? m.space2,
@@ -82,7 +86,7 @@ class KkSkeleton extends StatelessWidget {
                   if (shares != null && i < shares.length && shares[i] < 1)
                     KkRow(
                       children: <Widget>[
-                        KkExpanded(flex: (shares[i].clamp(0.0, 1.0) * 1000).round(), child: line(lineHeight)),
+                        KkExpanded(flex: (shares[i].clamp(0.0, 1.0) * 1000).round(), child: bar(lineHeight)),
                         KkSpacer(flex: 1000 - (shares[i].clamp(0.0, 1.0) * 1000).round()),
                       ],
                     )

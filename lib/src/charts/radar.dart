@@ -306,7 +306,7 @@ class _RadarGroundPainter extends CustomPainter {
     }
 
     // Range rings; the outer one is the signal frame.
-    final int count = math.max(1, rings);
+    final int count = rings.clamp(1, 50);
     final Paint ring = Paint()..style = PaintingStyle.stroke;
     for (int i = 1; i <= count; i++) {
       final bool outer = i == count;

@@ -95,6 +95,7 @@ class KkCheckbox extends StatelessWidget {
         return KkRow(
           shrinkWrap: true,
           gap: m.space2,
+          clip: Clip.hardEdge,
           children: <Widget>[
             KkFocusRing(
               visible: s.focused,
@@ -111,7 +112,10 @@ class KkCheckbox extends StatelessWidget {
                 ),
               ),
             ),
-            if (hasLabel) KkOptionLabel(label: label, cjk: cjk, color: live ? c.ink : c.inkFaint),
+            if (hasLabel)
+              KkFlexible(
+                child: KkOptionLabel(label: label, cjk: cjk, color: live ? c.ink : c.inkFaint),
+              ),
           ],
         );
       },

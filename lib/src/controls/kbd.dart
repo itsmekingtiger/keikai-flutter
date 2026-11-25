@@ -35,6 +35,7 @@ class KkKbd extends StatelessWidget {
       edges: KkEdges(top: thin, left: thin, right: thin, bottom: KkSide(edge, width: m.stroke2)),
       child: KkRow(
         shrinkWrap: true,
+        clip: Clip.hardEdge,
         children: <Widget>[
           KkText.num(text, size: 10, weight: FontWeight.w600, spacing: 0.04, color: color ?? c.inkDim),
         ],

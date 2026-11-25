@@ -33,8 +33,8 @@ class DiagramSheet extends StatelessWidget {
 const String _coolantSource = '''
 flow LR
 IN([INTAKE]) ==> F1[SEC-01|FILTER|濾過]
-F1 ==> P1[SEC-02|PUMP A|主泵]:::nominal
-F1 --> P2[SEC-03|PUMP B|副泵]:::offline
+F1 ==> P1[SEC-02|PUMP A|主系]:::nominal
+F1 --> P2[SEC-03|PUMP B|副系]:::offline
 P1 ==> HX((HX-01|EXCHANGER|熱交換))
 P2 -.-> HX
 HX ==> CHK{PRESS|LIMIT 4.2}

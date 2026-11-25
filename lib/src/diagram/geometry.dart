@@ -271,7 +271,7 @@ class KkEdgeRoute {
 /// A diagram that has been placed and routed: everything the painter needs.
 @immutable
 class KkDiagramGeometry {
-  const KkDiagramGeometry({
+  KkDiagramGeometry({
     required this.diagram,
     required this.size,
     required this.nodes,
@@ -288,6 +288,91 @@ class KkDiagramGeometry {
   /// One route per wire, in the order of the diagram's edges.
   final List<KkEdgeRoute> routes;
   final KkDiagramDirection? direction;
+
+  late final List<Offset?> _labelPoints = _placeLabels();
+
+  /// Where the label of wire [edge] goes: the middle of a leg of its route,
+  /// chosen so that the label sits on its own wire only and off the nodes,
+  /// the other wires and the labels placed before it.
+  Offset labelAnchor(int edge) {
+    if (edge < 0 || edge >= routes.length) return Offset.zero;
+    return (edge < _labelPoints.length ? _labelPoints[edge] : null) ?? routes[edge].labelAnchor;
+  }
+
+  /// The box a wire label of [text] takes (9px mono on a 4px backing).
+  static Size labelSize(String text, {double textScale = 1}) =>
+      Size(KkNodeMetrics.monoWidth(text, 9 * textScale, spacingEm: 0.04) + 8, 9 * textScale + 4);
+
+  List<Offset?> _placeLabels() {
+    final List<Offset?> out = List<Offset?>.filled(routes.length, null);
+    final List<Rect> placed = <Rect>[];
+    for (int i = 0; i < routes.length && i < diagram.edges.length; i++) {
+      final String? label = diagram.edges[i].label;
+      final KkEdgeRoute route = routes[i];
+      if (label == null || label.isEmpty || route.isEmpty) continue;
+      final Size box = labelSize(label);
+      double bestScore = double.infinity;
+      Rect? best;
+      for (int k = 1; k < route.points.length; k++) {
+        final Offset a = route.points[k - 1];
+        final Offset b = route.points[k];
+        final double len = (b - a).distance;
+        if (len < 0.5) continue;
+        final Rect rect = Rect.fromCenter(center: (a + b) / 2, width: box.width, height: box.height);
+        final bool flat = (a.dy - b.dy).abs() < 0.01;
+        double score = flat ? 0 : 1;
+        if (len < (flat ? box.width : box.height) + 8) score += 2;
+        for (int j = 0; j < routes.length; j++) {
+          if (j == i) continue;
+          final List<Offset> other = routes[j].points;
+          for (int m = 1; m < other.length; m++) {
+            if (_segmentHitsRect(other[m - 1], other[m], rect.inflate(1))) {
+              score += 6;
+              break;
+            }
+          }
+        }
+        for (final KkNodePlacement n in nodes.values) {
+          if (rect.overlaps(n.bounds)) score += 8;
+        }
+        for (final Rect r in placed) {
+          if (rect.overlaps(r)) score += 8;
+        }
+        score -= math.min(len, 200) / 200;
+        if (score < bestScore) {
+          bestScore = score;
+          best = rect;
+        }
+      }
+      if (best != null) {
+        out[i] = best.center;
+        placed.add(best);
+      }
+    }
+    return out;
+  }
+
+  static bool _segmentHitsRect(Offset a, Offset b, Rect r) {
+    if (r.contains(a) || r.contains(b)) return true;
+    // Liang-Barsky clipping of the segment against the rectangle.
+    double t0 = 0, t1 = 1;
+    final double dx = b.dx - a.dx;
+    final double dy = b.dy - a.dy;
+    bool clip(double p, double q) {
+      if (p == 0) return q >= 0;
+      final double t = q / p;
+      if (p < 0) {
+        if (t > t1) return false;
+        if (t > t0) t0 = t;
+      } else {
+        if (t < t0) return false;
+        if (t < t1) t1 = t;
+      }
+      return true;
+    }
+
+    return clip(-dx, a.dx - r.left) && clip(dx, r.right - a.dx) && clip(-dy, a.dy - r.top) && clip(dy, r.bottom - a.dy) && t0 <= t1;
+  }
 
   /// The id of the node whose symbol or text is under [point], topmost first,
   /// or null.

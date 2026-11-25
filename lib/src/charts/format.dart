@@ -69,8 +69,11 @@ List<double> kkTimeTicks(Object start, Object end, {int count = 6}) {
   final double step = kkTimeStep(hi - lo, count);
   final double first = (lo / step - 1e-9).ceilToDouble();
   final double last = (hi / step + 1e-9).floorToDouble();
-  if (last < first || last - first > 1000) return <double>[lo, hi];
-  return <double>[for (double i = first; i <= last; i += 1) i * step];
+  if (!first.isFinite || !last.isFinite || last < first) return <double>[lo, hi];
+  // Out of floating-point precision: indices can no longer be told apart.
+  if (last - first > 1000 || first + 1 == first || last + 1 == last) return <double>[lo, hi];
+  final int spans = (last - first).round();
+  return <double>[for (int k = 0; k <= spans; k++) (first + k) * step];
 }
 
 /// The UTC label of [time] (a [DateTime] or epoch seconds): `14:02`, or

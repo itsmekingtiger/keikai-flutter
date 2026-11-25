@@ -122,6 +122,7 @@ class KkStatusTag extends StatelessWidget {
       child: KkRow(
         shrinkWrap: true,
         gap: lg ? m.space2 : 6,
+        clip: Clip.hardEdge,
         children: <Widget>[
           if (custom != null)
             KkIcon(custom, size: lg ? 14 : 12, color: ink)

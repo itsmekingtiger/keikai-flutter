@@ -144,35 +144,37 @@ class _KkPressableState extends State<KkPressable> {
     );
     Widget child = widget.builder(context, states);
     if (widget.excludeSemantics) child = ExcludeSemantics(child: child);
-    return FocusableActionDetector(
+    // The semantics node is outside the focus node, so that "focusable" and
+    // "focused" merge into the same node as the role, label and tap action.
+    return Semantics(
+      container: true,
+      button: widget.button,
       enabled: interactive,
-      focusNode: widget.focusNode,
-      autofocus: widget.autofocus,
-      descendantsAreFocusable: true,
-      mouseCursor: widget.cursor ?? (interactive ? SystemMouseCursors.click : SystemMouseCursors.forbidden),
-      shortcuts: _shortcuts,
-      actions: _actions,
-      onShowHoverHighlight: (bool value) {
-        if (_hovered == value) return;
-        setState(() => _hovered = value);
-        widget.onHoverChanged?.call(value);
-      },
-      onShowFocusHighlight: (bool value) {
-        if (_focused == value) return;
-        setState(() => _focused = value);
-      },
-      onFocusChange: widget.onFocusChanged,
-      child: Semantics(
-        container: true,
-        button: widget.button,
+      label: widget.semanticLabel,
+      selected: widget.selected,
+      checked: widget.mixed ?? false ? null : widget.checked,
+      mixed: widget.mixed ?? false ? true : null,
+      toggled: widget.toggled,
+      onTap: interactive && widget.onPressed != null ? widget.onPressed : null,
+      onLongPress: interactive && widget.onLongPress != null ? widget.onLongPress : null,
+      child: FocusableActionDetector(
         enabled: interactive,
-        label: widget.semanticLabel,
-        selected: widget.selected,
-        checked: widget.mixed ?? false ? null : widget.checked,
-        mixed: widget.mixed ?? false ? true : null,
-        toggled: widget.toggled,
-        onTap: interactive && widget.onPressed != null ? widget.onPressed : null,
-        onLongPress: interactive && widget.onLongPress != null ? widget.onLongPress : null,
+        focusNode: widget.focusNode,
+        autofocus: widget.autofocus,
+        descendantsAreFocusable: true,
+        mouseCursor: widget.cursor ?? (interactive ? SystemMouseCursors.click : SystemMouseCursors.forbidden),
+        shortcuts: _shortcuts,
+        actions: _actions,
+        onShowHoverHighlight: (bool value) {
+          if (_hovered == value) return;
+          setState(() => _hovered = value);
+          widget.onHoverChanged?.call(value);
+        },
+        onShowFocusHighlight: (bool value) {
+          if (_focused == value) return;
+          setState(() => _focused = value);
+        },
+        onFocusChange: widget.onFocusChanged,
         child: GestureDetector(
           behavior: widget.behavior,
           excludeFromSemantics: true,

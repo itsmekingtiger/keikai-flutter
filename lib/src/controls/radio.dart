@@ -203,6 +203,7 @@ class _KkRadioGroupState<T> extends State<KkRadioGroup<T>> {
             return KkRow(
               shrinkWrap: true,
               gap: m.space2,
+              clip: Clip.hardEdge,
               children: <Widget>[
                 KkFocusRing(
                   visible: s.focused,
@@ -213,7 +214,10 @@ class _KkRadioGroupState<T> extends State<KkRadioGroup<T>> {
                     painter: _RadioPainter(edge: edge, fill: c.bg100, core: chosen ? c.signal : null),
                   ),
                 ),
-                if (hasLabel) KkOptionLabel(label: option.label, cjk: option.cjk, color: live ? c.ink : c.inkFaint),
+                if (hasLabel)
+                  KkFlexible(
+                    child: KkOptionLabel(label: option.label, cjk: option.cjk, color: live ? c.ink : c.inkFaint),
+                  ),
               ],
             );
           },

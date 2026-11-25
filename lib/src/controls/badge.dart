@@ -75,6 +75,7 @@ class KkBadge extends StatelessWidget {
           child: KkRow(
             shrinkWrap: true,
             main: KkMainAlign.center,
+            clip: Clip.hardEdge,
             children: <Widget>[
               KkText.num(
                 text,

@@ -333,16 +333,28 @@ class _KkTimePickerState extends State<KkTimePicker> {
       cross: KkCrossAlign.start,
       children: <Widget>[
         if (hasHead)
+          // The head is as wide as the digits: it hugs when measured and
+          // spreads label and zone apart once stretched.
           KkAlignSelf(
             align: KkCrossAlign.stretch,
             child: KkRow(
+              shrinkWrap: true,
               gap: m.space2,
+              main: KkMainAlign.between,
               cross: KkCrossAlign.baseline,
+              clip: Clip.hardEdge,
               children: <Widget>[
-                if (cjk != null && cjk.isNotEmpty) KkText.cjk(cjk, size: 14, height: 1.55, color: c.ink, squeeze: 0.8),
-                if (en != null && en.isNotEmpty)
-                  KkText.en(en, size: 11, weight: FontWeight.w600, height: 1.55, spacing: 0.14, color: c.inkDim),
-                const KkSpacer(),
+                KkRow(
+                  shrinkWrap: true,
+                  gap: m.space2,
+                  cross: KkCrossAlign.baseline,
+                  children: <Widget>[
+                    if (cjk != null && cjk.isNotEmpty)
+                      KkText.cjk(cjk, size: 14, height: 1.55, color: c.ink, squeeze: 0.8),
+                    if (en != null && en.isNotEmpty)
+                      KkText.en(en, size: 11, weight: FontWeight.w600, height: 1.55, spacing: 0.14, color: c.inkDim),
+                  ],
+                ),
                 if (zone != null && zone.isNotEmpty)
                   KkText.num(zone, size: 11, weight: FontWeight.w600, color: widget.enabled ? c.signal : c.inkFaint),
               ],
