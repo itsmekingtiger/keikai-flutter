@@ -7,7 +7,7 @@ import 'layout_util.dart';
 
 void main() {
   group('KkScroll', () {
-    testWidgets('scrolls a child taller than itself and clamps at both ends', (WidgetTester tester) async {
+    testChecked('scrolls a child taller than itself and clamps at both ends', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await pumpKk(
@@ -32,7 +32,7 @@ void main() {
       expect(controller.position.physics, isA<ClampingScrollPhysics>());
     });
 
-    testWidgets('padding scrolls with the content', (WidgetTester tester) async {
+    testChecked('padding scrolls with the content', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await pumpKk(
@@ -54,7 +54,7 @@ void main() {
       expect(rectOf(tester, 'a').top, 0);
     });
 
-    testWidgets('horizontal and reversed', (WidgetTester tester) async {
+    testChecked('horizontal and reversed', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await pumpKk(
@@ -79,7 +79,7 @@ void main() {
       expect(rectOf(tester, 'a').bottom, 100);
     });
 
-    testWidgets('a child that fits does not scroll and is not stretched', (WidgetTester tester) async {
+    testChecked('a child that fits does not scroll and is not stretched', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await pumpKk(
@@ -96,7 +96,7 @@ void main() {
   });
 
   group('KkScrollBehavior', () {
-    testWidgets('KeikaiApp installs it: no glow, no stretch, a KEIKAI scrollbar', (WidgetTester tester) async {
+    testChecked('KeikaiApp installs it: no glow, no stretch, a KEIKAI scrollbar', (WidgetTester tester) async {
       late ScrollBehavior behavior;
       await pumpKk(
         tester,
@@ -121,7 +121,7 @@ void main() {
       expect(bar.thickness, 6);
     });
 
-    testWidgets('the scrollbar follows the alert theme', (WidgetTester tester) async {
+    testChecked('the scrollbar follows the alert theme', (WidgetTester tester) async {
       await pumpKk(
         tester,
         SizedBox(width: 200, height: 100, child: KkScroll(child: box('a', null, 500))),
@@ -130,7 +130,7 @@ void main() {
       expect(tester.widget<RawScrollbar>(find.byType(RawScrollbar)).thumbColor, KkColors.alertTheme.line);
     });
 
-    testWidgets('showScrollbars false leaves the scroll view bare', (WidgetTester tester) async {
+    testChecked('showScrollbars false leaves the scroll view bare', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         ScrollConfiguration(
@@ -151,7 +151,7 @@ void main() {
       expect(behavior.shouldNotify(const KkScrollBehavior(showScrollbars: false)), isTrue);
     });
 
-    testWidgets('a mouse wheel scrolls', (WidgetTester tester) async {
+    testChecked('a mouse wheel scrolls', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await pumpKk(
@@ -169,7 +169,42 @@ void main() {
       expect(controller.offset, 120);
     });
 
-    testWidgets('KkScrollbar can stay visible and take a thickness', (WidgetTester tester) async {
+    testChecked('the thumb is a square 6px bar that shows while scrolling and goes 0.9s later, in one step', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      await pumpKk(
+        tester,
+        SizedBox(width: 200, height: 100, child: KkScroll(controller: controller, child: box('a', null, 500))),
+      );
+      RenderObject bar() => tester.renderObject(
+        find.descendant(of: find.byType(RawScrollbar), matching: find.byType(CustomPaint)).first,
+      );
+      // At rest: no thumb.
+      expect(bar(), isNot(paints..rrect()));
+      controller.jumpTo(100);
+      await tester.pump();
+      // 100 of 500 visible: a fifth of the track would be 20px, the minimum is
+      // 24. A quarter of the way down the 76px it can travel, at the right edge.
+      expect(
+        bar(),
+        paints..rrect(
+          rrect: RRect.fromRectAndRadius(const Rect.fromLTWH(194, 19, 6, 24), Radius.zero),
+          color: KkColors.standby.line,
+        ),
+      );
+      // Still there, at full strength, just before the 0.9s are up.
+      await tester.pump(const Duration(milliseconds: 880));
+      expect(bar(), paints..rrect(color: KkColors.standby.line));
+      // And gone at once after: no fade.
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump();
+      expect(bar(), isNot(paints..rrect()));
+      expect(tester.takeException(), isNull);
+    });
+
+    testChecked('KkScrollbar can stay visible and take a thickness', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await pumpRaw(

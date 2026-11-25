@@ -37,8 +37,9 @@ class KkScrollBehavior extends ScrollBehavior {
   bool shouldNotify(KkScrollBehavior oldDelegate) => oldDelegate.showScrollbars != showScrollbars;
 }
 
-/// A thin, square scrollbar thumb in the line colour that turns signal while
-/// dragged or hovered.
+/// A thin, square scrollbar thumb in the line colour on a clear track
+/// (`scrollbar-width: thin; scrollbar-color: line transparent`). It shows
+/// while the view scrolls and goes 0.9s after it stops, without a fade.
 class KkScrollbar extends StatelessWidget {
   const KkScrollbar({super.key, this.controller, this.thickness = 6, this.alwaysVisible = false, required this.child});
 
