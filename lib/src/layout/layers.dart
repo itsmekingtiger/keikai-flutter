@@ -212,10 +212,14 @@ class RenderKkLayers extends RenderBox
   @override
   double computeMaxIntrinsicHeight(double width) => _intrinsic((RenderBox c) => c.getMaxIntrinsicHeight(width));
 
+  /// What a child that is not positioned is given.
+  BoxConstraints _looseFor(BoxConstraints constraints) =>
+      _expand && constraints.isSatisfiedBy(constraints.biggest) && constraints.biggest.isFinite
+      ? BoxConstraints.tight(constraints.biggest)
+      : constraints.loosen();
+
   Size _computeSize(BoxConstraints constraints, ChildLayouter layoutChild) {
-    final BoxConstraints loose = _expand && constraints.isSatisfiedBy(constraints.biggest) && constraints.biggest.isFinite
-        ? BoxConstraints.tight(constraints.biggest)
-        : constraints.loosen();
+    final BoxConstraints loose = _looseFor(constraints);
     bool any = false;
     double width = constraints.minWidth;
     double height = constraints.minHeight;
@@ -230,33 +234,60 @@ class RenderKkLayers extends RenderBox
     return constraints.biggest.isFinite ? constraints.biggest : constraints.smallest;
   }
 
+  /// What a positioned child is given in a stack of [size].
+  static BoxConstraints _positionedConstraints(KkLayerParentData pd, Size size) {
+    BoxConstraints c = const BoxConstraints();
+    if (pd.left != null && pd.right != null) {
+      c = c.tighten(width: math.max(0, size.width - pd.left! - pd.right!));
+    } else if (pd.width != null) {
+      c = c.tighten(width: pd.width);
+    }
+    if (pd.top != null && pd.bottom != null) {
+      c = c.tighten(height: math.max(0, size.height - pd.top! - pd.bottom!));
+    } else if (pd.height != null) {
+      c = c.tighten(height: pd.height);
+    }
+    return c;
+  }
+
+  /// Where a child of [childSize] goes in a stack of [size].
+  Offset _offsetFor(KkLayerParentData pd, Size size, Size childSize) {
+    final Offset free = size - childSize as Offset;
+    if (!pd.isPositioned) return (pd.alignment ?? _alignment).alongOffset(free);
+    final Offset aligned = _alignment.alongOffset(free);
+    return Offset(
+      pd.left ?? (pd.right != null ? size.width - pd.right! - childSize.width : aligned.dx),
+      pd.top ?? (pd.bottom != null ? size.height - pd.bottom! - childSize.height : aligned.dy),
+    );
+  }
+
   @override
   Size computeDryLayout(BoxConstraints constraints) => _computeSize(constraints, ChildLayoutHelper.dryLayoutChild);
+
+  /// The highest baseline of any layer.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) {
+    final Size size = _computeSize(constraints, ChildLayoutHelper.dryLayoutChild);
+    final BoxConstraints loose = _looseFor(constraints);
+    double? result;
+    for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
+      final KkLayerParentData pd = child.parentData! as KkLayerParentData;
+      final BoxConstraints c = pd.isPositioned ? _positionedConstraints(pd, size) : loose;
+      final double? d = child.getDryBaseline(c, baseline);
+      if (d == null) continue;
+      final double v = d + _offsetFor(pd, size, child.getDryLayout(c)).dy;
+      result = result == null ? v : math.min(result, v);
+    }
+    return result;
+  }
 
   @override
   void performLayout() {
     size = _computeSize(constraints, ChildLayoutHelper.layoutChild);
     for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
       final KkLayerParentData pd = child.parentData! as KkLayerParentData;
-      if (!pd.isPositioned) {
-        pd.offset = (pd.alignment ?? _alignment).alongOffset(size - child.size as Offset);
-        continue;
-      }
-      BoxConstraints c = const BoxConstraints();
-      if (pd.left != null && pd.right != null) {
-        c = c.tighten(width: math.max(0, size.width - pd.left! - pd.right!));
-      } else if (pd.width != null) {
-        c = c.tighten(width: pd.width);
-      }
-      if (pd.top != null && pd.bottom != null) {
-        c = c.tighten(height: math.max(0, size.height - pd.top! - pd.bottom!));
-      } else if (pd.height != null) {
-        c = c.tighten(height: pd.height);
-      }
-      child.layout(c, parentUsesSize: true);
-      final double x = pd.left ?? (pd.right != null ? size.width - pd.right! - child.size.width : _alignment.alongOffset(size - child.size as Offset).dx);
-      final double y = pd.top ?? (pd.bottom != null ? size.height - pd.bottom! - child.size.height : _alignment.alongOffset(size - child.size as Offset).dy);
-      pd.offset = Offset(x, y);
+      if (pd.isPositioned) child.layout(_positionedConstraints(pd, size), parentUsesSize: true);
+      pd.offset = _offsetFor(pd, size, child.size);
     }
   }
 

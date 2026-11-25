@@ -163,17 +163,14 @@ class RenderKkWrap extends RenderBox
     return (size: constraints.constrain(Size(width, height)), runs: runs, sizes: sizes);
   }
 
-  @override
-  Size computeDryLayout(BoxConstraints constraints) => _layout(constraints, ChildLayoutHelper.dryLayoutChild).size;
-
-  @override
-  void performLayout() {
-    final ({Size size, List<_Run> runs, List<Size> sizes}) r = _layout(constraints, ChildLayoutHelper.layoutChild);
-    size = r.size;
+  /// Where each child goes, in child order, for the runs [r] found by
+  /// [_layout].
+  List<Offset> _offsets(({Size size, List<_Run> runs, List<Size> sizes}) r) {
+    final List<Offset> offsets = <Offset>[];
     double y = 0;
-    RenderBox? child = firstChild;
+    int index = 0;
     for (final _Run run in r.runs) {
-      final double free = math.max(0, size.width - run.width);
+      final double free = math.max(0, r.size.width - run.width);
       double leading = 0;
       double between = 0;
       switch (_main) {
@@ -193,18 +190,53 @@ class RenderKkWrap extends RenderBox
           leading = between;
       }
       double x = leading;
-      for (int i = 0; i < run.count; i++) {
-        final RenderBox c = child!;
+      for (int i = 0; i < run.count; i++, index++) {
+        final Size s = r.sizes[index];
         final double dy = switch (_cross) {
-          KkCrossAlign.center => (run.height - c.size.height) / 2,
-          KkCrossAlign.end => run.height - c.size.height,
+          KkCrossAlign.center => (run.height - s.height) / 2,
+          KkCrossAlign.end => run.height - s.height,
           _ => 0,
         };
-        (c.parentData! as KkWrapParentData).offset = Offset(x, y + dy);
-        x += c.size.width + _gap + between;
-        child = childAfter(c);
+        offsets.add(Offset(x, y + dy));
+        x += s.width + _gap + between;
       }
       y += run.height + _runGap;
+    }
+    return offsets;
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => _layout(constraints, ChildLayoutHelper.dryLayoutChild).size;
+
+  /// The highest baseline of any child: the text line of the first row.
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) {
+    final ({Size size, List<_Run> runs, List<Size> sizes}) r = _layout(constraints, ChildLayoutHelper.dryLayoutChild);
+    final List<Offset> offsets = _offsets(r);
+    final BoxConstraints childConstraints = BoxConstraints(maxWidth: constraints.maxWidth);
+    double? result;
+    int index = 0;
+    for (RenderBox? child = firstChild; child != null; child = childAfter(child), index++) {
+      final double? d = child.getDryBaseline(childConstraints, baseline);
+      if (d == null) continue;
+      final double v = d + offsets[index].dy;
+      result = result == null ? v : math.min(result, v);
+    }
+    return result;
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
+      defaultComputeDistanceToHighestActualBaseline(baseline);
+
+  @override
+  void performLayout() {
+    final ({Size size, List<_Run> runs, List<Size> sizes}) r = _layout(constraints, ChildLayoutHelper.layoutChild);
+    size = r.size;
+    final List<Offset> offsets = _offsets(r);
+    int index = 0;
+    for (RenderBox? child = firstChild; child != null; child = childAfter(child), index++) {
+      (child.parentData! as KkWrapParentData).offset = offsets[index];
     }
   }
 

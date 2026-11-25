@@ -5,7 +5,7 @@ import 'layout_util.dart';
 
 void main() {
   group('KkLayers size and alignment', () {
-    testWidgets('is as large as its largest child that is not positioned', (WidgetTester tester) async {
+    testChecked('is as large as its largest child that is not positioned', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkLayers(key: const ValueKey<String>('l'), children: <Widget>[box('a', 100, 50), box('b', 60, 80)]),
@@ -15,7 +15,7 @@ void main() {
       expect(rectOf(tester, 'b').topLeft, Offset.zero);
     });
 
-    testWidgets('places children by the alignment', (WidgetTester tester) async {
+    testChecked('places children by the alignment', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkLayers(alignment: Alignment.center, children: <Widget>[box('a', 100, 50), box('b', 60, 80)]),
@@ -30,7 +30,7 @@ void main() {
       expect(rectOf(tester, 'b').topLeft, const Offset(40, 0));
     });
 
-    testWidgets('KkLayerAlign places one child by its own alignment', (WidgetTester tester) async {
+    testChecked('KkLayerAlign places one child by its own alignment', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkLayers(
@@ -43,7 +43,7 @@ void main() {
       expect(rectOf(tester, 'b').topLeft, const Offset(90, 40));
     });
 
-    testWidgets('with only positioned children it fills bounded space', (WidgetTester tester) async {
+    testChecked('with only positioned children it fills bounded space', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkLayers(
@@ -66,12 +66,12 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('empty layers take the bounded space', (WidgetTester tester) async {
+    testChecked('empty layers take the bounded space', (WidgetTester tester) async {
       await pumpRaw(tester, const SizedBox(width: 50, height: 40, child: KkLayers(key: ValueKey<String>('l'))));
       expect(rectOf(tester, 'l').size, const Size(50, 40));
     });
 
-    testWidgets('expand forces children that are not positioned to fill', (WidgetTester tester) async {
+    testChecked('expand forces children that are not positioned to fill', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         SizedBox(
@@ -86,7 +86,7 @@ void main() {
       expect(rectOf(tester, 'a').size, const Size(800, 600));
     });
 
-    testWidgets('respects the minimum size of the incoming constraints', (WidgetTester tester) async {
+    testChecked('respects the minimum size of the incoming constraints', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         ConstrainedBox(
@@ -108,56 +108,56 @@ void main() {
       ),
     );
 
-    testWidgets('left and top', (WidgetTester tester) async {
+    testChecked('left and top', (WidgetTester tester) async {
       await pump(tester, KkPositioned(left: 10, top: 5, child: box('a', 20, 20)));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(10, 5, 20, 20));
     });
 
-    testWidgets('right and bottom', (WidgetTester tester) async {
+    testChecked('right and bottom', (WidgetTester tester) async {
       await pump(tester, KkPositioned(right: 10, bottom: 5, child: box('a', 20, 20)));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(170, 75, 20, 20));
     });
 
-    testWidgets('left and right stretch the width; top and bottom the height', (WidgetTester tester) async {
+    testChecked('left and right stretch the width; top and bottom the height', (WidgetTester tester) async {
       await pump(tester, KkPositioned(left: 10, right: 30, top: 4, bottom: 6, child: box('a')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(10, 4, 160, 90));
     });
 
-    testWidgets('a fixed width or height', (WidgetTester tester) async {
+    testChecked('a fixed width or height', (WidgetTester tester) async {
       await pump(tester, KkPositioned(left: 10, top: 0, width: 50, height: 10, child: box('a')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(10, 0, 50, 10));
       await pump(tester, KkPositioned(right: 10, bottom: 0, width: 50, height: 10, child: box('a')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(140, 90, 50, 10));
     });
 
-    testWidgets('only a size: the stack alignment places it', (WidgetTester tester) async {
+    testChecked('only a size: the stack alignment places it', (WidgetTester tester) async {
       await pump(tester, KkPositioned(width: 50, height: 40, child: box('a')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 50, 40));
       await pump(tester, KkPositioned(width: 50, height: 40, child: box('a')), alignment: Alignment.center);
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(75, 30, 50, 40));
     });
 
-    testWidgets('one axis pinned, the other aligned', (WidgetTester tester) async {
+    testChecked('one axis pinned, the other aligned', (WidgetTester tester) async {
       await pump(tester, KkPositioned(left: 12, child: box('a', 20, 20)), alignment: Alignment.center);
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(12, 40, 20, 20));
       await pump(tester, KkPositioned(bottom: 0, child: box('a', 20, 20)), alignment: Alignment.center);
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(90, 80, 20, 20));
     });
 
-    testWidgets('fill', (WidgetTester tester) async {
+    testChecked('fill', (WidgetTester tester) async {
       await pump(tester, KkPositioned.fill(child: box('a')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 200, 100));
       await pump(tester, KkPositioned.fill(left: 10, top: 20, child: box('a')));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(10, 20, 190, 80));
     });
 
-    testWidgets('insets larger than the stack give a zero-size child, not an error', (WidgetTester tester) async {
+    testChecked('insets larger than the stack give a zero-size child, not an error', (WidgetTester tester) async {
       await pump(tester, KkPositioned(left: 150, right: 150, top: 80, bottom: 80, child: box('a')));
       expect(tester.takeException(), isNull);
       expect(rectOf(tester, 'a').size, Size.zero);
     });
 
-    testWidgets('a child can change between positioned and aligned', (WidgetTester tester) async {
+    testChecked('a child can change between positioned and aligned', (WidgetTester tester) async {
       Widget build(bool positioned) => SizedBox(
         width: 200,
         height: 100,
@@ -186,7 +186,7 @@ void main() {
   });
 
   group('KkLayers paint and hit test', () {
-    testWidgets('the last child is on top', (WidgetTester tester) async {
+    testChecked('the last child is on top', (WidgetTester tester) async {
       final List<String> log = <String>[];
       Widget target(String id, double size) => GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -199,7 +199,7 @@ void main() {
       expect(log, <String>['front', 'back']);
     });
 
-    testWidgets('clip hides what leaves the stack and reports the clip', (WidgetTester tester) async {
+    testChecked('clip hides what leaves the stack and reports the clip', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         const SizedBox(
@@ -221,7 +221,7 @@ void main() {
       expect(r.describeApproximatePaintClip(r.firstChild!), isNull);
     });
 
-    testWidgets('intrinsics and dry layout follow the children that are not positioned', (WidgetTester tester) async {
+    testChecked('intrinsics and dry layout follow the children that are not positioned', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkLayers(
@@ -242,7 +242,7 @@ void main() {
       expect(r.size, const Size(100, 80));
     });
 
-    testWidgets('reports the highest baseline of its children', (WidgetTester tester) async {
+    testChecked('reports the highest baseline of its children', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         Baseline(

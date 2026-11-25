@@ -16,7 +16,7 @@ void main() {
       pumpRaw(tester, SizedBox(width: width, child: wrap));
 
   group('KkWrap runs', () {
-    testWidgets('starts a new run when the next child does not fit', (WidgetTester tester) async {
+    testChecked('starts a new run when the next child does not fit', (WidgetTester tester) async {
       await pump(tester, KkWrap(key: const ValueKey<String>('w'), gap: 10, cross: KkCrossAlign.start, children: five()));
       // 40 + 10 + 40 = 90 fits in 100; a third would need 140.
       expect(rectOf(tester, 'a').topLeft, Offset.zero);
@@ -28,21 +28,21 @@ void main() {
       expect(rectOf(tester, 'w').size, const Size(100, 80));
     });
 
-    testWidgets('an exact fit stays on the run', (WidgetTester tester) async {
+    testChecked('an exact fit stays on the run', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 20, children: five()));
       // 40 + 20 + 40 = 100: exactly the limit.
       expect(rectOf(tester, 'b').top, rectOf(tester, 'a').top - 10);
       expect(rectOf(tester, 'b').left, 60);
     });
 
-    testWidgets('runGap is separate from gap', (WidgetTester tester) async {
+    testChecked('runGap is separate from gap', (WidgetTester tester) async {
       await pump(tester, KkWrap(key: const ValueKey<String>('w'), gap: 10, runGap: 3, cross: KkCrossAlign.start, children: five()));
       expect(rectOf(tester, 'c').top, 33);
       expect(rectOf(tester, 'e').top, 56);
       expect(rectOf(tester, 'w').height, 66);
     });
 
-    testWidgets('centres or bottom-aligns a child in its run', (WidgetTester tester) async {
+    testChecked('centres or bottom-aligns a child in its run', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, children: five()));
       expect(rectOf(tester, 'a').top, 10);
       expect(rectOf(tester, 'd').top, 45);
@@ -55,7 +55,7 @@ void main() {
       expect(rectOf(tester, 'a').top, 0);
     });
 
-    testWidgets('a child wider than the limit is narrowed to it and gets its own run', (WidgetTester tester) async {
+    testChecked('a child wider than the limit is narrowed to it and gets its own run', (WidgetTester tester) async {
       await pump(
         tester,
         KkWrap(
@@ -76,7 +76,7 @@ void main() {
       expect(rectOf(tester, 'c').topLeft, const Offset(0, 40));
     });
 
-    testWidgets('with no width limit everything is on one run', (WidgetTester tester) async {
+    testChecked('with no width limit everything is on one run', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         UnconstrainedBox(
@@ -88,12 +88,12 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('empty', (WidgetTester tester) async {
+    testChecked('empty', (WidgetTester tester) async {
       await pump(tester, const KkWrap(key: ValueKey<String>('w'), gap: 10));
       expect(rectOf(tester, 'w').size, const Size(100, 0));
     });
 
-    testWidgets('is as wide as its widest run when the width is loose', (WidgetTester tester) async {
+    testChecked('is as wide as its widest run when the width is loose', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         ConstrainedBox(
@@ -109,49 +109,49 @@ void main() {
     // One run of two 40px children with a 10px gap in 200px: 110px free.
     List<Widget> two() => <Widget>[box('a', 40, 10), box('b', 40, 10)];
 
-    testWidgets('end', (WidgetTester tester) async {
+    testChecked('end', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, main: KkMainAlign.end, children: two()), width: 200);
       expect(rectOf(tester, 'a').left, 110);
       expect(rectOf(tester, 'b').right, 200);
     });
 
-    testWidgets('center', (WidgetTester tester) async {
+    testChecked('center', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, main: KkMainAlign.center, children: two()), width: 200);
       expect(rectOf(tester, 'a').left, 55);
     });
 
-    testWidgets('between', (WidgetTester tester) async {
+    testChecked('between', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, main: KkMainAlign.between, children: two()), width: 200);
       expect(rectOf(tester, 'a').left, 0);
       expect(rectOf(tester, 'b').right, 200);
     });
 
-    testWidgets('around', (WidgetTester tester) async {
+    testChecked('around', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, main: KkMainAlign.around, children: two()), width: 200);
       expect(rectOf(tester, 'a').left, 27.5);
       expect(rectOf(tester, 'b').right, 172.5);
     });
 
-    testWidgets('evenly', (WidgetTester tester) async {
+    testChecked('evenly', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, main: KkMainAlign.evenly, children: two()), width: 200);
       expect(rectOf(tester, 'a').left, closeTo(110 / 3, 1e-6));
       expect(rectOf(tester, 'b').right, closeTo(200 - 110 / 3, 1e-6));
     });
 
-    testWidgets('each run is aligned on its own', (WidgetTester tester) async {
+    testChecked('each run is aligned on its own', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, main: KkMainAlign.end, children: five()));
       expect(rectOf(tester, 'a').left, 10);
       expect(rectOf(tester, 'e').left, 60);
     });
 
-    testWidgets('between with a single child in the run keeps it at the start', (WidgetTester tester) async {
+    testChecked('between with a single child in the run keeps it at the start', (WidgetTester tester) async {
       await pump(tester, KkWrap(gap: 10, main: KkMainAlign.between, children: <Widget>[box('a', 40, 10)]), width: 200);
       expect(rectOf(tester, 'a').left, 0);
     });
   });
 
   group('KkWrap measuring', () {
-    testWidgets('intrinsic sizes', (WidgetTester tester) async {
+    testChecked('intrinsic sizes', (WidgetTester tester) async {
       await pump(tester, KkWrap(key: const ValueKey<String>('w'), gap: 10, children: five()));
       final RenderKkWrap r = tester.renderObject<RenderKkWrap>(byId('w'));
       expect(r.getMinIntrinsicWidth(double.infinity), 40);
@@ -161,7 +161,7 @@ void main() {
       expect(r.getDryLayout(r.constraints), r.size);
     });
 
-    testWidgets('hit testing reaches children on later runs', (WidgetTester tester) async {
+    testChecked('hit testing reaches children on later runs', (WidgetTester tester) async {
       final List<String> log = <String>[];
       Widget target(String id) => GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -174,7 +174,7 @@ void main() {
       expect(log, <String>['c', 'b']);
     });
 
-    testWidgets('changing the properties relays out', (WidgetTester tester) async {
+    testChecked('changing the properties relays out', (WidgetTester tester) async {
       await pump(tester, KkWrap(key: const ValueKey<String>('w'), gap: 10, children: five()));
       final RenderKkWrap r = tester.renderObject<RenderKkWrap>(byId('w'));
       await pump(tester, KkWrap(key: const ValueKey<String>('w'), gap: 0, runGap: 0, children: five()));
