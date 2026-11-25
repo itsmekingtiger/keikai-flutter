@@ -22,7 +22,7 @@ class KkTypography {
     this.monoFamily = 'IBM Plex Mono',
     this.monoFallback = const <String>['IBM Plex Sans KR', 'Zen Old Mincho', 'Noto Serif KR'],
     this.bodyFamily = 'IBM Plex Sans KR',
-    this.bodyFallback = const <String>['Noto Serif KR', 'Zen Old Mincho'],
+    this.bodyFallback = const <String>['Zen Old Mincho', 'Noto Serif KR'],
     this.package = 'keikai',
     this.scale = 1.0,
   });
@@ -34,6 +34,11 @@ class KkTypography {
   final String monoFamily;
   final List<String> monoFallback;
   final String bodyFamily;
+
+  /// Where the body face looks for glyphs it lacks. The bundled IBM Plex Sans
+  /// KR has no ideographs, so they come from the display faces: Zen Old Mincho
+  /// first, as in the other voices, so that one word is never set in two
+  /// designs. Pass an empty list to leave them to the platform's own fonts.
   final List<String> bodyFallback;
 
   /// The package that declares the font families, or null when the app (or the
