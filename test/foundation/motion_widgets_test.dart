@@ -163,7 +163,9 @@ void main() {
       await pumpKk(tester, probe.build(duration: _ms(1000)), motion: true);
       await tester.pump(_ms(100));
       expect(probe.done, isFalse);
-      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
       addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
       await tester.pump();
       await tester.pump();
@@ -218,11 +220,7 @@ void main() {
     });
 
     testChecked('vertical wipes from the top; steps and duration are configurable', (WidgetTester tester) async {
-      await pumpKk(
-        tester,
-        KkBoot(axis: Axis.vertical, duration: _ms(100), steps: 2, child: child),
-        motion: true,
-      );
+      await pumpKk(tester, KkBoot(axis: Axis.vertical, duration: _ms(100), steps: 2, child: child), motion: true);
       expect(clip(tester), const Rect.fromLTWH(0, 0, 70, 0));
       await tester.pump(_ms(25));
       expect(clip(tester), const Rect.fromLTWH(0, 0, 70, 0));
@@ -438,6 +436,122 @@ void main() {
       expect(shown, closeTo(30, 1e-9));
       await tester.pump(_ms(450));
       expect(shown, 0);
+    });
+
+    testChecked('a change before the first jump re-aims the run without holding it back', (WidgetTester tester) async {
+      double shown = -1;
+      Widget build(double value) => KkSteppedValue(
+        value: value,
+        builder: (BuildContext context, double v) {
+          shown = v;
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+      await pumpKk(tester, build(0), motion: true);
+      // Five values 10ms apart: all of them arrive inside the 50ms that the first step lasts.
+      for (final double target in <double>[90, 18, 27, 63, 45]) {
+        expect(shown, 0);
+        await pumpKk(tester, build(target), motion: true);
+        expect(shown, 0);
+        await tester.pump(_ms10);
+      }
+      // 50ms after the first of them the run makes its first jump, a ninth of the way to the latest.
+      expect(shown, closeTo(5, 1e-9));
+      // It ends when it would have ended anyway, 0.45s after it began.
+      await tester.pump(_ms(399));
+      expect(shown, closeTo(40, 1e-9));
+      await tester.pump(_ms(1));
+      expect(shown, 45);
+      await tester.pump(_ms10);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testChecked('a change after the first jump starts nine new steps from the value shown', (
+      WidgetTester tester,
+    ) async {
+      double shown = -1;
+      Widget build(double value) => KkSteppedValue(
+        value: value,
+        builder: (BuildContext context, double v) {
+          shown = v;
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+      await pumpKk(tester, build(0), motion: true);
+      await pumpKk(tester, build(90), motion: true);
+      await tester.pump(_ms(60));
+      expect(shown, closeTo(10, 1e-9));
+      await pumpKk(tester, build(100), motion: true);
+      expect(shown, closeTo(10, 1e-9));
+      // The new run has its own clock: nothing for 50ms, then a ninth of the new distance per step.
+      await tester.pump(_ms(45));
+      expect(shown, closeTo(10, 1e-9));
+      await tester.pump(_ms(10));
+      expect(shown, closeTo(20, 1e-9));
+      await tester.pump(_ms(390));
+      expect(shown, closeTo(90, 1e-9));
+      await tester.pump(_ms(10));
+      expect(shown, 100);
+    });
+
+    testChecked('going back to the value shown before the first jump ends the run', (WidgetTester tester) async {
+      double shown = -1;
+      Widget build(double value) => KkSteppedValue(
+        value: value,
+        builder: (BuildContext context, double v) {
+          shown = v;
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+      await pumpKk(tester, build(20), motion: true);
+      await _settleRoute(tester);
+      await pumpKk(tester, build(80), motion: true);
+      await tester.pump(_ms(20));
+      await pumpKk(tester, build(20), motion: true);
+      expect(shown, 20);
+      await tester.pump(_ms(20));
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'nothing left to animate');
+      await tester.pump(_ms(500));
+      expect(shown, 20);
+    });
+
+    testChecked('a value that changes every frame keeps moving and ends on its last value', (
+      WidgetTester tester,
+    ) async {
+      double shown = -1;
+      Widget build(double value) => KkSteppedValue(
+        value: value,
+        builder: (BuildContext context, double v) {
+          shown = v;
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+      await pumpKk(tester, build(0), motion: true);
+      // The value rises by 0.005 per 16ms frame: three changes arrive inside every 50ms step.
+      double value = 0;
+      double last = 0;
+      int jumps = 0;
+      for (int frame = 1; frame <= 180; frame++) {
+        value = frame * 0.005;
+        await tester.pumpWidget(kkHarness(build(value), motion: true));
+        await tester.pump(_ms(16));
+        expect(shown, lessThan(value), reason: 'frame $frame');
+        if (shown != last) {
+          // Each jump covers a ninth of what is left to the latest value.
+          expect(shown - last, closeTo((value - last) / 9, 1e-9), reason: 'frame $frame');
+          jumps++;
+        }
+        last = shown;
+      }
+      // The first frame that is 50ms or more into a run is its fourth: one jump every four frames.
+      expect(jumps, 45);
+      // Behind a value that rises steadily it settles eight jumps' worth of rise back.
+      expect(value - shown, closeTo(8 * 4 * 0.005, 0.002));
+      // The run in flight began four frames ago, so it ends 386ms from here, on the last value.
+      await tester.pump(_ms(385));
+      expect(shown, lessThan(0.9));
+      await tester.pump(_ms(1));
+      expect(shown, 0.9);
     });
 
     testChecked('motion off jumps', (WidgetTester tester) async {
@@ -732,7 +846,11 @@ void main() {
           ..clipRect()
           ..path(color: KkColors.standby.signal),
       );
-      await pumpKk(tester, const KkHazard(width: 48, height: 24, color: Color(0xFF00FF00)), condition: KkCondition.alert);
+      await pumpKk(
+        tester,
+        const KkHazard(width: 48, height: 24, color: Color(0xFF00FF00)),
+        condition: KkCondition.alert,
+      );
       expect(
         find.byType(CustomPaint).last,
         paints
@@ -769,11 +887,7 @@ void main() {
         await tester.pump(_ms(50));
       }
       expect(tester.takeException(), isNull);
-      await pumpKk(
-        tester,
-        const SizedBox(width: 300, child: KkMarquee('', reverse: true)),
-        motion: true,
-      );
+      await pumpKk(tester, const SizedBox(width: 300, child: KkMarquee('', reverse: true)), motion: true);
       await tester.pump(_ms(50));
       await pumpKk(
         tester,
@@ -788,7 +902,10 @@ void main() {
     testChecked('KkCrt draws over the child only when asked', (WidgetTester tester) async {
       const Widget child = SizedBox(key: ValueKey<String>('c'), width: 120, height: 80);
       await pumpKk(tester, const KkCrt(scanlines: false, child: child), motion: true);
-      expect(find.ancestor(of: find.byKey(const ValueKey<String>('c')), matching: find.byType(CustomPaint)), findsNothing);
+      expect(
+        find.ancestor(of: find.byKey(const ValueKey<String>('c')), matching: find.byType(CustomPaint)),
+        findsNothing,
+      );
       await pumpKk(tester, const KkCrt(child: child), motion: true);
       await _settleRoute(tester);
       expect(tester.binding.hasScheduledFrame, isFalse, reason: 'scan lines alone are static');
@@ -841,10 +958,7 @@ void main() {
         trigger: trigger,
         child: const SizedBox(key: ValueKey<String>('g'), width: 200, height: 100),
       );
-      final Finder glitch = find.ancestor(
-        of: find.byKey(const ValueKey<String>('g')),
-        matching: find.byType(KkGlitch),
-      );
+      final Finder glitch = find.ancestor(of: find.byKey(const ValueKey<String>('g')), matching: find.byType(KkGlitch));
       await pumpKk(tester, build(0), motion: true);
       await pumpKk(tester, build(1), motion: true);
       int flashes = 0;

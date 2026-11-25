@@ -43,8 +43,7 @@ class KkOneShot extends StatefulWidget {
 }
 
 class _KkOneShotState extends State<KkOneShot> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this)
-    ..addStatusListener(_onStatus);
+  late final AnimationController _controller = AnimationController(vsync: this)..addStatusListener(_onStatus);
   Animation<double> _progress = const AlwaysStoppedAnimation<double>(1);
   CurvedAnimation? _curved;
   bool _started = false;
@@ -275,6 +274,11 @@ class KkGrow extends StatelessWidget {
 /// Animates a number toward [value] in [steps] jumps whenever it changes: the
 /// 9-step transition of meters and progress bars, the 10-step swing of a
 /// gauge needle.
+///
+/// A change that arrives while the number is moving starts [steps] new jumps
+/// from the number shown, as a CSS transition does. A change that arrives
+/// before the first jump only gives the run a new target: the run keeps its
+/// clock, so a value that changes every frame still moves, one jump per step.
 class KkSteppedValue extends StatefulWidget {
   const KkSteppedValue({
     super.key,
@@ -299,31 +303,34 @@ class KkSteppedValue extends StatefulWidget {
 }
 
 class _KkSteppedValueState extends State<KkSteppedValue> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, value: 1)
-    ..addListener(_onTick);
+  late final AnimationController _controller = AnimationController(vsync: this, value: 1)..addListener(_onTick);
   late double _from = widget.from ?? widget.value;
   late double _to = widget.value;
   double _shown = 0;
   bool _started = false;
 
-  double _current() {
-    final double t = KkSteps(widget.steps).transform(_controller.value.clamp(0.0, 1.0));
-    return _from + (_to - _from) * t;
-  }
+  /// How far the run has stepped: 0 until its first jump, 1 at the end.
+  double _stepped() => KkSteps(widget.steps).transform(_controller.value.clamp(0.0, 1.0));
+
+  double _current() => _from + (_to - _from) * _stepped();
 
   void _onTick() {
     final double v = _current();
     if (v != _shown) setState(() => _shown = v);
   }
 
-  void _run() {
+  /// Moves from [_from] to [_to]. With [restart] false a run in flight keeps
+  /// its clock.
+  void _run({bool restart = true}) {
     if (!KeikaiTheme.motionOf(context) || _from == _to) {
       _controller.value = 1;
       _shown = _to;
       return;
     }
-    _controller.duration = KeikaiTheme.of(context).motion.scaled(widget.duration);
-    _controller.forward(from: 0);
+    if (restart) {
+      _controller.duration = KeikaiTheme.of(context).motion.scaled(widget.duration);
+      _controller.forward(from: 0);
+    }
     _shown = _current();
   }
 
@@ -340,9 +347,14 @@ class _KkSteppedValueState extends State<KkSteppedValue> with SingleTickerProvid
   void didUpdateWidget(KkSteppedValue oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
-      _from = _current();
+      // A run that has not made its first jump yet still shows [_from], so it
+      // keeps its clock and only takes the new target. Starting it again would
+      // push that jump back each time, and a value that changes more often
+      // than one step lasts would never move.
+      final bool waiting = _controller.isAnimating && _stepped() == 0;
+      if (!waiting) _from = _current();
       _to = widget.value;
-      _run();
+      _run(restart: !waiting);
     }
   }
 
