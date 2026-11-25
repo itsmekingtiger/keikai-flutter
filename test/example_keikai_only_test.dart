@@ -14,7 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Value classes, controllers and keys. None of these is a widget.
 const Set<String> _values = <String>{
-  'Alignment', 'ArgumentError', 'BigInt', 'BoxConstraints', 'ChangeNotifier', 'Color', 'Completer', 'DateTime',
+  'Alignment', 'ArgumentError', 'BigInt', 'BoxConstraints', 'ChangeNotifier', 'CharacterActivator', 'Color',
+  'Completer', 'DateTime',
   'Duration', 'EdgeInsets', 'Exception', 'FocusNode', 'FocusScopeNode', 'FormatException', 'Function', 'Future',
   'GlobalKey',
   'Iterable', 'List', 'Locale', 'Map', 'MapEntry', 'Object', 'ObjectKey', 'Offset', 'Point', 'Random', 'Rect',
