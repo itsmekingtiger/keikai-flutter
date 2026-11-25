@@ -52,7 +52,7 @@ class KkHazard extends StatelessWidget {
     final double p = pitch ?? theme.metrics.pitchHazard;
     Widget paint(ValueListenable<Duration>? time) => CustomPaint(
       size: Size(width ?? p * 4, height ?? p * 2),
-      painter: _HazardPainter(a: a, b: b, pitch: p, time: time, period: theme.motion.scaled(KkMotion.hazard)),
+      painter: _HazardPainter(a: a, b: b, pitch: p, time: time, period: KkMotion.hazard),
     );
     final Widget child = running
         ? KkLoop(builder: (BuildContext context, ValueListenable<Duration> time) => paint(time))
@@ -133,7 +133,7 @@ class KkMarquee extends StatelessWidget {
               text: text,
               style: s,
               time: time,
-              period: theme.motion.scaled(period),
+              period: period,
               reverse: reverse,
               gap: gap,
             ),
