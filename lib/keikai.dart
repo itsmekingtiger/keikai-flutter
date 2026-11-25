@@ -33,6 +33,7 @@ export 'src/painting/shapes.dart';
 export 'src/painting/svg_path.dart';
 export 'src/painting/text.dart';
 export 'src/shell/shell.dart';
+export 'src/table/table.dart';
 export 'src/widgets/clock.dart';
 export 'src/widgets/frame.dart';
 export 'src/widgets/icon.dart';
