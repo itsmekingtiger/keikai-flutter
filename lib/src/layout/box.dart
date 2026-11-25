@@ -183,41 +183,53 @@ class RenderKkBox extends RenderBox with RenderObjectWithChildMixin<RenderBox> {
   EdgeInsets get _inset => _padding + (_decoration?.edges.insets ?? EdgeInsets.zero);
 
   // ── intrinsics ──────────────────────────────────────────────────────────
+  //
+  // The child is asked at the extent it would really get: the one on offer,
+  // limited by the box's own maximum (a 200px wide box asked for its height
+  // at 800px still wraps its text at 200).
+
+  // A fixed size is the answer when there is one. An infinite width or height
+  // ("as large as the parent allows") says nothing about the box's own size,
+  // so the child is asked instead: an intrinsic size is never infinite.
 
   @override
   double computeMinIntrinsicWidth(double height) {
-    if (_additional.hasTightWidth) return _additional.minWidth;
+    final BoxConstraints a = _additional;
+    if (a.hasTightWidth && a.minWidth.isFinite) return a.minWidth;
     final EdgeInsets inset = _inset;
-    final double inner = math.max(0, height - inset.vertical);
+    final double inner = math.max(0, math.min(height, a.maxHeight) - inset.vertical);
     final double w = (child?.getMinIntrinsicWidth(inner) ?? 0) + inset.horizontal;
-    return _additional.hasInfiniteWidth ? math.max(w, _additional.minWidth) : _additional.constrainWidth(w);
+    return a.minWidth.isFinite ? a.constrainWidth(w) : w;
   }
 
   @override
   double computeMaxIntrinsicWidth(double height) {
-    if (_additional.hasTightWidth) return _additional.minWidth;
+    final BoxConstraints a = _additional;
+    if (a.hasTightWidth && a.minWidth.isFinite) return a.minWidth;
     final EdgeInsets inset = _inset;
-    final double inner = math.max(0, height - inset.vertical);
+    final double inner = math.max(0, math.min(height, a.maxHeight) - inset.vertical);
     final double w = (child?.getMaxIntrinsicWidth(inner) ?? 0) + inset.horizontal;
-    return _additional.hasInfiniteWidth ? math.max(w, _additional.minWidth) : _additional.constrainWidth(w);
+    return a.minWidth.isFinite ? a.constrainWidth(w) : w;
   }
 
   @override
   double computeMinIntrinsicHeight(double width) {
-    if (_additional.hasTightHeight) return _additional.minHeight;
+    final BoxConstraints a = _additional;
+    if (a.hasTightHeight && a.minHeight.isFinite) return a.minHeight;
     final EdgeInsets inset = _inset;
-    final double inner = math.max(0, width - inset.horizontal);
+    final double inner = math.max(0, math.min(width, a.maxWidth) - inset.horizontal);
     final double h = (child?.getMinIntrinsicHeight(inner) ?? 0) + inset.vertical;
-    return _additional.hasInfiniteHeight ? math.max(h, _additional.minHeight) : _additional.constrainHeight(h);
+    return a.minHeight.isFinite ? a.constrainHeight(h) : h;
   }
 
   @override
   double computeMaxIntrinsicHeight(double width) {
-    if (_additional.hasTightHeight) return _additional.minHeight;
+    final BoxConstraints a = _additional;
+    if (a.hasTightHeight && a.minHeight.isFinite) return a.minHeight;
     final EdgeInsets inset = _inset;
-    final double inner = math.max(0, width - inset.horizontal);
+    final double inner = math.max(0, math.min(width, a.maxWidth) - inset.horizontal);
     final double h = (child?.getMaxIntrinsicHeight(inner) ?? 0) + inset.vertical;
-    return _additional.hasInfiniteHeight ? math.max(h, _additional.minHeight) : _additional.constrainHeight(h);
+    return a.minHeight.isFinite ? a.constrainHeight(h) : h;
   }
 
   // ── layout ──────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ const Color _blue = Color(0xFF0000FF);
 
 void main() {
   group('KkBox layout', () {
-    testWidgets('border and padding take space inside the box (border-box)', (WidgetTester tester) async {
+    testChecked('border and padding take space inside the box (border-box)', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkBox(
@@ -24,7 +24,7 @@ void main() {
       expect(rectOf(tester, 'c'), const Rect.fromLTWH(13, 1, 74, 34));
     });
 
-    testWidgets('unequal border widths inset each side by its own width', (WidgetTester tester) async {
+    testChecked('unequal border widths inset each side by its own width', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkBox(
@@ -37,7 +37,7 @@ void main() {
       expect(rectOf(tester, 'c'), const Rect.fromLTWH(2, 4, 98, 46));
     });
 
-    testWidgets('without a child it is as large as its insets, or its fixed size', (WidgetTester tester) async {
+    testChecked('without a child it is as large as its insets, or its fixed size', (WidgetTester tester) async {
       await pumpRaw(tester, const KkBox(key: ValueKey<String>('box')));
       expect(rectOf(tester, 'box').size, Size.zero);
       await pumpRaw(tester, const KkBox(key: ValueKey<String>('box'), padding: EdgeInsets.all(8)));
@@ -48,7 +48,7 @@ void main() {
       expect(rectOf(tester, 'box').size, const Size(800, 600));
     });
 
-    testWidgets('hugs its child when it has no alignment', (WidgetTester tester) async {
+    testChecked('hugs its child when it has no alignment', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkBox(key: const ValueKey<String>('box'), padding: const EdgeInsets.all(8), child: box('c', 40, 20)),
@@ -57,7 +57,7 @@ void main() {
       expect(rectOf(tester, 'c').topLeft, const Offset(8, 8));
     });
 
-    testWidgets('with an alignment it fills bounded space and places the child', (WidgetTester tester) async {
+    testChecked('with an alignment it fills bounded space and places the child', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkBox(key: const ValueKey<String>('box'), alignment: Alignment.center, child: box('c', 40, 20)),
@@ -78,7 +78,7 @@ void main() {
       expect(rectOf(tester, 'c'), const Rect.fromLTWH(50, 30, 40, 20));
     });
 
-    testWidgets('with an alignment and no bound it hugs the child', (WidgetTester tester) async {
+    testChecked('with an alignment and no bound it hugs the child', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         UnconstrainedBox(
@@ -94,7 +94,7 @@ void main() {
       expect(rectOf(tester, 'box').size, const Size(48, 28));
     });
 
-    testWidgets('shrinkWrap makes an aligned box hug its child', (WidgetTester tester) async {
+    testChecked('shrinkWrap makes an aligned box hug its child', (WidgetTester tester) async {
       // A tag: fixed height, content width, child centred.
       await pumpRaw(
         tester,
@@ -152,7 +152,7 @@ void main() {
       expect(rectOf(tester, 'box').size, const Size(40, 10));
     });
 
-    testWidgets('aligned boxes in a wrap: filling ones take a run each, hugging ones share it', (
+    testChecked('aligned boxes in a wrap: filling ones take a run each, hugging ones share it', (
       WidgetTester tester,
     ) async {
       Widget chip(String id, {required bool shrinkWrap}) => KkBox(
@@ -182,7 +182,7 @@ void main() {
       expect(rectOf(tester, 'b').topLeft, const Offset(34, 0));
     });
 
-    testWidgets('min and max sizes', (WidgetTester tester) async {
+    testChecked('min and max sizes', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkBox(key: const ValueKey<String>('box'), minWidth: 100, minHeight: 50, child: box('c', 40, 20)),
@@ -201,7 +201,7 @@ void main() {
       expect(rectOf(tester, 'box').size, const Size(60, 60));
     });
 
-    testWidgets('infinite width and height expand to the parent', (WidgetTester tester) async {
+    testChecked('infinite width and height expand to the parent', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         const SizedBox(
@@ -216,7 +216,7 @@ void main() {
       expect(rectOf(tester, 'box').size, const Size(300, 200));
     });
 
-    testWidgets('padding larger than the box does not throw', (WidgetTester tester) async {
+    testChecked('padding larger than the box does not throw', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkBox(
@@ -232,7 +232,7 @@ void main() {
       expect(rectOf(tester, 'c').size, Size.zero);
     });
 
-    testWidgets('intrinsic sizes include the insets and respect the fixed and min sizes', (WidgetTester tester) async {
+    testChecked('intrinsic sizes include the insets and respect the fixed and min sizes', (WidgetTester tester) async {
       Future<RenderKkBox> pump(KkBox box) async {
         await pumpRaw(tester, box);
         return tester.renderObject<RenderKkBox>(find.byType(KkBox));
@@ -258,7 +258,94 @@ void main() {
       expect(r.getMaxIntrinsicWidth(double.infinity), 6);
     });
 
-    testWidgets('dry layout equals real layout', (WidgetTester tester) async {
+    testChecked('an infinite size is not an intrinsic size: the child is asked instead', (WidgetTester tester) async {
+      await pumpRaw(
+        tester,
+        SizedBox(
+          width: 300,
+          height: 200,
+          child: KkBox(
+            key: const ValueKey<String>('box'),
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.all(5),
+            child: box('c', 40, 20),
+          ),
+        ),
+      );
+      final RenderKkBox r = tester.renderObject<RenderKkBox>(byId('box'));
+      expect(r.size, const Size(300, 200));
+      expect(r.getMinIntrinsicWidth(double.infinity), 50);
+      expect(r.getMaxIntrinsicWidth(double.infinity), 50);
+      expect(r.getMinIntrinsicHeight(double.infinity), 30);
+      expect(r.getMaxIntrinsicHeight(double.infinity), 30);
+      // Only one of the two infinite: the other is still the fixed answer.
+      await pumpRaw(
+        tester,
+        SizedBox(
+          width: 300,
+          height: 200,
+          child: KkBox(key: const ValueKey<String>('box'), width: double.infinity, height: 64, child: box('c', 40, 20)),
+        ),
+      );
+      final RenderKkBox wide = tester.renderObject<RenderKkBox>(byId('box'));
+      expect(wide.getMaxIntrinsicWidth(double.infinity), 40);
+      expect(wide.getMaxIntrinsicHeight(double.infinity), 64);
+      // An expanding box inside an intrinsic-sized parent takes the parent's
+      // intrinsic size instead of blowing it up.
+      await pumpRaw(
+        tester,
+        UnconstrainedBox(
+          alignment: Alignment.topLeft,
+          child: IntrinsicWidth(
+            child: KkColumn(
+              key: const ValueKey<String>('col'),
+              shrinkWrap: true,
+              children: <Widget>[
+                box('wide', 120, 10),
+                KkSized(width: double.infinity, height: 10, child: box('fill')),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'col').width, 120);
+      expect(rectOf(tester, 'fill').width, 120);
+    });
+
+    testChecked('the child is measured at the width the box would give it', (WidgetTester tester) async {
+      // Twenty 10px glyphs: one line at 200 and wider, two lines at 100.
+      final Widget text = Text('A' * 20, style: testStyle(10));
+      await pumpRaw(tester, KkBox(key: const ValueKey<String>('box'), width: 100, child: text));
+      RenderKkBox r = tester.renderObject<RenderKkBox>(byId('box'));
+      expect(r.size.height, 20);
+      // Asked for its height with 800px on offer, it still wraps at its own 100.
+      expect(r.getMinIntrinsicHeight(800), 20);
+      expect(r.getMaxIntrinsicHeight(double.infinity), 20);
+      // On offer is less than its own width: that is what it would get.
+      expect(r.getMaxIntrinsicHeight(50), 40);
+      await pumpRaw(
+        tester,
+        KkBox(key: const ValueKey<String>('box'), maxWidth: 110, padding: const EdgeInsets.all(5), child: text),
+      );
+      r = tester.renderObject<RenderKkBox>(byId('box'));
+      expect(r.getMaxIntrinsicHeight(double.infinity), 30);
+      expect(r.getMaxIntrinsicHeight(800), 30);
+      // The other way round: a fixed height decides the width of a child that
+      // keeps a ratio.
+      await pumpRaw(
+        tester,
+        const UnconstrainedBox(
+          alignment: Alignment.topLeft,
+          child: KkBox(key: ValueKey<String>('box'), height: 50, child: KkAspect(ratio: 2)),
+        ),
+      );
+      r = tester.renderObject<RenderKkBox>(byId('box'));
+      expect(r.getMaxIntrinsicWidth(double.infinity), 100);
+    });
+
+    testChecked('dry layout equals real layout', (WidgetTester tester) async {
       for (final Alignment? alignment in <Alignment?>[null, Alignment.center]) {
         for (final BoxConstraints c in <BoxConstraints>[
           const BoxConstraints(),
@@ -288,7 +375,7 @@ void main() {
       }
     });
 
-    testWidgets('the child baseline is offset by the top inset', (WidgetTester tester) async {
+    testChecked('the child baseline is offset by the top inset', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkRow(
@@ -313,7 +400,7 @@ void main() {
       expect(baselineOf(r), closeTo(12 + textBase, 1e-6));
     });
 
-    testWidgets('a decoration that keeps the border widths repaints without a new layout', (
+    testChecked('a decoration that keeps the border widths repaints without a new layout', (
       WidgetTester tester,
     ) async {
       Widget build(Color fill, double border) => KkBox(
@@ -360,22 +447,22 @@ void main() {
       return log;
     }
 
-    testWidgets('a filled box blocks what is behind it', (WidgetTester tester) async {
+    testChecked('a filled box blocks what is behind it', (WidgetTester tester) async {
       expect(await tapOver(tester, const KkBox(fill: _red)), isEmpty);
     });
 
-    testWidgets('an empty box lets taps through', (WidgetTester tester) async {
+    testChecked('an empty box lets taps through', (WidgetTester tester) async {
       expect(await tapOver(tester, const KkBox()), <String>['behind']);
       expect(await tapOver(tester, KkBox(edges: KkEdges.line(_red))), <String>['behind']);
       expect(await tapOver(tester, const KkBox(fill: Color(0x00FF0000))), <String>['behind']);
     });
 
-    testWidgets('opaque overrides the default', (WidgetTester tester) async {
+    testChecked('opaque overrides the default', (WidgetTester tester) async {
       expect(await tapOver(tester, const KkBox(opaque: true)), isEmpty);
       expect(await tapOver(tester, const KkBox(fill: _red, opaque: false)), <String>['behind']);
     });
 
-    testWidgets('the child is hit at its padded position', (WidgetTester tester) async {
+    testChecked('the child is hit at its padded position', (WidgetTester tester) async {
       int taps = 0;
       await pumpRaw(
         tester,
@@ -396,7 +483,7 @@ void main() {
   });
 
   group('KkBox paint', () {
-    testWidgets('clips an oversized child and still composites repaint boundaries', (WidgetTester tester) async {
+    testChecked('clips an oversized child and still composites repaint boundaries', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         const KkBox(
@@ -419,7 +506,7 @@ void main() {
       expect(r.clip, isTrue);
     });
 
-    testWidgets('paints a full decoration in both orders without error', (WidgetTester tester) async {
+    testChecked('paints a full decoration in both orders without error', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkBox(
@@ -441,7 +528,7 @@ void main() {
   });
 
   group('KkSurface', () {
-    testWidgets('is exactly as large as its child', (WidgetTester tester) async {
+    testChecked('is exactly as large as its child', (WidgetTester tester) async {
       await pumpRaw(
         tester,
         KkSurface(key: const ValueKey<String>('s'), shape: const KkShape.plate(10), fill: _red, child: box('c', 80, 36)),
@@ -476,13 +563,13 @@ void main() {
       return log;
     }
 
-    testWidgets('a hexagon takes taps in its body and not in its cut corners', (WidgetTester tester) async {
+    testChecked('a hexagon takes taps in its body and not in its cut corners', (WidgetTester tester) async {
       expect(await tapAt(tester, const KkShape.hex(), const Offset(50, 50)), <String>['surface']);
       expect(await tapAt(tester, const KkShape.hex(), const Offset(3, 3)), <String>['behind']);
       expect(await tapAt(tester, const KkShape.hex(), const Offset(97, 97)), <String>['behind']);
     });
 
-    testWidgets('a chamfered plate does not take taps in the cut', (WidgetTester tester) async {
+    testChecked('a chamfered plate does not take taps in the cut', (WidgetTester tester) async {
       const KkShape plate = KkShape.plate(30);
       expect(await tapAt(tester, plate, const Offset(4, 4)), <String>['behind']);
       expect(await tapAt(tester, plate, const Offset(96, 96)), <String>['behind']);
@@ -490,7 +577,7 @@ void main() {
       expect(await tapAt(tester, plate, const Offset(50, 50)), <String>['surface']);
     });
 
-    testWidgets('a slant and an arrow follow their outline', (WidgetTester tester) async {
+    testChecked('a slant and an arrow follow their outline', (WidgetTester tester) async {
       expect(await tapAt(tester, const KkShape.slant(40), const Offset(95, 95)), <String>['behind']);
       expect(await tapAt(tester, const KkShape.slant(40), const Offset(95, 5)), <String>['surface']);
       expect(await tapAt(tester, const KkShape.arrow(head: 30), const Offset(5, 50)), <String>['behind']);
@@ -499,7 +586,7 @@ void main() {
       expect(await tapAt(tester, const KkShape.arrow(head: 30, notch: false), const Offset(5, 50)), <String>['surface']);
     });
 
-    testWidgets('a surface with no fill and no edge still passes taps to its child', (WidgetTester tester) async {
+    testChecked('a surface with no fill and no edge still passes taps to its child', (WidgetTester tester) async {
       int taps = 0;
       await pumpRaw(
         tester,
@@ -515,7 +602,7 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('paints every shape, clipped or not, with a glow', (WidgetTester tester) async {
+    testChecked('paints every shape, clipped or not, with a glow', (WidgetTester tester) async {
       for (final KkShape shape in const <KkShape>[
         KkShape.rect(),
         KkShape.chamfer(tl: 6, tr: 4, br: 10, bl: 2),
