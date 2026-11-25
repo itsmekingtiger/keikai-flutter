@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart' show testChecked;
+
 const Color _red = Color(0xFFFF0000);
 const Color _blue = Color(0xFF0000FF);
 
@@ -587,7 +589,7 @@ void main() {
       }
     });
 
-    testWidgets('stripes rise to the right and start at the bottom-right corner', (WidgetTester tester) async {
+    testChecked('stripes rise to the right and start at the bottom-right corner', (WidgetTester tester) async {
       // Sample real pixels: 12px stripes (period 24) on a 96×96 square.
       final ui.PictureRecorder recorder = ui.PictureRecorder();
       final Canvas canvas = Canvas(recorder);
@@ -622,7 +624,7 @@ void main() {
       expect(red / (96 * 96), closeTo(0.5, 0.04));
     });
 
-    testWidgets('the grid draws one line per pitch from the top-left corner', (WidgetTester tester) async {
+    testChecked('the grid draws one line per pitch from the top-left corner', (WidgetTester tester) async {
       final ui.PictureRecorder recorder = ui.PictureRecorder();
       final Canvas canvas = Canvas(recorder);
       canvas.drawRect(const Rect.fromLTWH(0, 0, 48, 48), Paint()..color = _blue);
