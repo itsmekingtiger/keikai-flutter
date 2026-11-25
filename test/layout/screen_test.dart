@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
-import 'package:keikai/src/layout/layout.dart';
 
 import 'layout_util.dart';
 
@@ -43,7 +42,7 @@ Future<void> _pump(WidgetTester tester, Widget screen, Size size) => pumpRaw(tes
 
 void main() {
   group('arrangement', () {
-    testWidgets('840 and wider: nav | body | side between the bars', (WidgetTester tester) async {
+    testChecked('840 and wider: nav | body | side between the bars', (WidgetTester tester) async {
       await _pump(tester, _screen(), const Size(1000, 600));
       expect(rectOf(tester, 'cmd'), const Rect.fromLTWH(0, 0, 1000, 48));
       expect(rectOf(tester, 'foot'), const Rect.fromLTWH(0, 568, 1000, 32));
@@ -53,14 +52,14 @@ void main() {
       expect(rectOf(tester, 'body'), const Rect.fromLTWH(88, 64, 696, 100));
     });
 
-    testWidgets('exactly 840 is expanded, 839 is medium', (WidgetTester tester) async {
+    testChecked('exactly 840 is expanded, 839 is medium', (WidgetTester tester) async {
       await _pump(tester, _screen(), const Size(840, 600));
       expect(rectOf(tester, 'side').left, 640);
       await _pump(tester, _screen(), const Size(839, 600));
       expect(rectOf(tester, 'side').left, 72);
     });
 
-    testWidgets('600 to 839: the side region sits under the body, nav keeps the full height', (
+    testChecked('600 to 839: the side region sits under the body, nav keeps the full height', (
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen(), const Size(700, 600));
@@ -72,7 +71,7 @@ void main() {
       expect(region.size, const Size(628, 420));
     });
 
-    testWidgets('below 600: one column, nav as a bar above the footer', (WidgetTester tester) async {
+    testChecked('below 600: one column, nav as a bar above the footer', (WidgetTester tester) async {
       await _pump(tester, _screen(), const Size(400, 600));
       expect(rectOf(tester, 'cmd'), const Rect.fromLTWH(0, 0, 400, 48));
       expect(rectOf(tester, 'side'), const Rect.fromLTWH(0, 404, 400, 100));
@@ -86,7 +85,7 @@ void main() {
       expect(rectOf(tester, 'nav').width, 72);
     });
 
-    testWidgets('wall displays use a 32px margin', (WidgetTester tester) async {
+    testChecked('wall displays use a 32px margin', (WidgetTester tester) async {
       await _pump(tester, _screen(side: false), const Size(2560, 1000));
       expect(rectOf(tester, 'body').left, 72 + 32);
       expect(rectOf(tester, 'body').top, 48 + 32);
@@ -94,14 +93,14 @@ void main() {
       expect(rectOf(tester, 'body').left, 72 + 16);
     });
 
-    testWidgets('a body alone fills the screen', (WidgetTester tester) async {
+    testChecked('a body alone fills the screen', (WidgetTester tester) async {
       await _pump(tester, _screen(side: false, nav: false, bars: false, scrollBody: false), const Size(1000, 600));
       expect(rectOf(tester, 'body'), const Rect.fromLTWH(16, 16, 968, 568));
       await _pump(tester, _screen(side: false, nav: false, bars: false, scrollBody: false), const Size(300, 200));
       expect(rectOf(tester, 'body'), const Rect.fromLTWH(8, 8, 284, 184));
     });
 
-    testWidgets('padding can be overridden', (WidgetTester tester) async {
+    testChecked('padding can be overridden', (WidgetTester tester) async {
       await _pump(
         tester,
         _screen(side: false, padding: const EdgeInsets.fromLTRB(1, 2, 3, 4), scrollBody: false),
@@ -112,7 +111,7 @@ void main() {
       expect(rectOf(tester, 'body'), const Rect.fromLTWH(72, 48, 928, 520));
     });
 
-    testWidgets('bars taller than the screen leave nothing for the body and do not throw', (
+    testChecked('bars taller than the screen leave nothing for the body and do not throw', (
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen(), const Size(1000, 60));
@@ -120,14 +119,14 @@ void main() {
       expect(tester.getSize(find.byType(KkScreen)), const Size(1000, 60));
     });
 
-    testWidgets('a zero-size screen does not throw', (WidgetTester tester) async {
+    testChecked('a zero-size screen does not throw', (WidgetTester tester) async {
       await pumpRaw(tester, SizedBox(width: 0, height: 0, child: _screen()));
       expect(tester.takeException(), isNull);
     });
   });
 
   group('scrolling', () {
-    testWidgets('the body scrolls when its content is taller', (WidgetTester tester) async {
+    testChecked('the body scrolls when its content is taller', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await _pump(tester, _screen(bodyHeight: 2000, bodyController: controller), const Size(1000, 600));
@@ -139,20 +138,20 @@ void main() {
       expect(rectOf(tester, 'cmd').top, 0);
     });
 
-    testWidgets('a short body does not scroll', (WidgetTester tester) async {
+    testChecked('a short body does not scroll', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
       await _pump(tester, _screen(bodyController: controller), const Size(1000, 600));
       expect(controller.position.maxScrollExtent, 0);
     });
 
-    testWidgets('scrollBody false hands the body the exact space', (WidgetTester tester) async {
+    testChecked('scrollBody false hands the body the exact space', (WidgetTester tester) async {
       await _pump(tester, _screen(scrollBody: false), const Size(1000, 600));
       expect(rectOf(tester, 'body'), const Rect.fromLTWH(88, 64, 696, 488));
       expect(find.byType(KkScroll), findsNWidgets(2));
     });
 
-    testWidgets('a nav taller than its space scrolls; a short one is stretched to fill', (
+    testChecked('a nav taller than its space scrolls; a short one is stretched to fill', (
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen(navHeight: 1500), const Size(1000, 600));
@@ -170,7 +169,7 @@ void main() {
   });
 
   group('scope', () {
-    testWidgets('descendants read the mode and the window class', (WidgetTester tester) async {
+    testChecked('descendants read the mode and the window class', (WidgetTester tester) async {
       late KkScreenData data;
       late KkWindowClass scoped;
       Widget probe() => KkScreen(
@@ -201,7 +200,7 @@ void main() {
       }
     });
 
-    testWidgets('the screen follows its own width, not the window', (WidgetTester tester) async {
+    testChecked('the screen follows its own width, not the window', (WidgetTester tester) async {
       late KkScreenData data;
       await pumpRaw(
         tester,
@@ -223,7 +222,7 @@ void main() {
       expect(data.width, 500);
     });
 
-    testWidgets('maybeOf is null outside a screen and of asserts', (WidgetTester tester) async {
+    testChecked('maybeOf is null outside a screen and of asserts', (WidgetTester tester) async {
       late BuildContext outside;
       await pumpRaw(
         tester,
@@ -250,7 +249,7 @@ void main() {
   });
 
   group('state and input', () {
-    testWidgets('regions keep their state when the arrangement changes', (WidgetTester tester) async {
+    testChecked('regions keep their state when the arrangement changes', (WidgetTester tester) async {
       Widget build() => const KkScreen(
         nav: _Counter(id: 'nav'),
         side: _Counter(id: 'side'),
@@ -270,7 +269,7 @@ void main() {
       }
     });
 
-    testWidgets('a region can be removed and added without disturbing the others', (WidgetTester tester) async {
+    testChecked('a region can be removed and added without disturbing the others', (WidgetTester tester) async {
       Widget build(bool side) => KkScreen(
         nav: const _Counter(id: 'nav'),
         side: side ? const _Counter(id: 'side') : null,
@@ -289,7 +288,7 @@ void main() {
       expect(find.text('nav 1'), findsOneWidget);
     });
 
-    testWidgets('each region takes its own taps', (WidgetTester tester) async {
+    testChecked('each region takes its own taps', (WidgetTester tester) async {
       final List<String> log = <String>[];
       Widget target(String id, {double? width, double? height}) => GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -317,7 +316,7 @@ void main() {
   });
 
   group('edges', () {
-    testWidgets('without a height limit the screen is as tall as its content', (WidgetTester tester) async {
+    testChecked('without a height limit the screen is as tall as its content', (WidgetTester tester) async {
       for (final Size size in const <Size>[Size(1000, 600), Size(700, 600), Size(400, 600)]) {
         await pumpRaw(
           tester,
@@ -343,7 +342,7 @@ void main() {
       expect(tester.getSize(find.byType(KkScreen)).height, 48 + 332 + 32);
     });
 
-    testWidgets('safeArea keeps clear of system intrusions and the keyboard', (WidgetTester tester) async {
+    testChecked('safeArea keeps clear of system intrusions and the keyboard', (WidgetTester tester) async {
       Widget build({required bool safeArea}) => MediaQuery(
         data: const MediaQueryData(
           size: Size(1000, 600),
@@ -354,8 +353,10 @@ void main() {
           commandBar: box('cmd', null, 48),
           body: Builder(
             builder: (BuildContext context) {
-              // The intrusions are consumed for the regions.
+              // The intrusions are consumed for the regions: neither the
+              // padding nor the keyboard is counted a second time inside.
               expect(MediaQuery.paddingOf(context), safeArea ? EdgeInsets.zero : isNot(EdgeInsets.zero));
+              expect(MediaQuery.viewInsetsOf(context).bottom, safeArea ? 0 : 200);
               return box('body', null, 10);
             },
           ),
@@ -371,7 +372,79 @@ void main() {
       expect(rectOf(tester, 'foot').bottom, 600);
     });
 
-    testWidgets('paints the grid ground by default and nothing extra when told so', (WidgetTester tester) async {
+    testChecked('without the keyboard the bottom padding counts; a nested screen adds nothing', (
+      WidgetTester tester,
+    ) async {
+      await _pump(
+        tester,
+        MediaQuery(
+          data: const MediaQueryData(size: Size(1000, 600), padding: EdgeInsets.fromLTRB(4, 24, 6, 10)),
+          child: KkScreen(
+            scrollBody: false,
+            padding: EdgeInsets.zero,
+            body: KkScreen(commandBar: box('cmd', null, 48), body: box('body'), footer: box('foot', null, 32)),
+          ),
+        ),
+        const Size(1000, 600),
+      );
+      expect(rectOf(tester, 'cmd'), const Rect.fromLTWH(4, 24, 990, 48));
+      expect(rectOf(tester, 'foot').bottom, 590);
+    });
+
+    testChecked('a keyboard sliding in moves the footer up and keeps every region as it was', (
+      WidgetTester tester,
+    ) async {
+      Widget build(double keyboard) => MediaQuery(
+        data: MediaQueryData(size: const Size(400, 600), viewInsets: EdgeInsets.only(bottom: keyboard)),
+        child: const KkScreen(
+          commandBar: _Counter(id: 'cmd'),
+          body: _Counter(id: 'body'),
+          footer: _Counter(id: 'foot'),
+        ),
+      );
+      await _pump(tester, build(0), const Size(400, 600));
+      for (final String id in <String>['cmd', 'body', 'foot']) {
+        await tester.tap(byId(id));
+      }
+      await tester.pump();
+      expect(rectOf(tester, 'foot').bottom, 600);
+      await _pump(tester, build(250), const Size(400, 600));
+      expect(rectOf(tester, 'foot').bottom, 350);
+      for (final String id in <String>['cmd', 'body', 'foot']) {
+        expect(find.text('$id 1'), findsOneWidget, reason: id);
+      }
+      await _pump(tester, build(0), const Size(400, 600));
+      expect(rectOf(tester, 'foot').bottom, 600);
+      expect(find.text('cmd 1'), findsOneWidget);
+    });
+
+    testChecked('with no width limit the screen takes the window width', (WidgetTester tester) async {
+      KkScreenData? seen;
+      await pumpRaw(
+        tester,
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: KkScreen(
+            commandBar: box('cmd', null, 48),
+            body: Builder(
+              builder: (BuildContext context) {
+                seen = KkScreenScope.of(context);
+                return box('body', null, 10);
+              },
+            ),
+          ),
+        ),
+        size: const Size(700, 400),
+        loose: false,
+      );
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(KkScreen)), const Size(700, 400));
+      expect(seen!.width, 700);
+      expect(seen!.mode, KkScreenMode.medium);
+      expect(rectOf(tester, 'cmd'), const Rect.fromLTWH(0, 0, 700, 48));
+    });
+
+    testChecked('paints the grid ground by default and nothing extra when told so', (WidgetTester tester) async {
       await _pump(tester, _screen(), const Size(1000, 600));
       KkBackdrop backdrop = tester.widget<KkBackdrop>(find.byType(KkBackdrop));
       expect(backdrop.kind, KkBackdropKind.grid);
@@ -380,17 +453,124 @@ void main() {
       expect(backdrop.kind, KkBackdropKind.none);
     });
 
-    testWidgets('dry layout of the skeleton is the space it is given', (WidgetTester tester) async {
+    testChecked('dry layout of the skeleton is the space it is given', (WidgetTester tester) async {
       await _pump(tester, _screen(), const Size(1000, 600));
-      final RenderKkScreen r = tester.renderObject<RenderKkScreen>(
-        find.byWidgetPredicate((Widget w) => w is MultiChildRenderObjectWidget && w.runtimeType.toString() == '_KkScreenLayout'),
-      );
+      final RenderKkScreen r = tester.renderObject<RenderKkScreen>(_layout);
       expect(r.getDryLayout(r.constraints), r.size);
       expect(r.mode, KkScreenMode.expanded);
+      expect(r.fallbackWidth, 0);
       expect(r.describeApproximatePaintClip(r.firstChild!), const Rect.fromLTWH(0, 0, 1000, 600));
       expect(r.toStringDeep(), contains('mode: expanded'));
     });
+
+    testChecked('dry layout without a height limit is the height of the regions, in every mode', (
+      WidgetTester tester,
+    ) async {
+      // The render object alone, with plain boxes for regions.
+      Widget raw(KkScreenMode mode) => UnconstrainedBox(
+        alignment: Alignment.topLeft,
+        constrainedAxis: Axis.horizontal,
+        child: _RawScreen(
+          mode: mode,
+          children: <Widget>[
+            _Region(slot: KkScreenSlot.body, child: box('body', null, 300)),
+            _Region(slot: KkScreenSlot.side, child: box('side', 200, 120)),
+            _Region(slot: KkScreenSlot.nav, child: box('nav', 72, 64)),
+            _Region(slot: KkScreenSlot.footer, child: box('foot', null, 32)),
+            _Region(slot: KkScreenSlot.commandBar, child: box('cmd', null, 48)),
+          ],
+        ),
+      );
+      const Map<KkScreenMode, double> heights = <KkScreenMode, double>{
+        // Bars 80; the tallest of nav 64, body 300, side 120.
+        KkScreenMode.expanded: 380,
+        // Bars 80; body 300 over side 120.
+        KkScreenMode.medium: 500,
+        // Bars 80; body 300, side 120, nav 64 in one column.
+        KkScreenMode.compact: 564,
+      };
+      for (final MapEntry<KkScreenMode, double> e in heights.entries) {
+        await pumpRaw(tester, raw(e.key), size: const Size(1000, 600), loose: false);
+        expect(tester.takeException(), isNull, reason: '${e.key}');
+        final RenderKkScreen r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+        expect(r.size, Size(1000, e.value), reason: '${e.key}');
+        expect(r.getDryLayout(r.constraints), r.size, reason: '${e.key}');
+        // A screen has no baseline, and says so when asked dry.
+        expect(r.getDryBaseline(r.constraints, TextBaseline.alphabetic), isNull, reason: '${e.key}');
+        expect(rectOf(tester, 'foot').bottom, e.value, reason: '${e.key}');
+      }
+      // Expanded: nav and side are stretched to the tallest region.
+      await pumpRaw(tester, raw(KkScreenMode.expanded), size: const Size(1000, 600), loose: false);
+      expect(rectOf(tester, 'nav'), const Rect.fromLTWH(0, 48, 72, 300));
+      expect(rectOf(tester, 'side'), const Rect.fromLTWH(800, 48, 200, 300));
+      expect(rectOf(tester, 'body'), const Rect.fromLTWH(72, 48, 728, 300));
+    });
+
+    testChecked('the render object alone: no width limit means the fallback width', (WidgetTester tester) async {
+      Widget raw(double fallback) => UnconstrainedBox(
+        alignment: Alignment.topLeft,
+        child: _RawScreen(
+          mode: KkScreenMode.compact,
+          fallbackWidth: fallback,
+          children: <Widget>[
+            _Region(slot: KkScreenSlot.body, child: box('body', null, 100)),
+          ],
+        ),
+      );
+      await pumpRaw(tester, raw(320), size: const Size(1000, 600), loose: false);
+      expect(tester.getSize(find.byType(_RawScreen)), const Size(320, 100));
+      await pumpRaw(tester, raw(480), size: const Size(1000, 600), loose: false);
+      expect(tester.getSize(find.byType(_RawScreen)), const Size(480, 100));
+      final RenderKkScreen r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+      expect(r.getDryLayout(r.constraints), const Size(480, 100));
+      expect(r.toStringDeep(), contains('fallbackWidth: 480'));
+      // None given: nothing to go by.
+      await pumpRaw(tester, raw(0), size: const Size(1000, 600), loose: false);
+      expect(tester.getSize(find.byType(_RawScreen)), const Size(0, 100));
+      expect(tester.takeException(), isNull);
+    });
   });
+}
+
+/// The private layout widget inside a [KkScreen].
+Finder get _layout => find.byWidgetPredicate(
+  (Widget w) => w is MultiChildRenderObjectWidget && w.runtimeType.toString() == '_KkScreenLayout',
+);
+
+/// A [RenderKkScreen] with nothing around it.
+class _RawScreen extends MultiChildRenderObjectWidget {
+  const _RawScreen({required this.mode, this.fallbackWidth = 0, super.children});
+
+  final KkScreenMode mode;
+  final double fallbackWidth;
+
+  @override
+  RenderKkScreen createRenderObject(BuildContext context) => RenderKkScreen(mode: mode, fallbackWidth: fallbackWidth);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderKkScreen renderObject) {
+    renderObject
+      ..mode = mode
+      ..fallbackWidth = fallbackWidth;
+  }
+}
+
+class _Region extends ParentDataWidget<KkScreenParentData> {
+  const _Region({required this.slot, required super.child});
+
+  final KkScreenSlot slot;
+
+  @override
+  void applyParentData(RenderObject renderObject) {
+    final KkScreenParentData pd = renderObject.parentData! as KkScreenParentData;
+    if (pd.slot != slot) {
+      pd.slot = slot;
+      renderObject.parent?.markNeedsLayout();
+    }
+  }
+
+  @override
+  Type get debugTypicalAncestorWidgetClass => _RawScreen;
 }
 
 class _Counter extends StatefulWidget {

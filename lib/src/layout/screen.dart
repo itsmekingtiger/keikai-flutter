@@ -179,6 +179,8 @@ class _KkScreenState extends State<KkScreen> {
               kind: widget.backdrop,
               child: _KkScreenLayout(
                 mode: mode,
+                // Only used when the width has no limit.
+                fallbackWidth: constraints.hasBoundedWidth ? 0 : width,
                 // Paint order, back to front: body, side, nav, footer, command bar.
                 children: <Widget>[
                   _KkScreenRegion(
@@ -225,21 +227,20 @@ class _KkScreenState extends State<KkScreen> {
     if (widget.safeArea) {
       final MediaQueryData? mq = MediaQuery.maybeOf(context);
       if (mq != null) {
+        // The wrapper stays in place when the intrusions are zero, so that a
+        // keyboard sliding in does not rebuild the regions from scratch.
         final EdgeInsets inset = mq.padding.copyWith(bottom: math.max(mq.padding.bottom, mq.viewInsets.bottom));
-        if (inset != EdgeInsets.zero) {
-          layout = KkBox(
-            fill: KeikaiTheme.of(context).colors.bg000,
-            padding: inset,
-            child: MediaQuery.removePadding(
-              context: context,
-              removeLeft: true,
-              removeTop: true,
-              removeRight: true,
-              removeBottom: true,
-              child: layout,
-            ),
-          );
-        }
+        layout = KkBox(
+          fill: inset == EdgeInsets.zero ? null : KeikaiTheme.of(context).colors.bg000,
+          padding: inset,
+          // The regions see no intrusions: the screen has dealt with them.
+          child: MediaQuery(
+            data: mq
+                .removePadding(removeLeft: true, removeTop: true, removeRight: true, removeBottom: true)
+                .removeViewInsets(removeBottom: true),
+            child: layout,
+          ),
+        );
       }
     }
     return layout;
@@ -290,15 +291,20 @@ class _KkScreenRegion extends ParentDataWidget<KkScreenParentData> {
 }
 
 class _KkScreenLayout extends MultiChildRenderObjectWidget {
-  const _KkScreenLayout({required this.mode, super.children});
+  const _KkScreenLayout({required this.mode, required this.fallbackWidth, super.children});
 
   final KkScreenMode mode;
+  final double fallbackWidth;
 
   @override
-  RenderKkScreen createRenderObject(BuildContext context) => RenderKkScreen(mode: mode);
+  RenderKkScreen createRenderObject(BuildContext context) => RenderKkScreen(mode: mode, fallbackWidth: fallbackWidth);
 
   @override
-  void updateRenderObject(BuildContext context, RenderKkScreen renderObject) => renderObject.mode = mode;
+  void updateRenderObject(BuildContext context, RenderKkScreen renderObject) {
+    renderObject
+      ..mode = mode
+      ..fallbackWidth = fallbackWidth;
+  }
 }
 
 /// The render object behind [KkScreen]: places up to five regions by
@@ -307,13 +313,25 @@ class RenderKkScreen extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, KkScreenParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, KkScreenParentData> {
-  RenderKkScreen({KkScreenMode mode = KkScreenMode.expanded}) : _mode = mode;
+  RenderKkScreen({KkScreenMode mode = KkScreenMode.expanded, double fallbackWidth = 0})
+    : _mode = mode,
+      _fallbackWidth = fallbackWidth;
 
   KkScreenMode _mode;
   KkScreenMode get mode => _mode;
   set mode(KkScreenMode value) {
     if (value == _mode) return;
     _mode = value;
+    markNeedsLayout();
+  }
+
+  /// The width to take when the incoming width has no limit (the screen sits
+  /// in a row or a horizontal scroll view).
+  double get fallbackWidth => _fallbackWidth;
+  double _fallbackWidth;
+  set fallbackWidth(double value) {
+    if (value == _fallbackWidth) return;
+    _fallbackWidth = value;
     markNeedsLayout();
   }
 
@@ -329,27 +347,35 @@ class RenderKkScreen extends RenderBox
     return null;
   }
 
-  static void _place(RenderBox? child, double x, double y) {
-    if (child != null) (child.parentData! as KkScreenParentData).offset = Offset(x, y);
-  }
-
-  static Size _layout(RenderBox? child, BoxConstraints constraints) {
-    if (child == null) return Size.zero;
-    child.layout(constraints, parentUsesSize: true);
-    return child.size;
-  }
+  double _widthFor(BoxConstraints c) =>
+      c.hasBoundedWidth ? c.maxWidth : math.max(c.minWidth, _fallbackWidth.isFinite ? _fallbackWidth : 0);
 
   @override
   Size computeDryLayout(BoxConstraints constraints) {
-    final double width = constraints.hasBoundedWidth ? constraints.maxWidth : constraints.minWidth;
-    final double height = constraints.hasBoundedHeight ? constraints.maxHeight : constraints.minHeight;
-    return constraints.constrain(Size(width, height));
+    // With a height limit the screen takes all of it; no region has a say.
+    if (constraints.hasBoundedHeight) {
+      return constraints.constrain(Size(_widthFor(constraints), constraints.maxHeight));
+    }
+    return _arrange(constraints, ChildLayoutHelper.dryLayoutChild, place: false);
   }
 
+  /// A screen has no baseline of its own.
   @override
-  void performLayout() {
-    final BoxConstraints c = constraints;
-    final double width = c.hasBoundedWidth ? c.maxWidth : c.minWidth;
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => null;
+
+  @override
+  void performLayout() => size = _arrange(constraints, ChildLayoutHelper.layoutChild, place: true);
+
+  /// Lays the regions out with [layoutChild] and returns the screen's size.
+  /// Offsets are written only when [place] is set (the real layout).
+  Size _arrange(BoxConstraints c, ChildLayouter layoutChild, {required bool place}) {
+    Size lay(RenderBox? child, BoxConstraints constraints) =>
+        child == null ? Size.zero : layoutChild(child, constraints);
+    void put(RenderBox? child, double x, double y) {
+      if (place && child != null) (child.parentData! as KkScreenParentData).offset = Offset(x, y);
+    }
+
+    final double width = _widthFor(c);
     final bool bounded = c.hasBoundedHeight;
     final double height = bounded ? c.maxHeight : double.infinity;
 
@@ -359,8 +385,8 @@ class RenderKkScreen extends RenderBox
     final RenderBox? side = _region(KkScreenSlot.side);
     final RenderBox? foot = _region(KkScreenSlot.footer);
 
-    final double hc = _layout(cmd, BoxConstraints(minWidth: width, maxWidth: width, maxHeight: height)).height;
-    final double hf = _layout(
+    final double hc = lay(cmd, BoxConstraints(minWidth: width, maxWidth: width, maxHeight: height)).height;
+    final double hf = lay(
       foot,
       BoxConstraints(minWidth: width, maxWidth: width, maxHeight: bounded ? math.max(0, height - hc) : height),
     ).height;
@@ -370,84 +396,84 @@ class RenderKkScreen extends RenderBox
     switch (_mode) {
       case KkScreenMode.expanded:
         if (bounded) {
-          final double navW = _layout(nav, BoxConstraints(maxWidth: width, minHeight: middle, maxHeight: middle)).width;
-          final double sideW = _layout(
+          final double navW = lay(nav, BoxConstraints(maxWidth: width, minHeight: middle, maxHeight: middle)).width;
+          final double sideW = lay(
             side,
             BoxConstraints(maxWidth: math.max(0, width - navW), minHeight: middle, maxHeight: middle),
           ).width;
           final double bodyW = math.max(0, width - navW - sideW);
-          _layout(body, BoxConstraints.tightFor(width: bodyW, height: middle));
-          _place(nav, 0, hc);
-          _place(body, navW, hc);
-          _place(side, width - sideW, hc);
+          lay(body, BoxConstraints.tightFor(width: bodyW, height: middle));
+          put(nav, 0, hc);
+          put(body, navW, hc);
+          put(side, width - sideW, hc);
         } else {
-          Size navS = _layout(nav, BoxConstraints(maxWidth: width));
-          Size sideS = _layout(side, BoxConstraints(maxWidth: math.max(0, width - navS.width)));
+          Size navS = lay(nav, BoxConstraints(maxWidth: width));
+          Size sideS = lay(side, BoxConstraints(maxWidth: math.max(0, width - navS.width)));
           final double bodyW = math.max(0, width - navS.width - sideS.width);
-          final Size bodyS = _layout(body, BoxConstraints(minWidth: bodyW, maxWidth: bodyW));
+          final Size bodyS = lay(body, BoxConstraints(minWidth: bodyW, maxWidth: bodyW));
           middle = math.max(bodyS.height, math.max(navS.height, sideS.height));
           if (navS.height != middle) {
-            navS = _layout(nav, BoxConstraints(minWidth: navS.width, maxWidth: navS.width, minHeight: middle, maxHeight: middle));
+            navS = lay(nav, BoxConstraints(minWidth: navS.width, maxWidth: navS.width, minHeight: middle, maxHeight: middle));
           }
           if (sideS.height != middle) {
-            sideS = _layout(
+            sideS = lay(
               side,
               BoxConstraints(minWidth: sideS.width, maxWidth: sideS.width, minHeight: middle, maxHeight: middle),
             );
           }
-          if (bodyS.height != middle) _layout(body, BoxConstraints.tightFor(width: bodyW, height: middle));
-          _place(nav, 0, hc);
-          _place(body, navS.width, hc);
-          _place(side, width - sideS.width, hc);
+          if (bodyS.height != middle) lay(body, BoxConstraints.tightFor(width: bodyW, height: middle));
+          put(nav, 0, hc);
+          put(body, navS.width, hc);
+          put(side, width - sideS.width, hc);
         }
       case KkScreenMode.medium:
         if (bounded) {
-          final double navW = _layout(nav, BoxConstraints(maxWidth: width, minHeight: middle, maxHeight: middle)).width;
+          final double navW = lay(nav, BoxConstraints(maxWidth: width, minHeight: middle, maxHeight: middle)).width;
           final double rightW = math.max(0, width - navW);
-          final double hs = _layout(side, BoxConstraints(minWidth: rightW, maxWidth: rightW, maxHeight: middle)).height;
-          _layout(body, BoxConstraints.tightFor(width: rightW, height: math.max(0, middle - hs)));
-          _place(nav, 0, hc);
-          _place(body, navW, hc);
-          _place(side, navW, hc + middle - hs);
+          final double hs = lay(side, BoxConstraints(minWidth: rightW, maxWidth: rightW, maxHeight: middle)).height;
+          lay(body, BoxConstraints.tightFor(width: rightW, height: math.max(0, middle - hs)));
+          put(nav, 0, hc);
+          put(body, navW, hc);
+          put(side, navW, hc + middle - hs);
         } else {
-          Size navS = _layout(nav, BoxConstraints(maxWidth: width));
+          Size navS = lay(nav, BoxConstraints(maxWidth: width));
           final double rightW = math.max(0, width - navS.width);
-          final Size bodyS = _layout(body, BoxConstraints(minWidth: rightW, maxWidth: rightW));
-          final Size sideS = _layout(side, BoxConstraints(minWidth: rightW, maxWidth: rightW));
+          final Size bodyS = lay(body, BoxConstraints(minWidth: rightW, maxWidth: rightW));
+          final Size sideS = lay(side, BoxConstraints(minWidth: rightW, maxWidth: rightW));
           middle = math.max(navS.height, bodyS.height + sideS.height);
           if (navS.height != middle) {
-            navS = _layout(nav, BoxConstraints(minWidth: navS.width, maxWidth: navS.width, minHeight: middle, maxHeight: middle));
+            navS = lay(nav, BoxConstraints(minWidth: navS.width, maxWidth: navS.width, minHeight: middle, maxHeight: middle));
           }
-          _place(nav, 0, hc);
-          _place(body, navS.width, hc);
-          _place(side, navS.width, hc + middle - sideS.height);
+          put(nav, 0, hc);
+          put(body, navS.width, hc);
+          put(side, navS.width, hc + middle - sideS.height);
         }
       case KkScreenMode.compact:
         if (bounded) {
-          final double hn = _layout(nav, BoxConstraints(minWidth: width, maxWidth: width, maxHeight: middle)).height;
-          final double hs = _layout(
+          final double hn = lay(nav, BoxConstraints(minWidth: width, maxWidth: width, maxHeight: middle)).height;
+          final double hs = lay(
             side,
             BoxConstraints(minWidth: width, maxWidth: width, maxHeight: math.max(0, middle - hn)),
           ).height;
           final double hb = math.max(0, middle - hn - hs);
-          _layout(body, BoxConstraints.tightFor(width: width, height: hb));
-          _place(body, 0, hc);
-          _place(side, 0, hc + hb);
-          _place(nav, 0, hc + hb + hs);
+          lay(body, BoxConstraints.tightFor(width: width, height: hb));
+          put(body, 0, hc);
+          put(side, 0, hc + hb);
+          put(nav, 0, hc + hb + hs);
         } else {
           final BoxConstraints full = BoxConstraints(minWidth: width, maxWidth: width);
-          final double hb = _layout(body, full).height;
-          final double hs = _layout(side, full).height;
-          final double hn = _layout(nav, full).height;
+          final double hb = lay(body, full).height;
+          final double hs = lay(side, full).height;
+          final double hn = lay(nav, full).height;
           middle = hb + hs + hn;
-          _place(body, 0, hc);
-          _place(side, 0, hc + hb);
-          _place(nav, 0, hc + hb + hs);
+          put(body, 0, hc);
+          put(side, 0, hc + hb);
+          put(nav, 0, hc + hb + hs);
         }
     }
-    _place(cmd, 0, 0);
-    _place(foot, 0, hc + middle);
-    size = c.constrain(Size(width, hc + middle + hf));
+    put(cmd, 0, 0);
+    put(foot, 0, hc + middle);
+    return c.constrain(Size(width, hc + middle + hf));
   }
 
   @override
@@ -480,6 +506,8 @@ class RenderKkScreen extends RenderBox
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
-    properties.add(EnumProperty<KkScreenMode>('mode', mode));
+    properties
+      ..add(EnumProperty<KkScreenMode>('mode', mode))
+      ..add(DoubleProperty('fallbackWidth', fallbackWidth, defaultValue: 0));
   }
 }
