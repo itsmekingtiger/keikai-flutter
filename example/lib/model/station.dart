@@ -56,13 +56,16 @@ class Metric {
   /// The last 60 samples, oldest first.
   final List<double> history = <double>[];
 
-  KkLevel get level {
+  KkLevel get level => levelOf(_value);
+
+  /// The level [value] would have: which side of the two thresholds it is on.
+  KkLevel levelOf(double value) {
     if (lowIsBad) {
-      if (_value <= crit) return KkLevel.critical;
-      if (_value <= warn) return KkLevel.caution;
+      if (value <= crit) return KkLevel.critical;
+      if (value <= warn) return KkLevel.caution;
     } else {
-      if (_value >= crit) return KkLevel.critical;
-      if (_value >= warn) return KkLevel.caution;
+      if (value >= crit) return KkLevel.critical;
+      if (value >= warn) return KkLevel.caution;
     }
     return KkLevel.nominal;
   }
@@ -70,8 +73,24 @@ class Metric {
   /// Position of the value between [min] and [max], 0 to 1.
   double get position => ((_value - min) / (max - min)).clamp(0.0, 1.0);
 
-  /// The value with fixed digits and leading zeros: `042.7`.
-  String get text => _value.toStringAsFixed(digits).padLeft(width, '0');
+  /// The value with fixed digits and leading zeros: `042.7`, `-061`.
+  String get text => format(_value);
+
+  /// [value] written the way this metric is: [width] characters, the sign
+  /// (for a range that goes below zero) included.
+  String format(double value) {
+    final int integers = width - (digits > 0 ? digits + 1 : 0) - (min < 0 ? 1 : 0);
+    final String body = kkFixed(value.abs(), digits: integers, decimals: digits);
+    if (min >= 0) return body;
+    return value < 0 ? '-$body' : '+$body';
+  }
+
+  /// The change over the last [samples] ticks.
+  double delta([int samples = 30]) {
+    if (history.length < 2) return 0;
+    final int from = history.length > samples ? history.length - 1 - samples : 0;
+    return history.last - history[from];
+  }
 
   void _step(math.Random random) {
     final double pull = (target - _value) * 0.35;
@@ -91,9 +110,14 @@ class Sector {
     required this.operator,
     required this.load,
     required this.temp,
-    this.level = KkLevel.nominal,
+    KkLevel level = KkLevel.nominal,
     this.note = '',
-  });
+    this.limit = 70,
+  }) : _level = level;
+
+  /// The lowest and the highest load limit an operator may set, in percent.
+  static const int minLimit = 10;
+  static const int maxLimit = 90;
 
   final String code;
   final String cjk;
@@ -101,17 +125,41 @@ class Sector {
   String operator;
   double load;
   double temp;
-  KkLevel level;
   String note;
+
+  /// The load, in percent, from which the sector counts as loaded too high.
+  /// An operator sets it; from 90 % the load is critical whatever the limit.
+  int limit;
+
+  /// Whether an operator has acknowledged the condition the sector is in.
+  /// It lasts until the level changes.
+  bool acknowledged = false;
+
+  KkLevel get level => _level;
+  KkLevel _level;
+  set level(KkLevel value) {
+    if (value == _level) return;
+    _level = value;
+    acknowledged = false;
+  }
+
+  /// What the load says about the sector: critical from 90 %, caution from
+  /// its [limit], nominal below.
+  KkLevel get loadLevel => load >= 90 ? KkLevel.critical : (load >= limit ? KkLevel.caution : KkLevel.nominal);
 
   /// Load over the last 24 samples.
   final List<double> trend = <double>[];
+
+  /// The level over the last [Station.historyLength] ticks, oldest first.
+  final List<KkLevel> history = <KkLevel>[];
 }
 
 /// One line of the event log.
 class LogLine {
-  const LogLine({required this.time, required this.source, required this.message, this.level});
+  const LogLine({required this.serial, required this.time, required this.source, required this.message, this.level});
 
+  /// Counts up with every line; identifies the line.
+  final int serial;
   final DateTime time;
   final String source;
   final String message;
@@ -159,21 +207,52 @@ class Channel {
   Verdict verdict;
 }
 
+/// Something on the perimeter scope.
+class Contact {
+  Contact({required this.id, required this.bearing, required this.range, required this.drift, this.level});
+
+  final String id;
+
+  /// Degrees clockwise from north.
+  double bearing;
+
+  /// Metres from the plant.
+  double range;
+
+  /// Degrees per tick.
+  final double drift;
+  KkLevel? level;
+}
+
 /// The simulated control room behind the example app.
 ///
 /// Everything on screen reads from here. [tick] advances the plant by one
 /// second; [start] makes it tick by itself. The random walk is seeded, so the
 /// same sequence of calls always produces the same screens.
 class Station extends ChangeNotifier {
-  Station({int seed = 7, DateTime? epoch}) : _random = math.Random(seed), _now = epoch ?? DateTime.utc(2026, 11, 24, 14, 2, 31) {
+  Station({int seed = 7, DateTime? epoch})
+    : _random = math.Random(seed),
+      _now = epoch ?? DateTime.utc(2026, 11, 24, 14, 2, 31) {
     for (int i = 0; i < 60; i++) {
       for (final Metric m in metrics) {
         m._step(_random);
       }
       _stepSectors();
+      _stepSignals();
     }
+    _seedHistory();
+    _seedHeat();
     _seedLog();
   }
+
+  /// Ticks of level history kept per sector.
+  static const int historyLength = 48;
+
+  /// Frequency bins of one spectrum sweep.
+  static const int spectrumBins = 40;
+
+  /// Sweeps kept for the waterfall.
+  static const int sweepCount = 24;
 
   final math.Random _random;
   DateTime _now;
@@ -188,6 +267,40 @@ class Station extends ChangeNotifier {
   IncidentPhase _phase = IncidentPhase.none;
   IncidentPhase get phase => _phase;
   int _phaseAge = 0;
+
+  /// Tells its listeners when the incident phase changes, and only then (the
+  /// station itself notifies on every tick).
+  final ValueNotifier<IncidentPhase> phaseSignal = ValueNotifier<IncidentPhase>(IncidentPhase.none);
+
+  /// Ticks since the station was created.
+  int ticks = 0;
+
+  /// When the running incident began, or null in normal operation.
+  DateTime? incidentStart;
+
+  /// Whether the running incident is a manual emergency stop.
+  bool manualTrip = false;
+
+  /// Time since the incident began.
+  Duration get incidentElapsed {
+    final DateTime? start = incidentStart;
+    return start == null ? Duration.zero : _now.difference(start);
+  }
+
+  /// The incident's code, as written on alarms.
+  String get incidentCode => manualTrip ? 'E-0001' : 'E-4127';
+
+  /// The incident in 漢字.
+  String get incidentCjk => manualTrip ? '緊急停止' : '冷却水圧低下';
+
+  /// The incident in Latin capitals.
+  String get incidentEn => manualTrip ? 'emergency stop' : 'coolant pressure low';
+
+  /// One line of detail for alarms.
+  String get incidentDetail {
+    final String p = coolantPressure.text;
+    return manualTrip ? 'MANUAL TRIP · PUMP A · SEC-04' : 'P-01 $p kPa · LIMIT 120 · SEC-04';
+  }
 
   /// Whether the screen should be in the alert condition.
   bool get alert => _phase == IncidentPhase.critical || _phase == IncidentPhase.acknowledged;
@@ -293,11 +406,29 @@ class Station extends ChangeNotifier {
     Sector(code: 'SEC-05', cjk: '給水', en: 'feed water', operator: 'OP-07', load: 47, temp: 36),
     Sector(code: 'SEC-06', cjk: '換気', en: 'ventilation', operator: 'OP-09', load: 39, temp: 27),
     Sector(code: 'SEC-07', cjk: '通信', en: 'comms', operator: 'OP-02', load: 44, temp: 33),
-    Sector(code: 'SEC-08', cjk: '中継', en: 'relay', operator: 'OP-02', load: 52, temp: 35, level: KkLevel.caution, note: 'CH.12 RESYNC'),
+    Sector(
+      code: 'SEC-08',
+      cjk: '中継',
+      en: 'relay',
+      operator: 'OP-02',
+      load: 52,
+      temp: 35,
+      level: KkLevel.caution,
+      note: 'CH.12 RESYNC',
+    ),
     Sector(code: 'SEC-09', cjk: '制御', en: 'control', operator: 'OP-01', load: 36, temp: 31),
     Sector(code: 'SEC-10', cjk: '監視', en: 'monitor', operator: 'OP-01', load: 28, temp: 30),
     Sector(code: 'SEC-11', cjk: '補機', en: 'auxiliary', operator: 'OP-05', load: 12, temp: 24),
-    Sector(code: 'SEC-12', cjk: '予備', en: 'spare', operator: '—', load: 0, temp: 21, level: KkLevel.offline, note: 'STANDBY'),
+    Sector(
+      code: 'SEC-12',
+      cjk: '予備',
+      en: 'spare',
+      operator: '—',
+      load: 0,
+      temp: 21,
+      level: KkLevel.offline,
+      note: 'STANDBY',
+    ),
   ];
 
   /// Newest last.
@@ -329,6 +460,27 @@ class Station extends ChangeNotifier {
     Channel(id: 'CH-C', name: 'reference', note: 'MODEL ESTIMATE', verdict: Verdict.go),
   ];
 
+  /// One period of the bus waveform, for the scope.
+  final List<double> wave = <double>[];
+
+  /// The bus frequency in Hz.
+  double frequency = 50;
+
+  /// Spectrum sweeps of the comms band in dBm, newest first.
+  final List<List<double>> sweeps = <List<double>>[];
+
+  /// Events per sector (rows, in [sectors] order) and hour of the day
+  /// (columns, 00 to 23 UTC).
+  final List<List<double>> heat = <List<double>>[];
+
+  /// What the perimeter scope sees.
+  final List<Contact> contacts = <Contact>[
+    Contact(id: 'P-01', bearing: 24, range: 180, drift: 1.6),
+    Contact(id: 'P-02', bearing: 118, range: 320, drift: -0.9),
+    Contact(id: 'V-17', bearing: 201, range: 240, drift: 0.4, level: KkLevel.nominal),
+    Contact(id: 'U-03', bearing: 296, range: 410, drift: 2.2, level: KkLevel.caution),
+  ];
+
   /// Index of the operating mode: 0 STANDBY, 1 MONITOR, 2 RESPOND, 3 RECOVER.
   int get mode => switch (_phase) {
     IncidentPhase.none => 1,
@@ -347,39 +499,123 @@ class Station extends ChangeNotifier {
     return worst;
   }
 
-  int get activeAlarms => alarms.where((AlarmWindow a) => a.state == AlarmState.alarm).length;
+  /// The alarm windows that are lit: sounding, acknowledged while what raised
+  /// them still holds, or ringing back until they are reset. It is the number
+  /// the command bar and the alarm wall show, so a lit window is always counted.
+  int get activeAlarms => alarms.where((AlarmWindow a) => a.state != AlarmState.normal).length;
+
+  /// The alarm windows that sound and wait for an operator to acknowledge
+  /// them: what the bell strobes for and counts.
+  int get soundingAlarms => alarms.where((AlarmWindow a) => a.state == AlarmState.alarm).length;
+
+  /// How many times an alarm window has started to sound since the start.
+  int get alarmsRaised => _alarmsRaised;
+  int _alarmsRaised = 0;
 
   // ── running ─────────────────────────────────────────────────────────────
 
   /// Ticks once a second until [stop] or [dispose].
   void start() {
-    _timer ??= Timer.periodic(const Duration(seconds: 1), (Timer _) => tick());
+    if (_timer != null) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (Timer _) => tick());
+    notifyListeners();
   }
 
   void stop() {
+    if (_timer == null) return;
     _timer?.cancel();
     _timer = null;
+    notifyListeners();
   }
 
   @override
   void dispose() {
-    stop();
+    _timer?.cancel();
+    _timer = null;
+    phaseSignal.dispose();
     super.dispose();
   }
+
+  /// Whether the station is ticking by itself.
+  bool get running => _timer != null;
 
   /// Advances the plant by one second.
   void tick() {
     _now = _now.add(const Duration(seconds: 1));
     uptime++;
+    ticks++;
     _phaseAge++;
     _script();
     for (final Metric m in metrics) {
       m._step(_random);
     }
     _stepSectors();
+    _stepSignals();
+    _stepHistory();
     _stepAlarms();
     if (_random.nextDouble() < 0.22) _routineLog();
     notifyListeners();
+  }
+
+  /// The scope waveform, the spectrum sweeps and the perimeter contacts.
+  void _stepSignals() {
+    // The bus runs at 50 Hz and sags with the coolant incident.
+    final double sag = _phase == IncidentPhase.critical || _phase == IncidentPhase.acknowledged ? 1.4 : 0;
+    frequency = 50 - sag + (_random.nextDouble() - 0.5) * 0.12;
+    wave.clear();
+    final double ripple = 0.06 + sag * 0.12;
+    for (int i = 0; i < 64; i++) {
+      final double t = i / 64 * 2 * math.pi;
+      wave.add(math.sin(t * 2) + ripple * math.sin(t * 14 + ticks * 0.7) + (_random.nextDouble() - 0.5) * 0.04);
+    }
+    // Two carriers on a noise floor; the second one drifts.
+    final List<double> sweep = <double>[];
+    final double drift = 26 + 4 * math.sin(ticks / 9);
+    for (int b = 0; b < spectrumBins; b++) {
+      double level = -104 + _random.nextDouble() * 6;
+      level += 34 * math.exp(-math.pow((b - 9) / 1.6, 2).toDouble());
+      level += 26 * math.exp(-math.pow((b - drift) / 2.2, 2).toDouble());
+      sweep.add(level);
+    }
+    sweeps.insert(0, sweep);
+    if (sweeps.length > sweepCount) sweeps.removeLast();
+    for (final Contact c in contacts) {
+      c.bearing = (c.bearing + c.drift) % 360;
+    }
+  }
+
+  void _stepHistory() {
+    for (final Sector s in sectors) {
+      s.history.add(s.level);
+      if (s.history.length > historyLength) s.history.removeAt(0);
+    }
+  }
+
+  /// A believable past: mostly nominal, with a few stretches of trouble.
+  void _seedHistory() {
+    for (int i = 0; i < sectors.length; i++) {
+      final Sector s = sectors[i];
+      for (int t = 0; t < historyLength; t++) {
+        KkLevel level = s.level == KkLevel.offline ? KkLevel.offline : KkLevel.nominal;
+        if (i == 7 && t > 30) level = KkLevel.caution;
+        if (i == 3 && t >= 8 && t < 12) level = KkLevel.caution;
+        if (i == 0 && t >= 20 && t < 22) level = KkLevel.caution;
+        if (i == 10 && t < 9) level = KkLevel.offline;
+        s.history.add(level);
+      }
+    }
+  }
+
+  void _seedHeat() {
+    for (int r = 0; r < sectors.length; r++) {
+      final List<double> row = <double>[];
+      for (int h = 0; h < 24; h++) {
+        final double day = 3 + 5 * math.sin((h - 6) / 24 * 2 * math.pi).clamp(0.0, 1.0);
+        final double weight = sectors[r].level == KkLevel.offline ? 0.1 : (r == 3 || r == 7 ? 1.8 : 1.0);
+        row.add(h > _now.hour ? 0 : (day * weight + _random.nextDouble() * 2).roundToDouble());
+      }
+      heat.add(row);
+    }
   }
 
   void _stepSectors() {
@@ -396,13 +632,16 @@ class Station extends ChangeNotifier {
   void _stepAlarms() {
     final AlarmWindow pressure = alarms[0];
     final AlarmWindow temp = alarms[1];
-    _drive(pressure, coolantPressure.level == KkLevel.critical);
+    // The pressure window stands for the whole of the critical phase, so it
+    // cannot ring back before the plant has started to recover.
+    _drive(pressure, alert || coolantPressure.level == KkLevel.critical);
     _drive(temp, coolantTemp.level == KkLevel.critical);
   }
 
   void _drive(AlarmWindow window, bool active) {
     if (active && window.state == AlarmState.normal) {
       window.state = AlarmState.alarm;
+      _alarmsRaised++;
     } else if (!active && window.state == AlarmState.acknowledged) {
       window.state = AlarmState.returned;
     }
@@ -433,7 +672,7 @@ class Station extends ChangeNotifier {
           coolant
             ..level = KkLevel.critical
             ..note = 'PRESSURE LOW';
-          _add('SEC-04', 'COOLANT PRESSURE LOW', KkLevel.critical);
+          if (!manualTrip) _add('SEC-04', 'COOLANT PRESSURE LOW', KkLevel.critical);
           channels[0]
             ..verdict = Verdict.noGo
             ..note = 'P-01 BELOW LIMIT';
@@ -475,6 +714,15 @@ class Station extends ChangeNotifier {
   void _enter(IncidentPhase phase) {
     _phase = phase;
     _phaseAge = 0;
+    if (phase == IncidentPhase.none) {
+      incidentStart = null;
+      manualTrip = false;
+    }
+    if (phase == IncidentPhase.critical && alarms[0].state == AlarmState.normal) {
+      alarms[0].state = AlarmState.alarm;
+      _alarmsRaised++;
+    }
+    phaseSignal.value = phase;
   }
 
   // ── operator actions ────────────────────────────────────────────────────
@@ -488,9 +736,73 @@ class Station extends ChangeNotifier {
         ..status = StepStatus.pending
         ..at = null;
     }
+    incidentStart = _now;
+    manualTrip = false;
     _enter(IncidentPhase.caution);
     _add('HQ-03', 'DRILL STARTED BY OPERATOR', null);
     notifyListeners();
+  }
+
+  /// Trips the main pump by hand: the plant goes straight to critical.
+  void emergencyStop() {
+    if (_phase == IncidentPhase.critical || _phase == IncidentPhase.acknowledged) return;
+    for (final ProcedureStep s in procedure) {
+      s
+        ..status = StepStatus.pending
+        ..at = null;
+    }
+    incidentStart ??= _now;
+    manualTrip = true;
+    _add('HQ-03', 'EMERGENCY STOP · PUMP A TRIPPED', KkLevel.critical);
+    _enter(IncidentPhase.critical);
+    notifyListeners();
+  }
+
+  /// Takes a sector out of service, or puts it back.
+  void setSectorOffline(Sector sector, {required bool offline}) {
+    if ((sector.level == KkLevel.offline) == offline) return;
+    sector
+      ..level = offline ? KkLevel.offline : KkLevel.nominal
+      ..note = offline ? 'ISOLATED' : ''
+      ..load = offline ? 0 : 20;
+    _add(
+      sector.code,
+      offline ? 'SECTOR ISOLATED BY OPERATOR' : 'SECTOR RESTORED',
+      offline ? KkLevel.offline : KkLevel.nominal,
+    );
+    notifyListeners();
+  }
+
+  /// Hands a sector to another operator.
+  void assignSector(Sector sector, String operator) {
+    if (sector.operator == operator) return;
+    sector.operator = operator;
+    _add(sector.code, 'ASSIGNED TO $operator', null);
+    notifyListeners();
+  }
+
+  /// Sets the load limit of a sector, within [Sector.minLimit] and
+  /// [Sector.maxLimit].
+  void setLoadLimit(Sector sector, int limit) {
+    final int value = limit.clamp(Sector.minLimit, Sector.maxLimit);
+    if (sector.limit == value) return;
+    sector.limit = value;
+    _add(sector.code, 'LOAD LIMIT SET TO ${kkFixed(value, digits: 3)} %', null);
+    notifyListeners();
+  }
+
+  /// Marks the condition of each of [which] that is not nominal as seen by
+  /// [operator], and returns how many that were.
+  int acknowledgeSectors(Iterable<Sector> which, String operator) {
+    int count = 0;
+    for (final Sector sector in which) {
+      if (sector.level == KkLevel.nominal || sector.acknowledged) continue;
+      sector.acknowledged = true;
+      count++;
+      _add(sector.code, '${sector.level.word} ACKNOWLEDGED BY $operator', null);
+    }
+    if (count > 0) notifyListeners();
+    return count;
   }
 
   /// Acknowledges every sounding alarm and takes down the full-screen alarm.
@@ -591,7 +903,15 @@ class Station extends ChangeNotifier {
       (-12, 'SEC-02', 'BREAKER Q-12 CLOSED', KkLevel.nominal),
     ];
     for (final (int offset, String source, String message, KkLevel? level) in seed) {
-      log.add(LogLine(time: base.add(Duration(seconds: offset)), source: source, message: message, level: level));
+      log.add(
+        LogLine(
+          serial: _serial++,
+          time: base.add(Duration(seconds: offset)),
+          source: source,
+          message: message,
+          level: level,
+        ),
+      );
     }
   }
 
@@ -600,8 +920,12 @@ class Station extends ChangeNotifier {
     _add(source, message, KkLevel.nominal);
   }
 
+  int _serial = 0;
+
   void _add(String source, String message, KkLevel? level) {
-    log.add(LogLine(time: _now, source: source, message: message, level: level));
+    log.add(LogLine(serial: _serial++, time: _now, source: source, message: message, level: level));
     if (log.length > 200) log.removeAt(0);
+    final int row = sectors.indexWhere((Sector s) => s.code == source);
+    if (row >= 0 && row < heat.length) heat[row][_now.hour] += 1;
   }
 }
