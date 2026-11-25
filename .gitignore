@@ -35,3 +35,6 @@ migrate_working_dir/
 
 # Scratch directories of review agents
 test/_review/
+
+# Golden comparison failures
+**/failures/
