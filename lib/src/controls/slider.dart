@@ -160,6 +160,9 @@ class _KkSliderState extends State<KkSlider> {
   bool _focused = false;
   bool _dragging = false;
 
+  /// The last value passed to onChanged that the owner has not rebuilt for yet.
+  double? _sent;
+
   static const Map<ShortcutActivator, Intent> _shortcuts = <ShortcutActivator, Intent>{
     SingleActivator(LogicalKeyboardKey.arrowRight): _StepIntent(1),
     SingleActivator(LogicalKeyboardKey.arrowUp): _StepIntent(1),
@@ -194,7 +197,11 @@ class _KkSliderState extends State<KkSlider> {
   void _emit(double next) {
     if (!_live) return;
     final double v = KkSlider.snap(next, min: widget.min, max: widget.max, divisions: widget.divisions);
-    if (v != widget.value) widget.onChanged?.call(v);
+    // Several pointer events can arrive before the owner rebuilds, so compare
+    // with the last value sent as well as the one last received.
+    if (v == (_sent ?? widget.value)) return;
+    _sent = v;
+    widget.onChanged?.call(v);
   }
 
   void _stepBy(double steps) {
@@ -236,7 +243,15 @@ class _KkSliderState extends State<KkSlider> {
   void _dragEnd() {
     if (!_dragging) return;
     setState(() => _dragging = false);
-    widget.onChangeEnd?.call(_value);
+    widget.onChangeEnd?.call(_sent ?? _value);
+  }
+
+  @override
+  void didUpdateWidget(KkSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The owner has answered (or changed the value itself): start comparing
+    // against what it gave us again.
+    _sent = null;
   }
 
   @override

@@ -137,10 +137,26 @@ void main() {
 
     testWidgets('a vertical drag is left to the scroll view', (WidgetTester tester) async {
       final List<double> changes = <double>[];
-      await pumpKk(tester, _slider(onChanged: changes.add));
-      await tester.dragFrom(tester.getTopLeft(_track()) + const Offset(150, 11), const Offset(0, 120));
+      final ScrollController scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      await pumpKk(
+        tester,
+        KkScroll(
+          controller: scroll,
+          child: KkColumn(
+            shrinkWrap: true,
+            cross: KkCrossAlign.start,
+            children: <Widget>[
+              _slider(onChanged: changes.add),
+              const KkBox(width: 10, height: 1200),
+            ],
+          ),
+        ),
+      );
+      await tester.dragFrom(tester.getTopLeft(_track()) + const Offset(150, 11), const Offset(0, -120));
       await tester.pump();
       expect(changes, isEmpty);
+      expect(scroll.offset, greaterThan(0));
     });
 
     testWidgets('divisions snap taps and drags to the steps', (WidgetTester tester) async {
@@ -245,8 +261,11 @@ void main() {
       expect(find.text('%'), findsOneWidget);
       expect(find.text('COOLANT FLOW'), findsOneWidget);
       // The value ends flush with the right edge; its unit follows 3px after the digits.
-      expect(tester.getRect(find.text('%')).right, 200);
-      expect(tester.getRect(find.text('%')).left - tester.getRect(find.text('062')).right, 3);
+      expect(tester.getRect(find.text('%')).right, moreOrLessEquals(200, epsilon: 0.01));
+      expect(
+        tester.getRect(find.text('%')).left - tester.getRect(find.text('062')).right,
+        moreOrLessEquals(3, epsilon: 0.01),
+      );
     });
 
     testWidgets('track only: no head, just the 22px row', (WidgetTester tester) async {

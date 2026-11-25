@@ -14,15 +14,13 @@ const List<KkSequenceStep> _steps = <KkSequenceStep>[
   KkSequenceStep(cjk: '定常運転', en: 'steady run'),
 ];
 
-/// The fill of the row of the step titled [en].
+/// The fill of the row of the step titled [en] (null when the row has none).
 Color? _rowFill(WidgetTester tester, String en) {
   final Iterable<KkBox> boxes = tester.widgetList<KkBox>(
     find.ancestor(of: find.text(en), matching: find.byType(KkBox)),
   );
-  for (final KkBox b in boxes) {
-    if (b.fill != null) return b.fill;
-  }
-  return null;
+  // The row is the box that directly holds the rail painter.
+  return boxes.firstWhere((KkBox b) => b.child is CustomPaint).fill;
 }
 
 TextStyle _style(WidgetTester tester, String text) => tester.widget<Text>(find.text(text)).style!;
@@ -49,10 +47,14 @@ void main() {
     expect(find.text('SKIPPED'), findsOneWidget);
     expect(find.text('PENDING'), findsOneWidget);
     // A row without a note is exactly the 40px minimum.
-    final double second = tester.getCenter(find.text('SELF TEST')).dy;
-    final double third = tester.getCenter(find.text('COOLANT LOOP')).dy;
     expect(tester.getSize(find.bySemanticsLabel(RegExp('^02 '))).height, 40);
-    expect(third, greaterThan(second + 40));
+    // A row with a note is taller: 6 + title line + 3 + note line + 6.
+    expect(tester.getSize(find.bySemanticsLabel(RegExp('^03 '))).height, inInclusiveRange(50.0, 53.0));
+    // The title of a 40px row is centred in it.
+    expect(
+      tester.getCenter(find.text('SELF TEST')).dy,
+      closeTo(tester.getCenter(find.bySemanticsLabel(RegExp('^02 '))).dy, 1.5),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -60,7 +62,7 @@ void main() {
     await pumpKk(tester, const KkBox(width: 520, child: KkSequence(steps: _steps)));
     const KkColors c = KkColors.standby;
     // Row grounds.
-    expect(_rowFill(tester, 'POWER ON'), c.bg100, reason: 'done rows sit on the panel ground');
+    expect(_rowFill(tester, 'POWER ON'), isNull, reason: 'done rows sit on the panel ground');
     expect(_rowFill(tester, 'COOLANT LOOP'), c.bg200);
     expect(_rowFill(tester, 'EXTERNAL SYNC'), c.alertDeep);
     // Title ink.
