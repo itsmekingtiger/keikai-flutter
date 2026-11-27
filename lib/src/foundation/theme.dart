@@ -126,6 +126,12 @@ class _KeikaiThemeScope extends InheritedWidget {
 
 /// Switches the condition for a region: `alert` turns just this subtree red.
 ///
+/// Nothing but the condition changes. The rest of the theme is handed down,
+/// and so is the default text style around the region: its size, family,
+/// alignment and line limits stay, and its colour follows the condition only
+/// where it is the ink of the theme around. A colour that another ancestor
+/// chose is kept.
+///
 /// The region keeps its State when [condition], or the condition around it,
 /// switches.
 class KkConditionScope extends StatelessWidget {
@@ -136,9 +142,29 @@ class KkConditionScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The same wrapper whether or not the condition is already in force: a
+    final KeikaiThemeData around = KeikaiTheme.of(context);
+    final KeikaiThemeData data = around.withCondition(condition);
+    final DefaultTextStyle text = DefaultTextStyle.of(context);
+    // Text in the ink of the theme around takes the ink of this condition. Any
+    // other colour was chosen by an ancestor and stays.
+    final Color inkAround = around.colors.ink;
+    final Color ink = data.colors.ink;
+    final bool reink = ink != inkAround && text.style.color == inkAround;
+    // The same wrappers whether or not the condition is already in force: a
     // different widget in this place would rebuild the region from nothing.
-    return KeikaiTheme(data: KeikaiTheme.of(context).withCondition(condition), child: child);
+    return _KeikaiThemeScope(
+      data: data,
+      child: DefaultTextStyle(
+        style: reink ? text.style.copyWith(color: ink) : text.style,
+        textAlign: text.textAlign,
+        softWrap: text.softWrap,
+        overflow: text.overflow,
+        maxLines: text.maxLines,
+        textWidthBasis: text.textWidthBasis,
+        textHeightBehavior: text.textHeightBehavior,
+        child: child,
+      ),
+    );
   }
 }
 

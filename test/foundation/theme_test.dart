@@ -6,6 +6,7 @@ import '../layout/layout_util.dart' show testChecked;
 /// Captures what a descendant sees.
 class _Seen {
   KeikaiThemeData? theme;
+  DefaultTextStyle? defaults;
   TextStyle? text;
   bool? motion;
   int builds = 0;
@@ -13,7 +14,8 @@ class _Seen {
   Widget probe() => Builder(
     builder: (BuildContext context) {
       theme = KeikaiTheme.of(context);
-      text = DefaultTextStyle.of(context).style;
+      defaults = DefaultTextStyle.of(context);
+      text = defaults!.style;
       motion = KeikaiTheme.motionOf(context);
       builds++;
       expect(context.kk, same(theme));
@@ -228,18 +230,25 @@ void main() {
     });
 
     testChecked('a scope with the condition already in force hands the same theme down', (WidgetTester tester) async {
-      final _Seen seen = _Seen();
+      final _Seen outside = _Seen();
+      final _Seen inside = _Seen();
       const KeikaiThemeData data = KeikaiThemeData(metrics: KkMetrics(rowUnit: 40));
       await tester.pumpWidget(
         _dir(
           KeikaiTheme(
             data: data,
-            child: KkConditionScope(condition: KkCondition.standby, child: seen.probe()),
+            child: Column(
+              children: <Widget>[
+                outside.probe(),
+                KkConditionScope(condition: KkCondition.standby, child: inside.probe()),
+              ],
+            ),
           ),
         ),
       );
-      expect(seen.theme, same(data));
-      expect(seen.text!.color, KkColors.standby.ink);
+      expect(inside.theme, same(data));
+      expect(inside.text!.color, KkColors.standby.ink);
+      expect(inside.text, same(outside.text));
     });
 
     testChecked('switching the condition keeps the State of the region', (WidgetTester tester) async {
@@ -300,10 +309,100 @@ void main() {
       expect(controller.offset, 400);
     });
 
+    testChecked('the default text style around it goes on inside, in either condition', (WidgetTester tester) async {
+      final _Seen seen = _Seen();
+      const TextHeightBehavior heights = TextHeightBehavior(applyHeightToFirstAscent: false);
+      Widget tree(KkCondition condition) => _dir(
+        KeikaiTheme(
+          data: const KeikaiThemeData(),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: DefaultTextStyle.merge(
+                style: const TextStyle(fontSize: 30, fontFamily: 'packages/keikai/IBM Plex Mono'),
+                textAlign: TextAlign.center,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                textWidthBasis: TextWidthBasis.longestLine,
+                textHeightBehavior: heights,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text('ALARM', key: ValueKey<String>('outside')),
+                    KkConditionScope(
+                      condition: condition,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          seen.probe(),
+                          const Text('ALARM', key: ValueKey<String>('inside')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      for (final KkCondition condition in KkCondition.values) {
+        await tester.pumpWidget(tree(condition));
+        final DefaultTextStyle inside = seen.defaults!;
+        expect(inside.style.fontSize, 30, reason: '$condition');
+        expect(inside.style.fontFamily, 'packages/keikai/IBM Plex Mono');
+        expect(inside.style.height, 1.55);
+        expect(inside.textAlign, TextAlign.center);
+        expect(inside.softWrap, isFalse);
+        expect(inside.overflow, TextOverflow.ellipsis);
+        expect(inside.maxLines, 1);
+        expect(inside.textWidthBasis, TextWidthBasis.longestLine);
+        expect(inside.textHeightBehavior, heights);
+        // The text is laid out as it is outside the region.
+        expect(
+          tester.getSize(find.byKey(const ValueKey<String>('inside'))),
+          tester.getSize(find.byKey(const ValueKey<String>('outside'))),
+          reason: '$condition',
+        );
+        // Only the ink follows the condition.
+        final KkColors colors = condition == KkCondition.alert ? KkColors.alertTheme : KkColors.standby;
+        expect(inside.style.color, colors.ink);
+      }
+    });
+
+    testChecked('a text colour chosen by an ancestor is kept', (WidgetTester tester) async {
+      final _Seen seen = _Seen();
+      await tester.pumpWidget(
+        _dir(
+          KeikaiTheme(
+            data: const KeikaiThemeData(),
+            child: KkInk(
+              color: KkColors.standby.inkDim,
+              child: KkConditionScope(condition: KkCondition.alert, child: seen.probe()),
+            ),
+          ),
+        ),
+      );
+      expect(seen.theme!.colors, KkColors.alertTheme);
+      expect(seen.text!.color, KkColors.standby.inkDim);
+      expect(seen.text!.fontSize, 14);
+    });
+
     testChecked('works without a theme above it', (WidgetTester tester) async {
       final _Seen seen = _Seen();
       await tester.pumpWidget(_dir(KkConditionScope(condition: KkCondition.alert, child: seen.probe())));
       expect(seen.theme!.colors, KkColors.alertTheme);
+    });
+
+    testChecked('with no default text style above it sets none, in either condition', (WidgetTester tester) async {
+      final _Seen seen = _Seen();
+      for (final KkCondition condition in KkCondition.values) {
+        await tester.pumpWidget(_dir(KkConditionScope(condition: condition, child: seen.probe())));
+        expect(seen.theme!.condition, condition);
+        expect(seen.text, const TextStyle(), reason: '$condition');
+      }
     });
   });
 }
