@@ -1,9 +1,36 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
 import '../support/harness.dart';
 import 'layout_util.dart';
+
+/// Rebuilds each time a scroll ends under it, as an app that shows something once the scrolling is over does, and
+/// keeps the phase of the frame in which it heard of each end.
+class _RebuildsOnScrollEnd extends StatefulWidget {
+  const _RebuildsOnScrollEnd({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_RebuildsOnScrollEnd> createState() => _RebuildsOnScrollEndState();
+}
+
+class _RebuildsOnScrollEndState extends State<_RebuildsOnScrollEnd> {
+  final List<SchedulerPhase> ends = <SchedulerPhase>[];
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollEndNotification>(
+      onNotification: (ScrollEndNotification notification) {
+        setState(() => ends.add(SchedulerBinding.instance.schedulerPhase));
+        return false;
+      },
+      child: widget.child,
+    );
+  }
+}
 
 void main() {
   group('KkScroll', () {
@@ -358,7 +385,71 @@ void main() {
       expect(controller.position.isScrollingNotifier.value, isTrue);
       expect(controller.offset, greaterThan(300));
       await frame(tester, list(controller, 6));
+      // The view is on its last row at once. The fling is over with the next frame, not inside this layout.
+      expect(controller.offset, 100);
+      expect(rectOf(tester, 'row5').bottom, 200);
+      await tester.pump(const Duration(milliseconds: 16));
       await expectRestsAtEnd(tester, controller, 100, lastRow: 'row5');
+    });
+
+    // A scroll that the layout stops is not ended inside the layout, where a listener must not rebuild.
+    testChecked('and a fling that the rows cut short ends on the next frame, where a listener may rebuild', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      await pumpKk(tester, _RebuildsOnScrollEnd(child: list(controller, 40)));
+      final _RebuildsOnScrollEndState listener = tester.state(find.byType(_RebuildsOnScrollEnd));
+      await tester.fling(find.byType(KkListView), const Offset(0, -300), 3000);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(listener.ends, isEmpty);
+      await frame(tester, _RebuildsOnScrollEnd(child: list(controller, 6)));
+      expect(tester.takeException(), isNull);
+      expect(controller.offset, 100);
+      expect(listener.ends, isEmpty);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.takeException(), isNull);
+      expect(listener.ends, hasLength(1));
+      expect(listener.ends.single, isNot(SchedulerPhase.persistentCallbacks));
+      expect(controller.position.isScrollingNotifier.value, isFalse);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(listener.ends, hasLength(1));
+      expect(controller.offset, 100);
+    });
+
+    testChecked('and a drag that the rows leave nothing to scroll for ends on the next frame as well', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      await pumpKk(tester, _RebuildsOnScrollEnd(child: list(controller, 20)));
+      final _RebuildsOnScrollEndState listener = tester.state(find.byType(_RebuildsOnScrollEnd));
+      controller.jumpTo(400);
+      await tester.pump();
+      final TestGesture finger = await tester.startGesture(const Offset(100, 150));
+      await finger.moveBy(const Offset(0, -30));
+      await tester.pump();
+      await finger.moveBy(const Offset(0, -50));
+      expect(controller.offset, 480);
+      listener.ends.clear();
+      // 3 rows are 150px: they all fit, and the list gives the drag up while it is laid out.
+      await frame(tester, _RebuildsOnScrollEnd(child: list(controller, 3)));
+      expect(tester.takeException(), isNull);
+      expect(controller.offset, 0);
+      expect(listener.ends, isEmpty);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.takeException(), isNull);
+      expect(listener.ends, hasLength(1));
+      expect(listener.ends.single, isNot(SchedulerPhase.persistentCallbacks));
+      expect(controller.position.isScrollingNotifier.value, isFalse);
+      // The finger is still down, on rows that do not scroll.
+      await finger.moveBy(const Offset(0, -20));
+      await finger.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(controller.offset, 0);
+      expect(listener.ends, hasLength(1));
     });
 
     testChecked('when rows go under a finger, which goes on dragging from the new end', (WidgetTester tester) async {
@@ -579,6 +670,37 @@ void main() {
       expect(controller.position.maxScrollExtent, 200);
       expect(controller.offset, 200);
       expect(rectOf(tester, 'a').bottom, 200);
+    });
+
+    testChecked('ends a fling that a shorter child cuts short on the next frame, where a listener may rebuild', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      Widget view(double height) => _RebuildsOnScrollEnd(
+        child: SizedBox(
+          width: 200,
+          height: 200,
+          child: KkScroll(controller: controller, child: box('a', null, height)),
+        ),
+      );
+      await pumpKk(tester, view(2000));
+      final _RebuildsOnScrollEndState listener = tester.state(find.byType(_RebuildsOnScrollEnd));
+      await tester.fling(find.byType(KkScroll), const Offset(0, -300), 3000);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(controller.offset, greaterThan(300));
+      expect(listener.ends, isEmpty);
+      await tester.pumpWidget(kkHarness(view(300)));
+      expect(tester.takeException(), isNull);
+      expect(controller.offset, 100);
+      expect(rectOf(tester, 'a').bottom, 200);
+      expect(listener.ends, isEmpty);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.takeException(), isNull);
+      expect(listener.ends, hasLength(1));
+      expect(listener.ends.single, isNot(SchedulerPhase.persistentCallbacks));
+      expect(controller.position.isScrollingNotifier.value, isFalse);
     });
 
     testChecked('ends an animation at the new end of a child that gets shorter in the frame it starts', (

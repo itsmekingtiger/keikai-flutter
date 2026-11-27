@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../foundation/colors.dart';
@@ -74,6 +75,9 @@ class KkScrollBehavior extends ScrollBehavior {
 /// show the space past the last row until the animation is back inside. A
 /// `KkScroll` ends such an animation whatever its physics, because its
 /// viewport corrects the offset itself.
+///
+/// A fling or a drag that a layout stops is over on the next frame, not
+/// inside that layout: see [createBallisticSimulation].
 class _KkScrollPhysics extends ClampingScrollPhysics {
   const _KkScrollPhysics({super.parent});
 
@@ -95,6 +99,46 @@ class _KkScrollPhysics extends ClampingScrollPhysics {
     );
     return pixels.clamp(newPosition.minScrollExtent, newPosition.maxScrollExtent);
   }
+
+  /// Keeps a scroll that a layout stops from ending inside that layout.
+  ///
+  /// The correction above can put a fling on the very end it was running
+  /// into, and rows that all fit take the view from under a finger. Clamping
+  /// physics have no simulation for either, and without one the framework
+  /// ends the scroll on the spot: its listeners hear of the end while the
+  /// frame is being laid out, where one that rebuilds (`setState` on a
+  /// `ScrollEndNotification`) is an error. Here the view gets a simulation
+  /// that stands still and is over at once, and the scroll ends on the next
+  /// tick like any other.
+  ///
+  /// Physics that a view is given and that make their own simulations
+  /// (`ClampingScrollPhysics`, `BouncingScrollPhysics`) do not ask these: such
+  /// a view ends the scroll the framework's way.
+  @override
+  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) {
+    final Simulation? simulation = super.createBallisticSimulation(position, velocity);
+    if (simulation != null) return simulation;
+    final bool scrolling = position is ScrollPosition && position.isScrollingNotifier.value;
+    final bool inFrame = SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks;
+    return scrolling && inFrame ? _KkRestSimulation(position.pixels) : null;
+  }
+}
+
+/// A view that stands still at [position], for a scroll that is to end on the
+/// next tick.
+class _KkRestSimulation extends Simulation {
+  _KkRestSimulation(this.position);
+
+  final double position;
+
+  @override
+  double x(double time) => position;
+
+  @override
+  double dx(double time) => 0;
+
+  @override
+  bool isDone(double time) => true;
 }
 
 /// A thin, square scrollbar thumb in the line colour on a clear track
