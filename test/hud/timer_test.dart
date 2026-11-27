@@ -84,6 +84,18 @@ void main() {
       expect(f(const Duration(hours: -1, minutes: -30)), (digits: '-01:30:00', centis: null));
       expect(f(const Duration(milliseconds: -4)), (digits: '00:00', centis: '.00'));
     });
+
+    test('a negative time that the hours format shows as zero has no sign', () {
+      // The smallest unit written is the second: nothing is shown of -0.5s.
+      expect(f(const Duration(milliseconds: -500), KkTimerFormat.hours), (digits: '00:00:00', centis: null));
+      expect(f(const Duration(milliseconds: -999), KkTimerFormat.hours), (digits: '00:00:00', centis: null));
+      expect(f(const Duration(milliseconds: -4), KkTimerFormat.hours), (digits: '00:00:00', centis: null));
+      expect(f(const Duration(seconds: -1), KkTimerFormat.hours), (digits: '-00:00:01', centis: null));
+      expect(f(const Duration(milliseconds: -1500), KkTimerFormat.hours), (digits: '-00:00:01', centis: null));
+      // The centisecond formats show it, with its sign.
+      expect(f(const Duration(milliseconds: -500)), (digits: '-00:00', centis: '.50'));
+      expect(f(const Duration(milliseconds: -500), KkTimerFormat.minutes), (digits: '-00:00', centis: '.50'));
+    });
   });
 
   testWidgets('a controlled timer shows its value; the box hugs the digits, 264px at least', (

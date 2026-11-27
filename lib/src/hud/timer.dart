@@ -32,14 +32,18 @@ String _two(int v) => v < 10 ? '0$v' : '$v';
 
 /// Splits [time] into the large digits and the small centiseconds part of a
 /// timer: `04:59` and `.82`, or `01:02:03` and null.
+///
+/// A negative time has a minus sign in front, unless it is written as zero:
+/// the smallest unit shown is the centisecond, or the second with hours.
 ({String digits, String? centis}) kkFormatTimer(Duration time, {KkTimerFormat format = KkTimerFormat.auto}) {
   final int totalCs = time.inMicroseconds.abs() ~/ 10000;
-  final String sign = (time.isNegative && totalCs > 0) ? '-' : '';
   final int cs = totalCs % 100;
   final int totalSeconds = totalCs ~/ 100;
   final int seconds = totalSeconds % 60;
   final int totalMinutes = totalSeconds ~/ 60;
   final bool hours = format == KkTimerFormat.hours || (format == KkTimerFormat.auto && totalMinutes >= 60);
+  final bool shown = hours ? totalSeconds > 0 : totalCs > 0;
+  final String sign = (time.isNegative && shown) ? '-' : '';
   if (hours) {
     return (digits: '$sign${_two(totalMinutes ~/ 60)}:${_two(totalMinutes % 60)}:${_two(seconds)}', centis: null);
   }
