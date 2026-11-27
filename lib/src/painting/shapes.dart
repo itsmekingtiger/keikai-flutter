@@ -262,6 +262,11 @@ class KkEdges {
   /// or ends between two pixels is fitted between the whole pixels nearest to
   /// its ends, and only its first and last dash are cut or stretched to where
   /// the side really ends.
+  ///
+  /// The top and bottom sides own the corners, and the left and right sides
+  /// run between them. Dashed sides of one colour share their corner instead
+  /// and are painted as one shape, so a translucent colour is not blended
+  /// twice there.
   void paint(Canvas canvas, Rect r) {
     if (isNone || r.isEmpty) return;
     final Paint paint = Paint();
@@ -324,11 +329,13 @@ class KkEdges {
     final double l = math.max(0, math.min(left.width, r.width));
     final double e = math.max(0, math.min(right.width, r.width - l));
 
-    // A solid left or right side stops at the top and bottom sides, which own
-    // the corners. A dashed one runs into every corner it shares with another
-    // dashed side, so both of them end there on a dash.
+    // A left or right side stops at the top and bottom sides, which own the
+    // corners. Only a dashed one runs into a corner it shares with a dashed
+    // side of its own colour: the two are one path there, and both end on a
+    // dash however wide they are.
+    bool joins(KkSide s, KkSide across) => s.dashed && across.dashed && across.color == s.color;
     Rect upright(KkSide s, double x0, double x1) =>
-        Rect.fromLTRB(x0, r.top + (s.dashed && top.dashed ? 0 : t), x1, r.bottom - (s.dashed && bottom.dashed ? 0 : b));
+        Rect.fromLTRB(x0, r.top + (joins(s, top) ? 0 : t), x1, r.bottom - (joins(s, bottom) ? 0 : b));
 
     side(top, Rect.fromLTRB(r.left, r.top, r.right, r.top + t), true);
     side(bottom, Rect.fromLTRB(r.left, r.bottom - b, r.right, r.bottom), true);

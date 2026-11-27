@@ -53,6 +53,9 @@ class _Pixels {
   /// The alpha of the pixel at ([x], [y]), 0 to 255.
   int alpha(int x, int y) => _bytes.getUint8((y * width + x) * 4 + 3);
 
+  /// The pixel at ([x], [y]) as `rrggbbaa`, with the colour multiplied by the alpha.
+  String rgba(int x, int y) => _bytes.getUint32((y * width + x) * 4).toRadixString(16).padLeft(8, '0');
+
   /// One row of pixels as text: `#` is opaque, `.` is clear and `+` is anything between.
   String row(int y) => String.fromCharCodes(<int>[for (int x = 0; x < width; x++) _mark(alpha(x, y))]);
 
@@ -1001,6 +1004,78 @@ void main() {
           expect(p.alpha(x, y), once, reason: 'corner pixel ($x, $y)');
         }
       }
+    });
+
+    testChecked('dashed sides of two colours stay apart: the top and bottom sides own the corners', (
+      WidgetTester tester,
+    ) async {
+      const Rect box = Rect.fromLTWH(0, 0, 40, 40);
+      Future<_Pixels> paint(KkEdges edges) => _render(tester, 40, 40, (Canvas canvas) => edges.paint(canvas, box));
+      // A 4px top over a 2px left side, both translucent. The band of the top
+      // side is the top side alone, blended once and with no blue in it, and
+      // under it there is only the left side, cut where the band ends.
+      const KkSide top = KkSide(Color(0x80FF0000), width: 4, dashed: true);
+      const KkSide left = KkSide(Color(0x800000FF), width: 2, dashed: true);
+      final _Pixels both = await paint(const KkEdges(top: top, left: left));
+      final _Pixels topAlone = await paint(const KkEdges(top: top));
+      final _Pixels leftAlone = await paint(const KkEdges(left: left));
+      for (int y = 0; y < 40; y++) {
+        for (int x = 0; x < 40; x++) {
+          expect(both.rgba(x, y), (y < 4 ? topAlone : leftAlone).rgba(x, y), reason: 'pixel ($x, $y)');
+        }
+      }
+      expect(both.alpha(0, 0), inInclusiveRange(127, 129));
+      expect(both.rgba(0, 0), both.rgba(11, 3));
+      expect(both.alpha(0, 4), both.alpha(0, 0));
+      expect(both.column(0), '++++++.....++++++......++++++.....++++++');
+
+      // All four corners of a box with red above and below and blue on both
+      // sides: red, blended once, as they are when the sides are solid.
+      KkEdges ring({required bool dashed}) => KkEdges(
+        top: KkSide(const Color(0x80FF0000), width: 2, dashed: dashed),
+        right: KkSide(const Color(0x800000FF), width: 2, dashed: dashed),
+        bottom: KkSide(const Color(0x80FF0000), width: 2, dashed: dashed),
+        left: KkSide(const Color(0x800000FF), width: 2, dashed: dashed),
+      );
+      final _Pixels four = await paint(ring(dashed: true));
+      final _Pixels solid = await paint(ring(dashed: false));
+      for (final int x in <int>[0, 1, 38, 39]) {
+        for (final int y in <int>[0, 1, 38, 39]) {
+          expect(four.rgba(x, y), '80000080', reason: 'corner pixel ($x, $y)');
+          expect(four.rgba(x, y), solid.rgba(x, y), reason: 'corner pixel ($x, $y)');
+        }
+      }
+      // The blue sides begin under the red ones.
+      expect(four.rgba(0, 2), '00008080');
+      expect(four.rgba(39, 37), '00008080');
+    });
+
+    testChecked('a wide dashed side fills the corner it shares with a thin one of its colour', (
+      WidgetTester tester,
+    ) async {
+      // A 6px left side beside a 1px top: the first dash of the top is 3px
+      // long, so a left side that stopped under it would leave a notch of 3px
+      // in the corner.
+      const Color glass = Color(0x80FF0000);
+      final _Pixels p = await _render(
+        tester,
+        40,
+        40,
+        (Canvas canvas) => const KkEdges(
+          top: KkSide(glass, dashed: true),
+          left: KkSide(glass, width: 6, dashed: true),
+        ).paint(canvas, const Rect.fromLTWH(0, 0, 40, 40)),
+      );
+      final int once = p.alpha(20, 0);
+      expect(once, inInclusiveRange(127, 129));
+      // The first dash of the left side is 18px long and starts in the corner.
+      for (int y = 0; y < 18; y++) {
+        for (int x = 0; x < 6; x++) {
+          expect(p.alpha(x, y), once, reason: 'pixel ($x, $y)');
+        }
+      }
+      expect(p.row(0), startsWith('+++++++++...+++'));
+      expect(p.column(5), startsWith('${'+' * 18}.'));
     });
 
     testChecked('a side too short for two dashes and a gap is solid', (WidgetTester tester) async {
