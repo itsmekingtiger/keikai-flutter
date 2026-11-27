@@ -120,10 +120,24 @@ void main() {
 
     expect(_theme(tester).motion.enabled, isFalse);
     expect(tester.widget<KkSlider>(_slider('time scale')).onChanged, isNull, reason: 'no motion, no time scale');
+    expect(tester.widget<KkSwitch>(_switch('changed digits only')).onChanged, isNull, reason: 'nor a scramble');
+    await tester.tap(_switch('changed digits only'));
+    await tester.pump();
+    expect(rig.settings.changedDigits, isFalse);
     await tester.tap(_switch('motion'));
     await tester.pump();
     expect(rig.settings.motion, isTrue);
     expect(_theme(tester).motion.enabled, isTrue);
+    // Every digit of a value churns when it changes, unless the operator asks for the changed ones only.
+    expect(_theme(tester).motion.scrambleScope, KkScrambleScope.all);
+    await tester.tap(_switch('changed digits only'));
+    await tester.pump();
+    expect(rig.settings.changedDigits, isTrue);
+    expect(_theme(tester).motion.scrambleScope, KkScrambleScope.changed);
+    expect(tester.widget<KkSwitch>(_switch('changed digits only')).value, isTrue);
+    await tester.tap(_switch('changed digits only'));
+    await tester.pump();
+    expect(_theme(tester).motion.scrambleScope, KkScrambleScope.all);
     await tester.tap(_switch('motion'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 2));
@@ -285,6 +299,7 @@ void main() {
     rig.settings
       ..crt = true
       ..dense = true
+      ..changedDigits = true
       ..tempUnit = TempUnit.fahrenheit
       ..conditionMode = ConditionMode.alert;
     await tester.pumpAndSettle();
@@ -303,6 +318,7 @@ void main() {
     expect(rig.settings.operator, 'OP-07');
     expect(rig.settings.crt, isFalse);
     expect(rig.settings.dense, isFalse);
+    expect(rig.settings.changedDigits, isFalse);
     expect(rig.settings.tempUnit, TempUnit.celsius);
     expect(rig.settings.conditionMode, ConditionMode.auto);
     expect(tester.widget<EditableText>(find.byType(EditableText).first).controller.text, 'OP-07');
@@ -312,5 +328,66 @@ void main() {
     rig.settings.motion = false;
     await tester.pump();
     expectClean(tester, 'reset');
+  });
+
+  testWidgets('with changed digits only, a live figure keeps the places that did not change', (
+    WidgetTester tester,
+  ) async {
+    final Rig rig = await pumpApp(tester, settings: AppSettings(changedDigits: true));
+    // Let every entrance finish, then look at one second of the plant.
+    await tester.pump(const Duration(seconds: 6));
+
+    String? shownBy(Element scramble) {
+      String? shown;
+      void visit(Element e) {
+        if (shown != null) return;
+        final Widget w = e.widget;
+        if (w is Text) {
+          shown = w.data;
+          return;
+        }
+        e.visitChildren(visit);
+      }
+
+      scramble.visitChildren(visit);
+      return shown;
+    }
+
+    List<Element> scrambles() => find.byType(KkScramble).evaluate().toList();
+    List<String> values() => scrambles().map((Element e) => (e.widget as KkScramble).text).toList();
+
+    final List<String> before = values();
+    rig.station.tick();
+    await tester.pump();
+    final List<String> after = values();
+    expect(after.length, before.length);
+    int moved = 0;
+    int churning = 0;
+    for (int frame = 0; frame < 5; frame++) {
+      final List<Element> elements = scrambles();
+      for (int i = 0; i < elements.length; i++) {
+        final String? shown = shownBy(elements[i]);
+        if (shown == null || before[i].length != after[i].length) continue;
+        if (frame == 0 && before[i] != after[i]) moved++;
+        if (shown != after[i]) churning++;
+        for (int j = 0; j < after[i].length; j++) {
+          if (before[i][j] == after[i][j]) {
+            expect(shown[j], after[i][j], reason: 'frame $frame: ${before[i]} to ${after[i]} shows $shown');
+          }
+        }
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(moved, greaterThan(2), reason: 'the plant moved');
+    expect(churning, greaterThan(2), reason: 'and the changed places churned');
+    await tester.pump(const Duration(milliseconds: 100));
+    for (final Element e in scrambles()) {
+      final String? shown = shownBy(e);
+      if (shown != null) expect(shown, (e.widget as KkScramble).text);
+    }
+    rig.settings.motion = false;
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expectClean(tester, 'changed digits');
   });
 }

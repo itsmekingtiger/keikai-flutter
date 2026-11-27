@@ -23,6 +23,7 @@ enum Duty { watch, engineer, supervisor }
 class AppSettings extends ChangeNotifier {
   AppSettings({
     bool motion = true,
+    bool changedDigits = false,
     double timeScale = 1,
     double textScale = 1,
     bool crt = false,
@@ -31,6 +32,7 @@ class AppSettings extends ChangeNotifier {
     ConditionMode conditionMode = ConditionMode.auto,
     String operator = 'OP-07',
   }) : _motion = motion,
+       _changedDigits = changedDigits,
        _timeScale = timeScale,
        _textScale = textScale,
        _crt = crt,
@@ -57,6 +59,13 @@ class AppSettings extends ChangeNotifier {
   /// Whether anything on screen moves.
   bool get motion => _motion;
   set motion(bool value) => _set(() => _motion = value, _motion != value);
+
+  bool _changedDigits;
+
+  /// Whether a value that changes scrambles only the digits that changed
+  /// instead of all of them.
+  bool get changedDigits => _changedDigits;
+  set changedDigits(bool value) => _set(() => _changedDigits = value, _changedDigits != value);
 
   double _timeScale;
 
@@ -157,6 +166,7 @@ class AppSettings extends ChangeNotifier {
   void reset() {
     _conditionMode = ConditionMode.auto;
     _motion = true;
+    _changedDigits = false;
     _timeScale = 1;
     _textScale = 1;
     _crt = false;

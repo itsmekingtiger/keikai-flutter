@@ -212,6 +212,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     cjk: '動作',
                     label: 'motion',
                   ),
+                  KkSwitch(
+                    value: settings.changedDigits,
+                    onChanged: settings.motion ? (bool v) => settings.changedDigits = v : null,
+                    cjk: '差分',
+                    label: 'changed digits only',
+                  ),
                   KkSwitch(value: settings.crt, onChanged: (bool v) => settings.crt = v, cjk: '走査', label: 'crt'),
                   KkSwitch(
                     value: settings.dense,

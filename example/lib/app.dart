@@ -98,7 +98,11 @@ class _KeikaiExampleAppState extends State<KeikaiExampleApp> {
             return KeikaiApp(
               title: 'KEIKAI 管制 · HQ-03',
               theme: KeikaiThemeData(
-                motion: KkMotion(enabled: settings.motion, timeScale: settings.timeScale),
+                motion: KkMotion(
+                  enabled: settings.motion,
+                  timeScale: settings.timeScale,
+                  scrambleScope: settings.changedDigits ? KkScrambleScope.changed : KkScrambleScope.all,
+                ),
                 type: KkTypography(scale: settings.textScale),
               ),
               condition: condition,
