@@ -41,6 +41,10 @@ typedef KkPressableBuilder = Widget Function(BuildContext context, KkStates stat
 ///
 /// It reports hover, keyboard focus and press through [KkStates]; Enter and
 /// Space activate it; the focus ring shows only for keyboard focus.
+///
+/// The keys count while the control itself has the focus. Pressed in a control
+/// inside it (a text field or a switch in a row), they are left to that
+/// control.
 class KkPressable extends StatefulWidget {
   const KkPressable({
     super.key,
@@ -110,9 +114,12 @@ class _KkPressableState extends State<KkPressable> {
     const SingleActivator(LogicalKeyboardKey.space): const ActivateIntent(),
   };
 
-  late final Map<Type, Action<Intent>> _actions = <Type, Action<Intent>>{
-    ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (ActivateIntent intent) => _activate()),
-  };
+  late final Map<Type, Action<Intent>> _actions = <Type, Action<Intent>>{ActivateIntent: _KkActivateAction(this)};
+
+  /// The node of a control that was not given one.
+  FocusNode? _ownNode;
+
+  FocusNode get _node => widget.focusNode ?? (_ownNode ??= FocusNode(debugLabel: 'KkPressable'));
 
   void _activate() {
     if (!widget.interactive) return;
@@ -131,6 +138,12 @@ class _KkPressableState extends State<KkPressable> {
       _pressed = false;
       _hovered = false;
     }
+  }
+
+  @override
+  void dispose() {
+    _ownNode?.dispose();
+    super.dispose();
   }
 
   @override
@@ -159,7 +172,7 @@ class _KkPressableState extends State<KkPressable> {
       onLongPress: interactive && widget.onLongPress != null ? widget.onLongPress : null,
       child: FocusableActionDetector(
         enabled: interactive,
-        focusNode: widget.focusNode,
+        focusNode: _node,
         autofocus: widget.autofocus,
         descendantsAreFocusable: true,
         mouseCursor: widget.cursor ?? (interactive ? SystemMouseCursors.click : SystemMouseCursors.forbidden),
@@ -187,6 +200,29 @@ class _KkPressableState extends State<KkPressable> {
         ),
       ),
     );
+  }
+}
+
+/// Presses a [KkPressable] from the keyboard while the control itself is the
+/// focused element.
+///
+/// The shortcuts of a control also see the keys of whatever has the focus
+/// inside it: a text field in the trailing slot of a row, a switch. Those keys
+/// are not for the control, so the action is disabled for them. A disabled
+/// action leaves the key unhandled and it travels on, to the guard the
+/// framework keeps for text fields among others.
+class _KkActivateAction extends Action<ActivateIntent> {
+  _KkActivateAction(this._state);
+
+  final _KkPressableState _state;
+
+  @override
+  bool isEnabled(ActivateIntent intent) => _state._node.hasPrimaryFocus;
+
+  @override
+  Object? invoke(ActivateIntent intent) {
+    _state._activate();
+    return null;
   }
 }
 
