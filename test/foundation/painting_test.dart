@@ -206,6 +206,41 @@ void main() {
         expect(() => kkParseSvgPath(bad), throwsFormatException, reason: '"$bad"');
       }
     });
+
+    test('path data must begin with a moveto', () {
+      // The grammar of SVG starts every path with M or m, and a browser draws
+      // nothing for data that does not. Drawing it from (0, 0) would hide a
+      // mistyped icon behind a stray line.
+      for (final String bad in <String>[
+        'L10 10',
+        'l5 5z',
+        'H5',
+        'v5',
+        'C0 0 1 1 2 2',
+        'Q1 1 2 2',
+        'A5 5 0 0 1 10 0',
+        'Z',
+        'z',
+        ' \n L1 1',
+        'ZM0 0L1 1',
+      ]) {
+        expect(() => kkParseSvgPath(bad), throwsFormatException, reason: '"$bad"');
+      }
+      expect(
+        () => kkParseSvgPath('  L10 10'),
+        throwsA(
+          isA<FormatException>()
+              .having((FormatException e) => e.message, 'message', contains('moveto'))
+              .having((FormatException e) => e.offset, 'offset', 2),
+        ),
+      );
+      // Either case of the letter will do, and only the first command has to
+      // be one: after a close the next sub-path starts where the last began.
+      expect(kkParseSvgPath('m2 3l4 0').getBounds(), _rect(2, 3, 6, 3));
+      final Path two = kkParseSvgPath('M5 5h2v2zl-1 -1');
+      expect(two.computeMetrics().length, 2);
+      expect(two.getBounds(), _rect(4, 4, 7, 7));
+    });
   });
 
   group('icons', () {

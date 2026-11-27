@@ -4,7 +4,8 @@ import 'dart:ui';
 /// [Path]. The icon set and the status glyphs are stored as path data on a
 /// 16×16 grid and drawn through this.
 ///
-/// Throws a [FormatException] when [d] is not valid path data.
+/// Throws a [FormatException] when [d] is not valid path data. As in SVG, data
+/// that draws anything has to begin with a moveto; empty data is an empty path.
 Path kkParseSvgPath(String d) => _SvgPathParser(d).parse();
 
 class _SvgPathParser {
@@ -93,6 +94,10 @@ class _SvgPathParser {
     while (_i < src.length) {
       final int c = src.codeUnitAt(_i);
       if (_isCommand(c)) {
+        // Without this the path would silently start at the origin.
+        if (last == 0 && c != 0x4D && c != 0x6D) {
+          throw FormatException('Path data must begin with a moveto (M or m)', src, _i);
+        }
         cmd = c;
         _i++;
       } else if (cmd == 0) {
