@@ -1,7 +1,9 @@
+import 'dart:ui' as ui show Image;
 import 'dart:ui' show CheckedState, Tristate;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
@@ -711,6 +713,67 @@ void main() {
       expect(r.getMaxIntrinsicWidth(double.infinity), 16);
       expect(r.getMinIntrinsicHeight(double.infinity), 16);
       expect(r.getDryLayout(const BoxConstraints()), const Size(16, 16));
+    });
+
+    testChecked('an icon with bad path data paints nothing and does not move what is painted after it', (
+      WidgetTester tester,
+    ) async {
+      const Key boundary = ValueKey<String>('boundary');
+      await pumpKk(
+        tester,
+        const RepaintBoundary(
+          key: boundary,
+          child: SizedBox(
+            width: 120,
+            height: 60,
+            child: Stack(
+              children: <Widget>[
+                // The fill is fine; the stroke lost a coordinate.
+                Positioned(
+                  left: 20,
+                  top: 10,
+                  child: KkIcon(
+                    KkIconData('bad', fill: 'M0 0H16V16H0Z', stroke: 'M0 0 L5'),
+                    size: 32,
+                    color: Color(0xFF00FF00),
+                  ),
+                ),
+                Positioned(left: 60, top: 10, child: KkBox(width: 10, height: 10, fill: Color(0xFFFF0000))),
+              ],
+            ),
+          ),
+        ),
+      );
+      // The mistake is reported, once per paint.
+      expect(tester.takeException(), isFormatException);
+      expect(tester.getRect(find.byType(KkBox).last), const Rect.fromLTWH(60, 10, 10, 10));
+
+      final RenderRepaintBoundary layer = tester.renderObject<RenderRepaintBoundary>(find.byKey(boundary));
+      late ByteData bytes;
+      await tester.runAsync(() async {
+        final ui.Image image = await layer.toImage();
+        bytes = (await image.toByteData())!;
+        image.dispose();
+      });
+      int green = 0;
+      final List<int> red = <int>[120, -1, 60, -1]; // left, right, top, bottom of the red pixels
+      for (int y = 0; y < 60; y++) {
+        for (int x = 0; x < 120; x++) {
+          final int at = (y * 120 + x) * 4;
+          if (bytes.getUint8(at + 3) == 0) continue;
+          if (bytes.getUint8(at + 1) > 200) green++;
+          if (bytes.getUint8(at) > 200) {
+            if (x < red[0]) red[0] = x;
+            if (x > red[1]) red[1] = x;
+            if (y < red[2]) red[2] = y;
+            if (y > red[3]) red[3] = y;
+          }
+        }
+      }
+      expect(green, 0, reason: 'a broken icon is not painted in part');
+      // The box after the icon is painted where it was laid out: the icon's
+      // translation and scale were not left on the canvas.
+      expect(red, <int>[60, 69, 10, 19]);
     });
 
     testChecked('a glyph shows the status icon of its level in the level colour', (WidgetTester tester) async {

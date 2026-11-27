@@ -198,6 +198,32 @@ void main() {
       }
     });
 
+    test('bad path data throws and leaves the canvas as it was', () {
+      final ui.PictureRecorder recorder = ui.PictureRecorder();
+      final Canvas canvas = Canvas(recorder);
+      canvas.translate(3, 4);
+      final int saves = canvas.getSaveCount();
+      final Float64List transform = canvas.getTransform();
+      for (final KkIconData bad in const <KkIconData>[
+        KkIconData('bad-fill', fill: 'M0 0 L5'),
+        KkIconData('bad-stroke', stroke: 'M0 0 L5'),
+        KkIconData('bad-dashed', dashed: 'M0 0 L5'),
+        // The parts that are drawn first are fine.
+        KkIconData('bad-last', fill: 'M0 0h4v4z', stroke: 'M0 0L4 4', dashed: 'M0 0 L5'),
+      ]) {
+        expect(
+          () => kkPaintIcon(canvas, const Rect.fromLTWH(10, 10, 32, 32), bad, _red),
+          throwsFormatException,
+          reason: bad.name,
+        );
+        // No save left open and no translation or scale left behind: whatever
+        // is painted next on this canvas lands where it should.
+        expect(canvas.getSaveCount(), saves, reason: bad.name);
+        expect(canvas.getTransform(), transform, reason: bad.name);
+      }
+      recorder.endRecording().dispose();
+    });
+
     test('the status icon of each level', () {
       expect(kkStatusIcon(KkLevel.nominal), KkIcons.statusNominal);
       expect(kkStatusIcon(KkLevel.caution), KkIcons.statusCaution);

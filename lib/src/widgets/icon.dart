@@ -12,29 +12,37 @@ final Map<String, Path> _dashCache = <String, Path>{};
 
 /// Paints [icon] into [rect] in [color]. The icon grid is 16×16; the 1.5px
 /// line scales with the rect.
+///
+/// Throws a [FormatException] when the icon's path data is not valid. Nothing
+/// of the icon is painted then and the canvas is left as it was.
 void kkPaintIcon(Canvas canvas, Rect rect, KkIconData icon, Color color) {
   if (rect.isEmpty || color.a <= 0) return;
+  // Every path is parsed before the canvas is touched. Parsing is what can
+  // throw, and a throw between save and restore would leave this icon's
+  // translation and scale on everything painted after it.
+  Path? fill;
+  Path? stroke;
+  Path? dashed;
+  if (icon.fill.isNotEmpty) {
+    fill = _fillCache[icon.fill] ??= kkParseSvgPath(icon.fill)..fillType = PathFillType.evenOdd;
+  }
+  if (icon.stroke.isNotEmpty) stroke = _strokeCache[icon.stroke] ??= kkParseSvgPath(icon.stroke);
+  if (icon.dashed.isNotEmpty) {
+    dashed = _dashCache[icon.dashed] ??= kkDashPath(kkParseSvgPath(icon.dashed), const <double>[2.6, 1.9]);
+  }
   canvas.save();
   canvas.translate(rect.left, rect.top);
   canvas.scale(rect.width / 16, rect.height / 16);
-  if (icon.fill.isNotEmpty) {
-    final Path p = _fillCache[icon.fill] ??= kkParseSvgPath(icon.fill)..fillType = PathFillType.evenOdd;
-    canvas.drawPath(p, Paint()..color = color);
-  }
-  if (icon.stroke.isNotEmpty || icon.dashed.isNotEmpty) {
+  if (fill != null) canvas.drawPath(fill, Paint()..color = color);
+  if (stroke != null || dashed != null) {
     final Paint line = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.square
       ..strokeJoin = StrokeJoin.miter
       ..color = color;
-    if (icon.stroke.isNotEmpty) {
-      canvas.drawPath(_strokeCache[icon.stroke] ??= kkParseSvgPath(icon.stroke), line);
-    }
-    if (icon.dashed.isNotEmpty) {
-      final Path p = _dashCache[icon.dashed] ??= kkDashPath(kkParseSvgPath(icon.dashed), const <double>[2.6, 1.9]);
-      canvas.drawPath(p, line..strokeCap = StrokeCap.butt);
-    }
+    if (stroke != null) canvas.drawPath(stroke, line);
+    if (dashed != null) canvas.drawPath(dashed, line..strokeCap = StrokeCap.butt);
   }
   canvas.restore();
 }
