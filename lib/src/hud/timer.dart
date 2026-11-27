@@ -30,6 +30,10 @@ enum KkTimerFormat {
 
 String _two(int v) => v < 10 ? '0$v' : '$v';
 
+/// [text], or null when it is empty: an empty string is nothing to show and
+/// gets no slot, gap or line of its own.
+String? _given(String? text) => (text == null || text.isEmpty) ? null : text;
+
 /// Splits [time] into the large digits and the small centiseconds part of a
 /// timer: `04:59` and `.82`, or `01:02:03` and null.
 ///
@@ -129,7 +133,8 @@ const Duration _kBeat = Duration(milliseconds: 100);
 /// * [KkTimer.stopwatch] counts up by itself.
 ///
 /// Caution colours the border; critical adds the alarm glow and makes the
-/// digits blink at 1.2s.
+/// digits blink at 1.2s. A label or mode that is an empty string counts as
+/// not given.
 ///
 /// The self-running forms keep time while they are not drawn, as under a
 /// page that covers theirs. A countdown that runs out there calls its `onDone`
@@ -474,9 +479,9 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     final String? centis = text.centis;
     final TextStyle big = theme.type.mono(56, weight: FontWeight.w500, spacingEm: -0.03, color: ink);
     final TextStyle small = theme.type.mono(32, weight: FontWeight.w500, spacingEm: -0.01, color: ink);
-    final String? label = widget.cjk;
-    final String? sub = widget.en;
-    final String? mode = widget.mode;
+    final String? label = _given(widget.cjk);
+    final String? sub = _given(widget.en);
+    final String? mode = _given(widget.mode);
     final bool hasLabels = label != null || sub != null;
 
     final Widget timer = Semantics(

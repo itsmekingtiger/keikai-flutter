@@ -11,6 +11,10 @@ import '../painting/decoration.dart';
 import '../painting/shapes.dart';
 import '../widgets/text.dart';
 
+/// [text], or null when it is empty: an empty string is nothing to show and
+/// gets no slot, gap or line of its own.
+String? _given(String? text) => (text == null || text.isEmpty) ? null : text;
+
 /// The alert bar: one line that says what is wrong, between two hazard blocks.
 ///
 /// The wording is `[LEVEL] — [SUBJECT] [EVENT]` with a second line of detail:
@@ -18,6 +22,9 @@ import '../widgets/text.dart';
 ///
 /// Without a [level] it is framed in signal. A critical bar is filled with
 /// the alert colour, glows, and its hazards run; nothing else makes them move.
+///
+/// A [cjk] word, [sub] line or [code] that is an empty string counts as not
+/// given.
 class KkAlertBar extends StatelessWidget {
   const KkAlertBar({
     super.key,
@@ -67,9 +74,9 @@ class KkAlertBar extends StatelessWidget {
     final Color lv = c.level(level);
     final Color ink = critical ? c.onFill : lv;
     final double block = m.space12 + m.space4;
-    final String? big = cjk;
-    final String? detail = sub;
-    final String? id = code;
+    final String? big = _given(cjk);
+    final String? detail = _given(sub);
+    final String? id = _given(code);
     final Widget? trailing = action;
 
     Widget hazard() => KkHazard(

@@ -207,6 +207,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('an empty label or mode is laid out like one that is not given', (WidgetTester tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    // Nothing to put in the head: no head row, as with no labels at all.
+    await pumpKk(tester, const KkTimer(value: Duration(seconds: 3), cjk: '', en: '', mode: ''));
+    expect(tester.getSize(find.byType(KkTimer)), const Size(264, 94));
+
+    // No indent before the label for a word that is not there.
+    await pumpKk(tester, const KkTimer(value: Duration(seconds: 3), cjk: '', en: 'hold', mode: ''));
+    expect(tester.getTopLeft(find.text('HOLD')).dx, 1 + 16);
+    expect(tester.getSemantics(find.bySemanticsLabel('hold')), isSemantics(value: '00:03.00'));
+    handle.dispose();
+  });
+
   testWidgets('caution colours the border; critical adds the glow and blinks the digits', (WidgetTester tester) async {
     const KkColors c = KkColors.standby;
     KkDecoration frame() =>

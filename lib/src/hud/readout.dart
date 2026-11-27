@@ -16,6 +16,10 @@ import '../widgets/text.dart';
 import 'hug.dart';
 import 'state_word.dart';
 
+/// [text], or null when it is empty: an empty string is nothing to show and
+/// gets no slot, gap or line of its own.
+String? _given(String? text) => (text == null || text.isEmpty) ? null : text;
+
 /// One measured value: a bilingual label, the status word with its icon, the
 /// number in 32px tabular mono with its unit, a tick scale with a marker, and
 /// a foot line for the limits.
@@ -24,6 +28,9 @@ import 'state_word.dart';
 /// changes the digits scramble for 0.46s and settle from the front. A value
 /// in its normal range is written in nominal green: pass
 /// `level: KkLevel.nominal`. A value with no level is plain ink.
+///
+/// A label, unit, status word or foot note that is an empty string counts as
+/// not given, and a head with nothing in it is left out.
 class KkReadout extends StatelessWidget {
   const KkReadout({
     super.key,
@@ -101,13 +108,16 @@ class KkReadout extends StatelessWidget {
           KkLevel.offline || null => c.ink,
         };
     final TextStyle valueStyle = theme.type.mono(32, weight: FontWeight.w500, spacingEm: -0.01, color: ink);
-    final String? label = cjk;
-    final String? sub = en;
-    final String? u = unit;
+    final String? label = _given(cjk);
+    final String? sub = _given(en);
+    final String? u = _given(unit);
     final double? pos = position;
-    final String? word = state ?? level?.word;
+    final String? word = _given(state) ?? level?.word;
+    final String? footLeft = _given(footStart);
+    final String? footRight = _given(footEnd);
     final bool hasLabels = label != null || sub != null;
-    final bool hasFoot = footStart != null || footEnd != null;
+    final bool hasState = showState && word != null;
+    final bool hasFoot = footLeft != null || footRight != null;
 
     final Widget readout = Semantics(
       container: true,
@@ -129,37 +139,38 @@ class KkReadout extends StatelessWidget {
               // as the CSS head pushes its last item away with an auto margin.
               // A spacer between them would be a child of its own, with a gap
               // on both sides.
-              KkRow(
-                gap: m.space2,
-                main: hasLabels ? KkMainAlign.between : KkMainAlign.end,
-                cross: KkCrossAlign.baseline,
-                clip: Clip.hardEdge,
-                children: <Widget>[
-                  if (hasLabels)
-                    KkRow(
-                      shrinkWrap: true,
-                      gap: m.space2,
-                      cross: KkCrossAlign.baseline,
-                      children: <Widget>[
-                        if (label != null) KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: squeeze),
-                        if (sub != null)
-                          KkText.en(
-                            sub,
-                            size: 11,
-                            weight: FontWeight.w600,
-                            height: 1.55,
-                            spacing: 0.14,
-                            color: c.inkDim,
-                          ),
-                      ],
-                    ),
-                  if (showState && word != null)
-                    KkAlignSelf(
-                      align: KkCrossAlign.center,
-                      child: KkStateWord(level: level, text: word),
-                    ),
-                ],
-              ),
+              if (hasLabels || hasState)
+                KkRow(
+                  gap: m.space2,
+                  main: hasLabels ? KkMainAlign.between : KkMainAlign.end,
+                  cross: KkCrossAlign.baseline,
+                  clip: Clip.hardEdge,
+                  children: <Widget>[
+                    if (hasLabels)
+                      KkRow(
+                        shrinkWrap: true,
+                        gap: m.space2,
+                        cross: KkCrossAlign.baseline,
+                        children: <Widget>[
+                          if (label != null) KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: squeeze),
+                          if (sub != null)
+                            KkText.en(
+                              sub,
+                              size: 11,
+                              weight: FontWeight.w600,
+                              height: 1.55,
+                              spacing: 0.14,
+                              color: c.inkDim,
+                            ),
+                        ],
+                      ),
+                    if (hasState)
+                      KkAlignSelf(
+                        align: KkCrossAlign.center,
+                        child: KkStateWord(level: level, text: word),
+                      ),
+                  ],
+                ),
               KkRow(
                 gap: m.space1,
                 cross: KkCrossAlign.baseline,
@@ -191,8 +202,8 @@ class KkReadout extends StatelessWidget {
                   main: KkMainAlign.between,
                   clip: Clip.hardEdge,
                   children: <Widget>[
-                    KkText.num(footStart ?? '', size: 11, color: c.inkFaint),
-                    KkText.num(footEnd ?? '', size: 11, color: c.inkFaint),
+                    KkText.num(footLeft ?? '', size: 11, color: c.inkFaint),
+                    KkText.num(footRight ?? '', size: 11, color: c.inkFaint),
                   ],
                 ),
             ],

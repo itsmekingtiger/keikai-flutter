@@ -183,6 +183,56 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('an empty label, unit, status word or foot note is laid out like one that is not given', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await pumpKk(tester, const KkReadout(en: 'pressure', value: '094.1', level: KkLevel.caution, scramble: false));
+    final Size size = tester.getSize(find.byType(KkReadout));
+    final Rect label = tester.getRect(find.text('PRESSURE'));
+    final Rect value = tester.getRect(find.text('094.1'));
+    final Rect state = tester.getRect(find.byType(KkStateWord));
+
+    await pumpKk(
+      tester,
+      const KkReadout(
+        cjk: '',
+        en: 'pressure',
+        value: '094.1',
+        unit: '',
+        level: KkLevel.caution,
+        state: '',
+        footStart: '',
+        footEnd: '',
+        scramble: false,
+      ),
+    );
+    // No indent before the label, no foot row, and the status word is the level's.
+    expect(tester.getSize(find.byType(KkReadout)), size);
+    expect(tester.getRect(find.text('PRESSURE')), label);
+    expect(tester.getRect(find.text('094.1')), value);
+    expect(find.text('CAUTION'), findsOneWidget);
+    expect(tester.getRect(find.byType(KkStateWord)), state);
+    expect(tester.getSemantics(find.bySemanticsLabel('pressure')), isSemantics(value: '094.1 CAUTION'));
+    handle.dispose();
+  });
+
+  testWidgets('a head with nothing in it is left out', (WidgetTester tester) async {
+    // 2 border + 12 + 32 value + 12: the value starts right under the padding.
+    await pumpKk(tester, const KkReadout(value: '094.1', scramble: false));
+    expect(tester.getTopLeft(find.text('094.1')).dy, 14);
+    expect(tester.getSize(find.byType(KkReadout)), const Size(208, 58));
+    await pumpKk(
+      tester,
+      const KkReadout(cjk: '', en: '', value: '094.1', level: KkLevel.caution, showState: false, scramble: false),
+    );
+    expect(tester.getTopLeft(find.text('094.1')).dy, 14);
+    expect(tester.getSize(find.byType(KkReadout)), const Size(208, 58));
+    // A status word alone is enough to keep it.
+    await pumpKk(tester, const KkReadout(value: '094.1', level: KkLevel.caution, scramble: false));
+    expect(tester.getTopLeft(find.text('094.1')).dy, greaterThan(14 + 8));
+  });
+
   testWidgets('writes the value in the colour of its level', (WidgetTester tester) async {
     const KkColors c = KkColors.standby;
     final Map<KkLevel?, Color> expected = <KkLevel?, Color>{

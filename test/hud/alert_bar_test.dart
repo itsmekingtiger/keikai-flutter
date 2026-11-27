@@ -154,6 +154,26 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('an empty cjk, sub or code is laid out like one that is not given', (WidgetTester tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await pumpKk(tester, const KkBox(width: 600, child: KkAlertBar(title: 'advisory')));
+    final Rect title = tester.getRect(find.text('ADVISORY'));
+    expect(tester.getSize(find.byType(KkAlertBar)), const Size(600, 64));
+
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 600,
+        child: KkAlertBar(cjk: '', title: 'advisory', sub: '', code: ''),
+      ),
+    );
+    // No indent for a word, no second line, no room for a code.
+    expect(tester.getSize(find.byType(KkAlertBar)), const Size(600, 64));
+    expect(tester.getRect(find.text('ADVISORY')), title);
+    expect(tester.getSemantics(find.byType(KkAlertBar)), isSemantics(label: 'advisory'));
+    handle.dispose();
+  });
+
   testWidgets('follows the alert theme', (WidgetTester tester) async {
     await pumpKk(
       tester,

@@ -13,12 +13,18 @@ import '../widgets/text.dart';
 import 'hug.dart';
 import 'state_word.dart';
 
+/// [text], or null when it is empty: an empty string is nothing to show and
+/// gets no slot, gap or line of its own.
+String? _given(String? text) => (text == null || text.isEmpty) ? null : text;
+
 /// A segmented level meter with caution and critical thresholds.
 ///
 /// [value] is the fill, 0 to 1. The lit part is always a whole number of 8px
 /// segments and moves to a new value in nine steps over 0.45s. Two marks show
 /// where caution ([warn]) and critical ([crit]) begin; unless you give a
 /// [level], the meter takes its level from them.
+///
+/// A label or unit that is an empty string counts as not given.
 class KkMeter extends StatelessWidget {
   const KkMeter({
     super.key,
@@ -109,9 +115,9 @@ class KkMeter extends StatelessWidget {
     final Color lit = color ?? c.level(lv);
     final Color ink = lv != null ? c.level(lv) : c.ink;
     final String number = valueText ?? kkFixedDigits((v * 100).round(), decimals: 0);
-    final String? label = cjk;
-    final String? sub = en;
-    final String? u = unit;
+    final String? label = _given(cjk);
+    final String? sub = _given(en);
+    final String? u = _given(unit);
     final bool hasLabels = label != null || sub != null;
 
     Widget bar(double shown) => CustomPaint(

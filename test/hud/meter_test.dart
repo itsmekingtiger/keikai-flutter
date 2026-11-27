@@ -175,6 +175,27 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('an empty label or unit is laid out like one that is not given', (WidgetTester tester) async {
+    await pumpKk(tester, const KkBox(width: 300, child: KkMeter(value: 0.5)));
+    final Rect number = tester.getRect(find.text('050'));
+    final Size size = tester.getSize(find.byType(KkMeter));
+
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 300,
+        child: KkMeter(cjk: '', en: '', value: 0.5, unit: ''),
+      ),
+    );
+    // No line of labels to make the head taller, no gap for a unit after the number.
+    expect(tester.getRect(find.text('050')), number);
+    expect(tester.getSize(find.byType(KkMeter)), size);
+    // Nor a blank in what is said of it.
+    final Semantics said = tester.widget(find.descendant(of: find.byType(KkMeter), matching: find.byType(Semantics)));
+    expect(said.properties.label, '');
+    expect(said.properties.value, '050');
+  });
+
   testWidgets('steps to a new value in nine jumps over 0.45s', (WidgetTester tester) async {
     double value = 0;
     late StateSetter rebuild;
