@@ -330,7 +330,8 @@ class KkBracketSpec {
 
   final Color color;
 
-  /// Length of each arm.
+  /// Length of each arm. Only the box along its own direction cuts an arm
+  /// short: where the box is narrower than two arms they meet in the middle.
   final double length;
 
   /// Thickness of each arm.
@@ -342,17 +343,20 @@ class KkBracketSpec {
   void paint(Canvas canvas, Rect rect) {
     if (color.a <= 0 || rect.isEmpty) return;
     final Rect r = rect.inflate(outset);
-    final double l = math.min(length, math.min(r.width, r.height) / 2);
+    // Each arm is clamped on its own axis, like the CSS background tiles the
+    // brackets are drawn with: a low, wide box keeps its horizontal arms.
+    final double lx = math.min(length, r.width / 2);
+    final double ly = math.min(length, r.height / 2);
     final double w = width;
     final Path p = Path()
-      ..addRect(Rect.fromLTWH(r.left, r.top, l, w))
-      ..addRect(Rect.fromLTWH(r.left, r.top, w, l))
-      ..addRect(Rect.fromLTWH(r.right - l, r.top, l, w))
-      ..addRect(Rect.fromLTWH(r.right - w, r.top, w, l))
-      ..addRect(Rect.fromLTWH(r.left, r.bottom - w, l, w))
-      ..addRect(Rect.fromLTWH(r.left, r.bottom - l, w, l))
-      ..addRect(Rect.fromLTWH(r.right - l, r.bottom - w, l, w))
-      ..addRect(Rect.fromLTWH(r.right - w, r.bottom - l, w, l));
+      ..addRect(Rect.fromLTWH(r.left, r.top, lx, w))
+      ..addRect(Rect.fromLTWH(r.left, r.top, w, ly))
+      ..addRect(Rect.fromLTWH(r.right - lx, r.top, lx, w))
+      ..addRect(Rect.fromLTWH(r.right - w, r.top, w, ly))
+      ..addRect(Rect.fromLTWH(r.left, r.bottom - w, lx, w))
+      ..addRect(Rect.fromLTWH(r.left, r.bottom - ly, w, ly))
+      ..addRect(Rect.fromLTWH(r.right - lx, r.bottom - w, lx, w))
+      ..addRect(Rect.fromLTWH(r.right - w, r.bottom - ly, w, ly));
     canvas.drawPath(p, Paint()..color = color);
   }
 

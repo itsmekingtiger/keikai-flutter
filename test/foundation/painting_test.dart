@@ -664,6 +664,56 @@ void main() {
       }
     });
 
+    testChecked('a bracket arm is cut short by the box only along its own direction', (WidgetTester tester) async {
+      // Around a one-line readout of 100×14 the brackets frame 102×16. In CSS
+      // every horizontal arm is a 12×2 tile and every vertical one 2×12, each
+      // clipped by the box: here the vertical arms of two corners meet, and the
+      // horizontal ones keep their 12px.
+      final _Pixels wide = await _render(
+        tester,
+        108,
+        22,
+        (Canvas canvas) => const KkBracketSpec(color: _red).paint(canvas, const Rect.fromLTWH(4, 4, 100, 14)),
+      );
+      final String arms = '...${'#' * 12}${'.' * 78}${'#' * 12}...';
+      final String posts = '...##${'.' * 98}##...';
+      final List<String> picture = <String>[
+        for (int y = 0; y < 22; y++)
+          if (y < 3 || y > 18) '.' * 108 else if (y < 5 || y > 16) arms else posts,
+      ];
+      expect(wide.rows, picture);
+      // The same box on its side.
+      final _Pixels tall = await _render(
+        tester,
+        22,
+        108,
+        (Canvas canvas) => const KkBracketSpec(color: _red).paint(canvas, const Rect.fromLTWH(4, 4, 14, 100)),
+      );
+      expect(<String>[for (int x = 0; x < 22; x++) tall.column(x)], picture);
+      // Room for both: 12 by 12 in every corner.
+      final _Pixels roomy = await _render(
+        tester,
+        108,
+        68,
+        (Canvas canvas) => const KkBracketSpec(color: _red).paint(canvas, const Rect.fromLTWH(4, 4, 100, 60)),
+      );
+      expect(roomy.row(3), arms);
+      expect(roomy.row(64), arms);
+      expect(roomy.column(3), '...${'#' * 12}${'.' * 38}${'#' * 12}...');
+      expect(roomy.column(104), roomy.column(3));
+      // Too small for either: all four arms meet and close the frame.
+      final _Pixels tiny = await _render(
+        tester,
+        14,
+        14,
+        (Canvas canvas) => const KkBracketSpec(color: _red).paint(canvas, const Rect.fromLTWH(4, 4, 6, 6)),
+      );
+      expect(tiny.rows, <String>[
+        for (int y = 0; y < 14; y++)
+          if (y < 3 || y > 10) '.' * 14 else if (y < 5 || y > 8) '...########...' else '...##....##...',
+      ]);
+    });
+
     test('KkGlow', () {
       const KkGlow g = KkGlow(color: _red);
       expect(g.ring, 1);
