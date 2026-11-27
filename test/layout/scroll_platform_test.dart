@@ -44,7 +44,7 @@ ScrollPosition _positionOf(WidgetTester tester, String id) =>
 RenderObject _barOf(WidgetTester tester, String id) => tester.renderObject(
   find
       .descendant(
-        of: find.ancestor(of: byId(id), matching: find.byType(RawScrollbar)).first,
+        of: find.ancestor(of: byId(id), matching: find.bySubtype<RawScrollbar>()).first,
         matching: find.byType(CustomPaint),
       )
       .first,
@@ -72,6 +72,28 @@ Future<void> _mouseDrag(WidgetTester tester, Offset from, double dy) async {
   await tester.pump();
   await gesture.up();
   await tester.pump();
+}
+
+/// Puts a finger down at [from] and moves it up by [distance] in small steps, as slowly as it takes for the thumb of a
+/// scrollbar under the finger to take the drag, if it wants it.
+Future<void> _slowSwipeUp(WidgetTester tester, Offset from, double distance) async {
+  final TestGesture finger = await tester.startGesture(from);
+  for (double moved = 0; moved < distance; moved += 2) {
+    await finger.moveBy(const Offset(0, -2));
+    await tester.pump(const Duration(milliseconds: 8));
+  }
+  await finger.up();
+  await tester.pump();
+}
+
+/// Puts a finger down at [at], leaves it there for 0.4s and lifts it.
+Future<void> _rest(WidgetTester tester, Offset at) async {
+  final TestGesture finger = await tester.startGesture(at);
+  await tester.pump(const Duration(milliseconds: 400));
+  await finger.up();
+  await tester.pump();
+  // A view that the touch paged would be on its way now.
+  await tester.pump(const Duration(milliseconds: 200));
 }
 
 /// A screen of 800 by 600: the nav is 72 wide and scrolls by 600, the body takes the other 728 and scrolls by 1800.
@@ -159,6 +181,154 @@ void main() {
         expect(nav.pixels, 120);
         expect(body.pixels, 300);
         expect(_barOf(tester, 'nav'), _thumb(const Rect.fromLTWH(66, 60, 6, 300)));
+      });
+    }
+  });
+
+  // The bar is 6px wide. A finger could only take it by a zone around it, and that zone would be the right third of a
+  // nav rail: for a finger the bar is an indicator, on a phone as on a desktop with a touch screen.
+  group('the scrollbar of a KkScreen leaves a finger to the content', () {
+    for (final TargetPlatform platform in TargetPlatform.values) {
+      _testOn(platform, 'that rests near the edge while the thumb shows', (WidgetTester tester) async {
+        await pumpKk(tester, _screen(), alignment: null);
+        final ScrollPosition body = _positionOf(tester, 'body');
+        double at = 0;
+        // Beside the bar, on the bar under the thumb, and on the thumb (which is at 75 to 225 after the first drag).
+        for (final Offset finger in const <Offset>[
+          Offset(775, 500),
+          Offset(788, 500),
+          Offset(797, 500),
+          Offset(797, 150),
+        ]) {
+          await tester.dragFrom(const Offset(400, 300), const Offset(0, -300));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 200));
+          at += 300;
+          expect(body.pixels, at);
+          expect(_barOf(tester, 'body'), _thumb(Rect.fromLTWH(722, at / 4, 6, 150)));
+          await _rest(tester, finger);
+          expect(tester.takeException(), isNull);
+          expect(body.pixels, at, reason: 'a finger at $finger');
+        }
+      });
+
+      _testOn(platform, 'that swipes from the thumb: the content follows it', (WidgetTester tester) async {
+        await pumpKk(tester, _screen(), alignment: null);
+        final ScrollPosition body = _positionOf(tester, 'body');
+        await tester.dragFrom(const Offset(400, 300), const Offset(0, -300));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(body.pixels, 300);
+        // Beside the thumb, then on it.
+        await _slowSwipeUp(tester, const Offset(780, 200), 100);
+        expect(body.pixels, 400);
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(_barOf(tester, 'body'), _thumb(const Rect.fromLTWH(722, 100, 6, 150)));
+        await _slowSwipeUp(tester, const Offset(797, 200), 100);
+        expect(tester.takeException(), isNull);
+        expect(body.pixels, 500);
+      });
+
+      _testOn(platform, 'anywhere on a nav rail', (WidgetTester tester) async {
+        await pumpKk(tester, _screen(), alignment: null);
+        final ScrollPosition nav = _positionOf(tester, 'nav');
+        double at = 0;
+        for (final double x in <double>[30, 44, 50, 60, 69]) {
+          await tester.dragFrom(const Offset(20, 300), const Offset(0, -40));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 200));
+          at += 40;
+          expect(nav.pixels, at);
+          // Half of the nav shows: a 300px thumb, half as far down as the nav is scrolled.
+          expect(_barOf(tester, 'nav'), _thumb(Rect.fromLTWH(66, at / 2, 6, 300)));
+          await _slowSwipeUp(tester, Offset(x, 200), 60);
+          at += 60;
+          expect(nav.pixels, at, reason: 'a swipe at $x');
+          await tester.pump(const Duration(milliseconds: 200));
+          await _rest(tester, Offset(x, 500));
+          expect(nav.pixels, at, reason: 'a finger at $x');
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final TargetPlatform platform in <TargetPlatform>[TargetPlatform.android, TargetPlatform.windows]) {
+      _testOn(platform, 'while a mouse lies over the view', (WidgetTester tester) async {
+        await pumpKk(tester, _screen(), alignment: null);
+        final ScrollPosition body = _positionOf(tester, 'body');
+        final TestPointer mouse = TestPointer(90, PointerDeviceKind.mouse);
+        await tester.sendEventToBinding(mouse.hover(const Offset(400, 300)));
+        await tester.dragFrom(const Offset(400, 300), const Offset(0, -300));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(body.pixels, 300);
+        await _rest(tester, const Offset(780, 500));
+        expect(body.pixels, 300);
+        await _slowSwipeUp(tester, const Offset(780, 200), 100);
+        expect(body.pixels, 400);
+
+        // The mouse moves, so the bar is its to take again. A finger that then lands on the bar itself does not page.
+        await tester.pump(const Duration(milliseconds: 200));
+        await tester.sendEventToBinding(mouse.hover(const Offset(410, 300)));
+        await _rest(tester, const Offset(797, 500));
+        expect(tester.takeException(), isNull);
+        expect(body.pixels, 400);
+      });
+    }
+  });
+
+  group('the scrollbar takes a mouse', () {
+    for (final TargetPlatform platform in <TargetPlatform>[TargetPlatform.android, TargetPlatform.linux]) {
+      _testOn(platform, 'that comes after a finger: it drags the thumb', (WidgetTester tester) async {
+        await pumpKk(tester, _screen(), alignment: null);
+        final ScrollPosition body = _positionOf(tester, 'body');
+        await tester.dragFrom(const Offset(400, 300), const Offset(0, -300));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(body.pixels, 300);
+        expect(_barOf(tester, 'body'), _thumb(const Rect.fromLTWH(722, 75, 6, 150)));
+        // 45px of the thumb's 450 are 180 of the body's 1800.
+        await _mouseDrag(tester, const Offset(797, 150), 45);
+        expect(tester.takeException(), isNull);
+        expect(body.pixels, 480);
+        // And a finger after the mouse moves the content again, also from beside the thumb.
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(_barOf(tester, 'body'), _thumb(const Rect.fromLTWH(722, 120, 6, 150)));
+        await _slowSwipeUp(tester, const Offset(780, 200), 100);
+        expect(body.pixels, 580);
+      });
+
+      _testOn(platform, 'that comes near it: the thumb shows, and a click on the track pages the view', (
+        WidgetTester tester,
+      ) async {
+        await pumpKk(tester, _screen(), alignment: null);
+        final ScrollPosition body = _positionOf(tester, 'body');
+        expect(_barOf(tester, 'body'), _noThumb);
+        final TestPointer mouse = TestPointer(90, PointerDeviceKind.mouse);
+        await tester.sendEventToBinding(mouse.hover(const Offset(400, 300)));
+        await tester.pump();
+        expect(_barOf(tester, 'body'), _noThumb);
+        await tester.sendEventToBinding(mouse.hover(const Offset(790, 300)));
+        await tester.pump();
+        expect(_barOf(tester, 'body'), _thumb(const Rect.fromLTWH(722, 0, 6, 150)));
+        // The thumb stays for as long as the mouse lies on the bar.
+        await tester.pump(const Duration(seconds: 2));
+        expect(_barOf(tester, 'body'), _thumb(const Rect.fromLTWH(722, 0, 6, 150)));
+
+        // Below the thumb: a page down is 0.8 of the 600px in view.
+        await tester.sendEventToBinding(mouse.down(const Offset(797, 400)));
+        await tester.sendEventToBinding(mouse.up());
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(tester.takeException(), isNull);
+        expect(body.pixels, 480);
+        expect(_barOf(tester, 'body'), _thumb(const Rect.fromLTWH(722, 120, 6, 150)));
+
+        // The thumb goes 0.9s after the mouse has left the bar.
+        await tester.sendEventToBinding(mouse.hover(const Offset(400, 300)));
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump();
+        expect(_barOf(tester, 'body'), _noThumb);
       });
     }
   });

@@ -150,7 +150,7 @@ void main() {
       expect(find.byType(GlowingOverscrollIndicator), findsNothing);
       expect(find.byType(StretchingOverscrollIndicator), findsNothing);
       expect(find.byType(KkScrollbar), findsOneWidget);
-      final RawScrollbar bar = tester.widget<RawScrollbar>(find.byType(RawScrollbar));
+      final RawScrollbar bar = tester.widget<RawScrollbar>(find.bySubtype<RawScrollbar>());
       expect(bar.thumbColor, KkColors.standby.line);
       expect(bar.radius, Radius.zero);
       expect(bar.thickness, 6);
@@ -162,7 +162,7 @@ void main() {
         SizedBox(width: 200, height: 100, child: KkScroll(child: box('a', null, 500))),
         condition: KkCondition.alert,
       );
-      expect(tester.widget<RawScrollbar>(find.byType(RawScrollbar)).thumbColor, KkColors.alertTheme.line);
+      expect(tester.widget<RawScrollbar>(find.bySubtype<RawScrollbar>()).thumbColor, KkColors.alertTheme.line);
     });
 
     testChecked('showScrollbars false leaves the scroll view bare', (WidgetTester tester) async {
@@ -217,8 +217,9 @@ void main() {
           child: KkScroll(controller: controller, child: box('a', null, 500)),
         ),
       );
-      RenderObject bar() =>
-          tester.renderObject(find.descendant(of: find.byType(RawScrollbar), matching: find.byType(CustomPaint)).first);
+      RenderObject bar() => tester.renderObject(
+        find.descendant(of: find.bySubtype<RawScrollbar>(), matching: find.byType(CustomPaint)).first,
+      );
       // At rest: no thumb.
       expect(bar(), isNot(paints..rrect()));
       controller.jumpTo(100);
@@ -262,7 +263,7 @@ void main() {
         ),
       );
       await tester.pump();
-      final RawScrollbar bar = tester.widget<RawScrollbar>(find.byType(RawScrollbar));
+      final RawScrollbar bar = tester.widget<RawScrollbar>(find.bySubtype<RawScrollbar>());
       expect(bar.thumbVisibility, isTrue);
       expect(bar.thickness, 10);
       expect(tester.takeException(), isNull);

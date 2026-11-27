@@ -100,6 +100,11 @@ class _KkScrollPhysics extends ClampingScrollPhysics {
 /// A thin, square scrollbar thumb in the line colour on a clear track
 /// (`scrollbar-width: thin; scrollbar-color: line transparent`). It shows
 /// while the view scrolls and goes 0.9s after it stops, without a fade.
+///
+/// The bar is there for a mouse to take: a mouse that comes near it brings
+/// the thumb out, drags it, and pages the view with a click on the track. To
+/// a finger or a pen it is an indicator, on every platform: a touch on or
+/// beside the bar goes to the content under it.
 class KkScrollbar extends StatelessWidget {
   const KkScrollbar({super.key, this.controller, this.thickness = 6, this.alwaysVisible = false, required this.child});
 
@@ -114,15 +119,110 @@ class KkScrollbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final KkColors c = KeikaiTheme.of(context).colors;
-    return RawScrollbar(
+    return _KkRawScrollbar(
       controller: controller,
       thumbColor: c.line,
       thickness: thickness,
-      radius: Radius.zero,
       thumbVisibility: alwaysVisible,
-      minThumbLength: 24,
-      fadeDuration: Duration.zero,
-      timeToFade: const Duration(milliseconds: 900),
+      child: child,
+    );
+  }
+}
+
+/// The framework's scrollbar in the shape of a [KkScrollbar], which only a
+/// mouse can take.
+class _KkRawScrollbar extends RawScrollbar {
+  _KkRawScrollbar({
+    super.controller,
+    required Color super.thumbColor,
+    required double super.thickness,
+    required bool super.thumbVisibility,
+    required Widget child,
+  }) : super(
+         radius: Radius.zero,
+         minThumbLength: 24,
+         fadeDuration: Duration.zero,
+         timeToFade: const Duration(milliseconds: 900),
+         child: _KkPointerKinds(child: child),
+       );
+
+  @override
+  RawScrollbarState<_KkRawScrollbar> createState() => _KkRawScrollbarState();
+}
+
+/// Keeps the bar from every pointer but a mouse.
+///
+/// The framework's bar takes any pointer. A finger gets a zone of 24px around
+/// the centre line of the 6px bar, along the whole track: a finger that rests
+/// there pages the view, and one that starts a swipe near the thumb drags the
+/// thumb, so the content runs the other way. The gestures of the bar ask its
+/// painter whether a pointer is on the bar, and the painter can be told to
+/// ignore pointers. It is, unless the last pointer heard of over the view was
+/// a mouse: one that moved over the view, or went down on it.
+///
+/// One case stays as the framework has it. While the painter takes pointers
+/// and the thumb shows, the bar hides its own 6px from the content under it,
+/// [_KkPointerKinds] included. A finger that lands exactly there, after a
+/// mouse has moved over the view, can therefore drag the thumb. It cannot
+/// page the view.
+class _KkRawScrollbarState extends RawScrollbarState<_KkRawScrollbar> {
+  /// Whether the last pointer heard of over the view is a mouse.
+  bool _mouse = false;
+
+  /// Takes note of a pointer of [kind] that moves over the view or goes down
+  /// on it.
+  void _hear(PointerDeviceKind kind) => _mouseIsHere(kind == PointerDeviceKind.mouse);
+
+  void _mouseIsHere(bool value) {
+    _mouse = value;
+    scrollbarPainter.ignorePointer = !value;
+  }
+
+  @override
+  void updateScrollbarPainter() {
+    // The framework lets the painter take pointers again each time the bar is built.
+    super.updateScrollbarPainter();
+    scrollbarPainter.ignorePointer = !_mouse;
+  }
+
+  /// The framework calls this for a mouse or a trackpad, not for a pen that
+  /// hovers.
+  @override
+  void handleHover(PointerHoverEvent event) {
+    _mouseIsHere(true);
+    super.handleHover(event);
+  }
+
+  @override
+  void handleHoverExit(PointerExitEvent event) {
+    _mouseIsHere(false);
+    super.handleHoverExit(event);
+  }
+
+  @override
+  void handleTrackTapDown(TapDownDetails details) {
+    // The finger that lands on the bar itself while a mouse lies over the view.
+    if (details.kind != PointerDeviceKind.mouse) return;
+    super.handleTrackTapDown(details);
+  }
+}
+
+/// Tells the [KkScrollbar] around a scroll view what kind of pointer went
+/// down on the view.
+///
+/// It sits below the gestures of the bar, and a pointer event reaches the
+/// deepest widget first: the bar knows the kind before its gestures are asked
+/// whether they take the pointer.
+class _KkPointerKinds extends StatelessWidget {
+  const _KkPointerKinds({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (PointerDownEvent event) =>
+          context.findAncestorStateOfType<_KkRawScrollbarState>()?._hear(event.kind),
       child: child,
     );
   }
@@ -132,7 +232,8 @@ class KkScrollbar extends StatelessWidget {
 /// the view's own [position].
 ///
 /// It holds that one position on a controller of its own, so the thumb shows
-/// and can be dragged whatever else is attached to the controller of the view.
+/// and a mouse can drag it whatever else is attached to the controller of the
+/// view.
 class _KkOwnScrollbar extends StatefulWidget {
   const _KkOwnScrollbar({required this.position, required this.child});
 
