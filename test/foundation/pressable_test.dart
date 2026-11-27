@@ -453,6 +453,131 @@ void main() {
       await tester.pump();
       expect(outer!.focused, isFalse);
     });
+
+    testChecked('a focused control that is given another focus node loses its ring with the node', (
+      WidgetTester tester,
+    ) async {
+      KkStates? states;
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      Widget control(FocusNode node) => KkPressable(
+        focusNode: node,
+        onPressed: () {},
+        builder: (BuildContext context, KkStates s) {
+          states = s;
+          return KkFocusRing(visible: s.focused, child: const SizedBox(width: 100, height: 40));
+        },
+      );
+      await pumpKk(tester, control(a));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isTrue);
+      expect(rings(tester), 1);
+
+      // The node that goes takes the focus with it, and no node tells the
+      // control: nothing has the focus, so nothing shows a ring.
+      await pumpKk(tester, control(b));
+      expect(a.hasPrimaryFocus, isFalse);
+      expect(b.hasFocus, isFalse);
+      expect(states!.focused, isFalse);
+      expect(rings(tester), 0);
+    });
+
+    testChecked('a control that is given a node that has the focus shows it as the last input says', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode moved = FocusNode(debugLabel: 'moved');
+      final List<FocusNode> spare = <FocusNode>[for (int i = 0; i < 3; i++) FocusNode(debugLabel: 'spare$i')];
+      addTearDown(moved.dispose);
+      for (final FocusNode node in spare) {
+        addTearDown(node.dispose);
+      }
+      final List<bool?> shown = <bool?>[null, null, null];
+      // Three controls, one of them on the node that is handed along.
+      Widget row(int at) => KkRow(
+        shrinkWrap: true,
+        children: <Widget>[
+          for (int i = 0; i < 3; i++)
+            KkPressable(
+              focusNode: i == at ? moved : spare[i],
+              onPressed: () {},
+              builder: (BuildContext context, KkStates states) {
+                shown[i] = states.focused;
+                return const SizedBox(width: 100, height: 40);
+              },
+            ),
+        ],
+      );
+      await pumpKk(tester, row(2));
+      moved.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(shown, <bool>[false, false, true]);
+
+      // The app hands the focused node to the control before. The node keeps
+      // the focus and has nothing to tell.
+      await pumpKk(tester, row(1));
+      expect(moved.hasPrimaryFocus, isTrue);
+      expect(shown, <bool>[false, true, false]);
+
+      // Once more after a press of the mouse: the focus comes with the node,
+      // the ring does not.
+      await _click(tester, const Offset(400, 400));
+      await tester.pump();
+      expect(shown, <bool>[false, false, false]);
+      await pumpKk(tester, row(0));
+      expect(moved.hasPrimaryFocus, isTrue);
+      expect(shown, <bool>[false, false, false]);
+      await tester.sendKeyEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(shown, <bool>[true, false, false]);
+    });
+
+    testChecked('a control built on a node that has the focus shows it from its first frame, as the last input says', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      final List<bool> seen = <bool>[];
+      Widget control(String name) => KkPressable(
+        key: ValueKey<String>(name),
+        focusNode: node,
+        onPressed: () {},
+        builder: (BuildContext context, KkStates states) {
+          seen.add(states.focused);
+          return KkFocusRing(visible: states.focused, child: const SizedBox(width: 100, height: 40));
+        },
+      );
+      await pumpKk(tester, control('first'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(seen.last, isTrue);
+
+      // The app keeps the node and puts another control on it. The node keeps
+      // the focus and has nothing to tell the new control.
+      seen.clear();
+      await pumpKk(tester, control('second'));
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(seen, isNotEmpty);
+      expect(seen, everyElement(isTrue));
+      expect(rings(tester), 1);
+
+      // After a press of the mouse the next control has the focus and no ring.
+      await _click(tester, const Offset(400, 400));
+      await tester.pump();
+      expect(seen.last, isFalse);
+      seen.clear();
+      await pumpKk(tester, control('third'));
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(seen, isNotEmpty);
+      expect(seen, everyElement(isFalse));
+      expect(rings(tester), 0);
+    });
   });
 
   group('KkPressable focus ring and the pointer', () {
@@ -668,6 +793,74 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(ring(), isTrue);
+    });
+
+    _testOnDesktop('a key that repeats or is let go is not pressed again', (WidgetTester tester) async {
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isTrue);
+
+      // A click with Shift held down, the way a selection is extended.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(states!.focused, isTrue);
+      await _click(tester, const Offset(400, 400));
+      await tester.pump();
+      expect(states!.focused, isFalse);
+      // On some platforms a key that is held down repeats, a modifier too.
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(states!.focused, isFalse, reason: 'the key was pressed before the mouse');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isFalse, reason: 'the last thing that was pressed is the mouse');
+    });
+
+    _testOnDesktop('a key event that only mends the record of the keyboard is not a key press', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(states!.focused, isTrue);
+      await _click(tester, const Offset(400, 400));
+      await tester.pump();
+      expect(states!.focused, isFalse);
+
+      // A modifier that went down while the window was not looking: the
+      // platform notices at the click and makes the missing event up.
+      HardwareKeyboard.instance.handleKeyEvent(
+        const KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.shiftLeft,
+          logicalKey: LogicalKeyboardKey.shiftLeft,
+          timeStamp: Duration.zero,
+          synthesized: true,
+        ),
+      );
+      await tester.pump();
+      expect(states!.focused, isFalse, reason: 'nobody pressed a key');
+      HardwareKeyboard.instance.handleKeyEvent(
+        const KeyUpEvent(
+          physicalKey: PhysicalKeyboardKey.shiftLeft,
+          logicalKey: LogicalKeyboardKey.shiftLeft,
+          timeStamp: Duration.zero,
+          synthesized: true,
+        ),
+      );
+      await tester.pump();
+      expect(states!.focused, isFalse);
+
+      // A key that is pressed does show the focus again.
+      await tester.sendKeyEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(states!.focused, isTrue);
     });
   });
 
@@ -1038,6 +1231,42 @@ void main() {
       await finger.up();
       await tester.pump();
       expect(states!.pressed, isFalse);
+    });
+
+    _testOnDesktop('a hovered control that is disabled and scrolled away in the same frame is left alone', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      bool enabled = true;
+      late StateSetter setItem;
+      await pumpKk(
+        tester,
+        _lazyList(
+          scroll,
+          StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              setItem = setState;
+              return Align(
+                alignment: Alignment.topLeft,
+                child: control(enabled: enabled),
+              );
+            },
+          ),
+        ),
+      );
+      await hover(tester);
+      expect(states!.hovered, isTrue);
+      expect(log, <bool>[true]);
+
+      // The detector reports the end of the hover after the frame in which
+      // its control was disabled, and by then the list has dropped the control.
+      setItem(() => enabled = false);
+      scroll.jumpTo(2000);
+      await tester.pump();
+      expect(find.byType(KkPressable), findsNothing);
+      expect(tester.takeException(), isNull);
+      expect(log, <bool>[true], reason: 'a control that is gone does not report');
     });
   });
 

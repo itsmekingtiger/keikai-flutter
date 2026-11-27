@@ -294,6 +294,8 @@ class _KkPressableState extends State<KkPressable> {
         shortcuts: _shortcuts,
         actions: _actions,
         onShowHoverHighlight: (bool value) {
+          // The detector reports after the frame in which the control was
+          // disabled, and by then a lazy list may have dropped the control.
           if (_hovered == value || !mounted) return;
           setState(() => _hovered = value);
           widget.onHoverChanged?.call(value);
@@ -374,7 +376,9 @@ abstract final class _KkFocusVisibility {
   static void removeListener(VoidCallback listener) => _listeners.remove(listener);
 
   static bool _onKey(KeyEvent event) {
-    // A synthesized event repairs the keyboard state, nobody pressed a key.
+    // Only a key that goes down is a press. One that repeats or is let go was
+    // pressed before, like the modifier that is held during a click. And a
+    // synthesized event repairs the keyboard state, nobody pressed a key.
     if (event is KeyDownEvent && !event.synthesized) _setPointer(false);
     return false;
   }
@@ -394,6 +398,9 @@ abstract final class _KkFocusVisibility {
   }
 
   static void _notify() {
+    // The framework's way of telling listeners: from a copy, and leaving out
+    // one that was removed in the meantime. Nothing removes one today, a
+    // listener only marks its control for a rebuild.
     for (final VoidCallback listener in _listeners.toList(growable: false)) {
       if (_listeners.contains(listener)) listener();
     }
