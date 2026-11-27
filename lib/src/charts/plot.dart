@@ -564,6 +564,7 @@ class KkScrambleBuilder extends StatelessWidget {
     this.onMount = true,
     this.letters = false,
     this.enabled = true,
+    this.scope,
     required this.builder,
   }) : assert(steps > 0);
 
@@ -580,6 +581,10 @@ class KkScrambleBuilder extends StatelessWidget {
   final bool letters;
   final bool enabled;
 
+  /// Which characters churn when [text] changes. Null takes the theme's
+  /// [KkMotion.scrambleScope].
+  final KkScrambleScope? scope;
+
   /// [shown] is [text] once settled.
   final Widget Function(BuildContext context, String shown) builder;
 
@@ -592,6 +597,7 @@ class KkScrambleBuilder extends StatelessWidget {
       onMount: onMount,
       letters: letters,
       enabled: enabled,
+      scope: scope,
       builder: builder,
     );
   }

@@ -99,8 +99,12 @@ class KkKeyframes extends Animatable<double> {
 /// steady fill.
 @immutable
 class KkMotion {
-  const KkMotion({this.enabled = true, this.timeScale = 1.0, this.staggerStep = const Duration(milliseconds: 60)})
-    : assert(timeScale > 0);
+  const KkMotion({
+    this.enabled = true,
+    this.timeScale = 1.0,
+    this.staggerStep = const Duration(milliseconds: 60),
+    this.scrambleScope = KkScrambleScope.all,
+  }) : assert(timeScale > 0);
 
   /// No motion at all. Use it in widget tests that call `pumpAndSettle`.
   static const KkMotion off = KkMotion(enabled: false);
@@ -112,6 +116,10 @@ class KkMotion {
 
   /// Delay added per stagger index (grid cell order).
   final Duration staggerStep;
+
+  /// Which characters of a value churn when the value changes. A scramble
+  /// can choose for itself with its own `scope`.
+  final KkScrambleScope scrambleScope;
 
   static const Duration boot = Duration(milliseconds: 420);
   static const int bootSteps = 7;
@@ -140,18 +148,38 @@ class KkMotion {
   /// [d] multiplied by [timeScale].
   Duration scaled(Duration d) => timeScale == 1.0 ? d : Duration(microseconds: (d.inMicroseconds * timeScale).round());
 
-  KkMotion copyWith({bool? enabled, double? timeScale, Duration? staggerStep}) => KkMotion(
-    enabled: enabled ?? this.enabled,
-    timeScale: timeScale ?? this.timeScale,
-    staggerStep: staggerStep ?? this.staggerStep,
-  );
+  KkMotion copyWith({bool? enabled, double? timeScale, Duration? staggerStep, KkScrambleScope? scrambleScope}) =>
+      KkMotion(
+        enabled: enabled ?? this.enabled,
+        timeScale: timeScale ?? this.timeScale,
+        staggerStep: staggerStep ?? this.staggerStep,
+        scrambleScope: scrambleScope ?? this.scrambleScope,
+      );
 
   @override
   bool operator ==(Object other) =>
-      other is KkMotion && other.enabled == enabled && other.timeScale == timeScale && other.staggerStep == staggerStep;
+      other is KkMotion &&
+      other.enabled == enabled &&
+      other.timeScale == timeScale &&
+      other.staggerStep == staggerStep &&
+      other.scrambleScope == scrambleScope;
 
   @override
-  int get hashCode => Object.hash(enabled, timeScale, staggerStep);
+  int get hashCode => Object.hash(enabled, timeScale, staggerStep, scrambleScope);
+}
+
+/// Which characters of a value churn when the value changes.
+enum KkScrambleScope {
+  /// Every digit churns, whatever changed: the value update of the design.
+  all,
+
+  /// Only the characters that differ from the value before churn, so the
+  /// places that did not change stay readable. A value that is shown for the
+  /// first time, or whose length changed, churns whole.
+  ///
+  /// It suits a value that changes every second or faster, which would
+  /// otherwise be noise for half of the time.
+  changed,
 }
 
 Duration _kkLastFrameTime = Duration.zero;

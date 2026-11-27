@@ -31,3 +31,6 @@ First release.
   services layer.
 * An example application, the console of a small plant, built with KEIKAI
   widgets only.
+* A value that changes scrambles all of its digits; `KkMotion.scrambleScope`
+  (a whole app) or `KkScramble.scope` (one value) limits the scramble to the
+  digits that changed, for values that change every second.

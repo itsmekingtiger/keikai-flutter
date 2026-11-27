@@ -354,6 +354,16 @@ KkColumn(
 
 반복 동작은 하나의 프레임 시계를 같이 써서 화면 전체가 같은 박자로 깜빡입니다. `KkMotion(timeScale: 2)`는 모든 동작을 두 배 느리게 합니다.
 
+값이 바뀌면 기본으로 모든 숫자가 뒤섞입니다. 매초 바뀌는 값은 그러면 절반 가까운 시간 동안 읽을 수 없으므로, 바뀐 자리만 뒤섞게 할 수 있습니다. 처음 나타나는 값과 길이가 달라진 값은 그때도 전체가 뒤섞입니다.
+
+```dart
+// 앱 전체: KeikaiApp(theme: liveTheme)
+const KeikaiThemeData liveTheme = KeikaiThemeData(motion: KkMotion(scrambleScope: KkScrambleScope.changed));
+
+// 값 하나만
+Widget liveReading(String reading) => KkScramble(reading, scope: KkScrambleScope.changed);
+```
+
 ## 예제 앱
 
 `example/`은 이 패키지의 위젯만으로 만든 관제 콘솔입니다(상황판, 계통 표, 선도, 절차, 기록, 설정, 위젯 목록). `test/example_keikai_only_test.dart`가 예제의 모든 생성자 호출을 검사해 `Row`, `Container`, `Text` 같은 프레임워크 위젯이 하나라도 섞이면 실패합니다.

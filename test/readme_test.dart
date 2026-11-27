@@ -307,6 +307,12 @@ Widget motionSamples(String reading) {
   );
 }
 
+// 앱 전체: KeikaiApp(theme: liveTheme)
+const KeikaiThemeData liveTheme = KeikaiThemeData(motion: KkMotion(scrambleScope: KkScrambleScope.changed));
+
+// 값 하나만
+Widget liveReading(String reading) => KkScramble(reading, scope: KkScrambleScope.changed);
+
 void main() {
   setUpAll(loadKkFonts);
 
@@ -375,5 +381,32 @@ void main() {
     await pumpKk(tester, KkBox(width: 960, height: 420, child: pumpTable()), size: const Size(1280, 800));
     expect(find.text('P-0102'), findsOneWidget);
     expect(find.byType(KkTableMeter), findsNWidgets(3));
+  });
+
+  testWidgets('a live value scrambles only the places that changed, by theme or one by one', (
+    WidgetTester tester,
+  ) async {
+    List<String> shown() => tester.widgetList<Text>(find.byType(Text)).map((Text t) => t.data!).toList();
+    Widget row(String reading) => KkColumn(
+      shrinkWrap: true,
+      children: <Widget>[
+        KkScramble(reading), // every digit, as the design has it
+        liveReading(reading),
+        KeikaiTheme(data: liveTheme, child: KkScramble(reading)),
+      ],
+    );
+    await pumpKk(tester, row('0000000000'), motion: true);
+    // A value that is shown for the first time scrambles whole, whatever the scope.
+    for (final String s in shown()) {
+      expect(s, isNot('0000000000'));
+    }
+    await tester.pump(const Duration(seconds: 1));
+    expect(shown(), <String>['0000000000', '0000000000', '0000000000']);
+    await pumpKk(tester, row('0000000001'), motion: true);
+    expect(shown()[0].substring(0, 9), isNot('000000000'));
+    expect(shown()[1].substring(0, 9), '000000000');
+    expect(shown()[2].substring(0, 9), '000000000');
+    await tester.pump(const Duration(seconds: 1));
+    expect(shown(), <String>['0000000001', '0000000001', '0000000001']);
   });
 }
