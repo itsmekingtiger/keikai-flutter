@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../foundation/colors.dart';
 import '../foundation/theme.dart';
 
 /// Scrolling the KEIKAI way: no bounce, no glow, and a thin square scrollbar
@@ -35,7 +35,7 @@ class KkScrollBehavior extends ScrollBehavior {
     if (!showScrollbars || controller == null) return child;
     // Each position names the context of its scroll view; [context] is that of the view being built.
     for (final ScrollPosition position in controller.positions) {
-      if (identical(position.context.storageContext, context)) return _KkOwnScrollbar(position: position, child: child);
+      if (identical(position.context.storageContext, context)) return KkScrollbar._of(position, child: child);
     }
     return KkScrollbar(controller: controller, child: child);
   }
@@ -150,22 +150,42 @@ class _KkRestSimulation extends Simulation {
 /// a finger or a pen it is an indicator, on every platform: a touch on or
 /// beside the bar goes to the content under it.
 class KkScrollbar extends StatelessWidget {
-  const KkScrollbar({super.key, this.controller, this.thickness = 6, this.alwaysVisible = false, required this.child});
+  const KkScrollbar({super.key, this.controller, this.thickness = 6, this.alwaysVisible = false, required this.child})
+    : _position = null;
 
-  /// The controller of the scroll view in [child]. When null the bar uses the
-  /// controller of the route, which a [KkScroll] follows only with
-  /// `primary: true`.
+  /// The bar that [KkScrollBehavior] gives the scroll view with [position].
+  const KkScrollbar._of(ScrollPosition position, {required this.child})
+    : _position = position,
+      controller = null,
+      thickness = 6,
+      alwaysVisible = false;
+
+  /// The controller of the scroll view in [child], for an app that has one.
+  ///
+  /// Without it the bar finds its view by itself: it follows the scroll view
+  /// in [child] that lies in no other scroll view, whatever controller that
+  /// view has, on every platform. With two such views it follows the one that
+  /// moved last.
   final ScrollController? controller;
   final double thickness;
+
+  /// Keep the thumb in sight while the view is at rest. It shows once the
+  /// view has been laid out.
   final bool alwaysVisible;
   final Widget child;
 
+  /// The position the bar was built for by [KkScrollBehavior].
+  final ScrollPosition? _position;
+
   @override
   Widget build(BuildContext context) {
-    final KkColors c = KeikaiTheme.of(context).colors;
+    final ScrollController? controller = this.controller;
+    if (controller == null) {
+      return _KkOwnScrollbar(position: _position, thickness: thickness, alwaysVisible: alwaysVisible, child: child);
+    }
     return _KkRawScrollbar(
       controller: controller,
-      thumbColor: c.line,
+      thumbColor: KeikaiTheme.of(context).colors.line,
       thickness: thickness,
       thumbVisibility: alwaysVisible,
       child: child,
@@ -177,7 +197,7 @@ class KkScrollbar extends StatelessWidget {
 /// mouse can take.
 class _KkRawScrollbar extends RawScrollbar {
   _KkRawScrollbar({
-    super.controller,
+    required ScrollController super.controller,
     required Color super.thumbColor,
     required double super.thickness,
     required bool super.thumbVisibility,
@@ -209,9 +229,21 @@ class _KkRawScrollbar extends RawScrollbar {
 /// [_KkPointerKinds] included. A finger that lands exactly there, after a
 /// mouse has moved over the view, can therefore drag the thumb. It cannot
 /// page the view.
+///
+/// The painter also ignores pointers while the bar has no view to move. A
+/// view can leave without the bar being built again, and the bar is then left
+/// with the gestures it was built with, and with its thumb if that is always
+/// visible.
 class _KkRawScrollbarState extends RawScrollbarState<_KkRawScrollbar> {
   /// Whether the last pointer heard of over the view is a mouse.
   bool _mouse = false;
+
+  /// Whether the controller has the one scroll view that the bar is for, and
+  /// that view is in the tree.
+  bool get _hasView {
+    final ScrollController controller = widget.controller!;
+    return controller.positions.length == 1 && controller.position.context.notificationContext != null;
+  }
 
   /// Takes note of a pointer of [kind] that moves over the view or goes down
   /// on it.
@@ -219,15 +251,22 @@ class _KkRawScrollbarState extends RawScrollbarState<_KkRawScrollbar> {
 
   void _mouseIsHere(bool value) {
     _mouse = value;
-    scrollbarPainter.ignorePointer = !value;
+    _tellPainter();
   }
+
+  void _tellPainter() => scrollbarPainter.ignorePointer = !(_mouse && _hasView);
 
   @override
   void updateScrollbarPainter() {
     // The framework lets the painter take pointers again each time the bar is built.
     super.updateScrollbarPainter();
-    scrollbarPainter.ignorePointer = !_mouse;
+    _tellPainter();
   }
+
+  /// The painter is told again each time a pointer is looked up on the bar,
+  /// which is the one moment a view that has left is sure to be missed.
+  @override
+  Widget build(BuildContext context) => _KkBeforeHitTest(onHitTest: _tellPainter, child: super.build(context));
 
   /// The framework calls this for a mouse or a trackpad, not for a pen that
   /// hovers.
@@ -272,16 +311,55 @@ class _KkPointerKinds extends StatelessWidget {
   }
 }
 
-/// The automatic scrollbar of one scroll view: a [KkScrollbar] that follows
-/// the view's own [position].
-///
-/// It holds that one position on a controller of its own, so the thumb shows
-/// and a mouse can drag it whatever else is attached to the controller of the
-/// view.
-class _KkOwnScrollbar extends StatefulWidget {
-  const _KkOwnScrollbar({required this.position, required this.child});
+/// Calls [onHitTest] each time a pointer is looked up on it, before anything
+/// under it is asked whether the pointer is on it.
+class _KkBeforeHitTest extends SingleChildRenderObjectWidget {
+  const _KkBeforeHitTest({required this.onHitTest, super.child});
 
-  final ScrollPosition position;
+  final VoidCallback onHitTest;
+
+  @override
+  _RenderKkBeforeHitTest createRenderObject(BuildContext context) => _RenderKkBeforeHitTest(onHitTest);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderKkBeforeHitTest renderObject) {
+    renderObject.onHitTest = onHitTest;
+  }
+}
+
+class _RenderKkBeforeHitTest extends RenderProxyBox {
+  _RenderKkBeforeHitTest(this.onHitTest);
+
+  VoidCallback onHitTest;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    onHitTest();
+    return super.hitTest(result, position: position);
+  }
+}
+
+/// A [KkScrollbar] that holds one scroll position on a controller of its
+/// own.
+///
+/// For the bar that [KkScrollBehavior] gives a scroll view, that is the
+/// [position] of the view: the thumb shows and a mouse can drag it whatever
+/// else is attached to the controller of the view. A bar that an app puts
+/// around something without a controller has no position to begin with. It
+/// takes the one of the scroll view in [child] that tells of itself, by
+/// being laid out or by scrolling, and that lies in no other scroll view.
+class _KkOwnScrollbar extends StatefulWidget {
+  const _KkOwnScrollbar({
+    required this.position,
+    required this.thickness,
+    required this.alwaysVisible,
+    required this.child,
+  });
+
+  /// The position to hold. Null for a bar that finds it in [child].
+  final ScrollPosition? position;
+  final double thickness;
+  final bool alwaysVisible;
   final Widget child;
 
   @override
@@ -291,20 +369,71 @@ class _KkOwnScrollbar extends StatefulWidget {
 class _KkOwnScrollbarState extends State<_KkOwnScrollbar> {
   final ScrollController _controller = ScrollController(debugLabel: 'KkScrollbar');
 
+  /// The position that [_controller] holds.
+  ScrollPosition? _position;
+
+  void _follow(ScrollPosition? position) {
+    if (identical(position, _position)) return;
+    final ScrollPosition? before = _position;
+    if (before != null) _controller.detach(before);
+    if (position != null) _controller.attach(position);
+    _position = position;
+  }
+
+  /// Follows the scroll view that sent a notification from [context], through
+  /// [depth] other scroll views.
+  bool _found(int depth, BuildContext? context) {
+    if (depth == 0 && context != null) {
+      final ScrollPosition? position = context.findAncestorStateOfType<ScrollableState>()?.position;
+      if (position != null) {
+        final bool first = _position == null;
+        _follow(position);
+        if (first) _buildAgain();
+      }
+    }
+    return false;
+  }
+
+  /// Lets go of a view that was found and has left the tree since.
+  void _letGo(Duration _) {
+    final ScrollPosition? position = _position;
+    if (!mounted || widget.position != null || position == null) return;
+    if (position.context.notificationContext == null) {
+      _follow(null);
+      _buildAgain();
+    }
+  }
+
+  /// Builds the bar again, which has just got a view or lost it: the
+  /// framework gives a bar its gestures, and its thumb if that is always
+  /// visible, when it is built with a view to its name.
+  void _buildAgain() {
+    // A view can tell of a scroll that starts while the frame is laid out, where nothing may ask to be built.
+    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) {
+      setState(() {});
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    _controller.attach(widget.position);
+    _follow(widget.position);
   }
 
   @override
   void didUpdateWidget(_KkOwnScrollbar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // A scroll view makes a new position when its physics or the pixel ratio change.
-    if (identical(oldWidget.position, widget.position)) return;
-    _controller
-      ..detach(oldWidget.position)
-      ..attach(widget.position);
+    if (widget.position != null) {
+      // A scroll view makes a new position when its physics or the pixel ratio change.
+      _follow(widget.position);
+    } else if (_position != null) {
+      // The view that was found may be going with the child that was here. It is gone when this frame is over.
+      WidgetsBinding.instance.addPostFrameCallback(_letGo);
+    }
   }
 
   @override
@@ -314,7 +443,26 @@ class _KkOwnScrollbarState extends State<_KkOwnScrollbar> {
   }
 
   @override
-  Widget build(BuildContext context) => KkScrollbar(controller: _controller, child: widget.child);
+  Widget build(BuildContext context) {
+    return _KkRawScrollbar(
+      controller: _controller,
+      thumbColor: KeikaiTheme.of(context).colors.line,
+      thickness: widget.thickness,
+      // The framework wants a bar with such a thumb to have its view from the first frame it is built in.
+      thumbVisibility: widget.alwaysVisible && _position != null,
+      // Under the bar, so that the bar has its view before it deals with what the view tells.
+      child: widget.position != null
+          ? widget.child
+          : NotificationListener<ScrollMetricsNotification>(
+              onNotification: (ScrollMetricsNotification notification) =>
+                  _found(notification.depth, notification.context),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (ScrollNotification notification) => _found(notification.depth, notification.context),
+                child: widget.child,
+              ),
+            ),
+    );
+  }
 }
 
 /// A scrollable region for one child. Scrolls vertically unless [axis] says
