@@ -245,7 +245,8 @@ class KkEdges {
   KkEdges copyWith({KkSide? top, KkSide? right, KkSide? bottom, KkSide? left}) =>
       KkEdges(top: top ?? this.top, right: right ?? this.right, bottom: bottom ?? this.bottom, left: left ?? this.left);
 
-  /// Paints the border just inside [r].
+  /// Paints the border just inside [r], and never outside it: where [r] is
+  /// thinner than the sides that meet in it, they share what room there is.
   ///
   /// A dashed side is fitted to its edge the way browsers fit a dashed CSS
   /// border: it starts and ends on a whole dash, so every corner is solid and
@@ -262,7 +263,7 @@ class KkEdges {
 
     // [band] is the part of [r] the side may paint.
     void side(KkSide s, Rect band, bool horizontal) {
-      if (s.width <= 0 || s.color.a <= 0) return;
+      if (s.width <= 0 || s.color.a <= 0 || band.isEmpty) return;
       if (!s.dashed) {
         paint.color = s.color;
         canvas.drawRect(band, paint);
@@ -298,20 +299,24 @@ class KkEdges {
       }
     }
 
+    // A box can be laid out thinner than its own border, which a CSS box
+    // cannot. It is all border then: every side gets the room that is left,
+    // top and left first, so that none paints outside [r] or over another.
+    final double t = math.max(0, math.min(top.width, r.height));
+    final double b = math.max(0, math.min(bottom.width, r.height - t));
+    final double l = math.max(0, math.min(left.width, r.width));
+    final double e = math.max(0, math.min(right.width, r.width - l));
+
     // A solid left or right side stops at the top and bottom sides, which own
     // the corners. A dashed one runs into every corner it shares with another
     // dashed side, so both of them end there on a dash.
-    Rect upright(KkSide s, double x0, double x1) => Rect.fromLTRB(
-      x0,
-      r.top + (s.dashed && top.dashed ? 0 : top.width),
-      x1,
-      r.bottom - (s.dashed && bottom.dashed ? 0 : bottom.width),
-    );
+    Rect upright(KkSide s, double x0, double x1) =>
+        Rect.fromLTRB(x0, r.top + (s.dashed && top.dashed ? 0 : t), x1, r.bottom - (s.dashed && bottom.dashed ? 0 : b));
 
-    side(top, Rect.fromLTRB(r.left, r.top, r.right, r.top + top.width), true);
-    side(bottom, Rect.fromLTRB(r.left, r.bottom - bottom.width, r.right, r.bottom), true);
-    side(left, upright(left, r.left, r.left + left.width), false);
-    side(right, upright(right, r.right - right.width, r.right), false);
+    side(top, Rect.fromLTRB(r.left, r.top, r.right, r.top + t), true);
+    side(bottom, Rect.fromLTRB(r.left, r.bottom - b, r.right, r.bottom), true);
+    side(left, upright(left, r.left, r.left + l), false);
+    side(right, upright(right, r.right - e, r.right), false);
     dashes?.forEach((Color color, Path path) => canvas.drawPath(path, paint..color = color));
   }
 

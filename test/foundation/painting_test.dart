@@ -649,6 +649,59 @@ void main() {
       }
     });
 
+    testChecked('a box squeezed thinner than its border is all border and never paints outside itself', (
+      WidgetTester tester,
+    ) async {
+      const Color glass = Color(0x80FF0000);
+      // Every pixel of [box] is painted exactly once, and nothing around it.
+      Future<void> expectFilled(KkEdges edges, Rect box, String reason) async {
+        final _Pixels p = await _render(tester, 60, 30, (Canvas canvas) => edges.paint(canvas, box));
+        final int once = p.alpha(box.left.toInt(), box.top.toInt());
+        expect(once, inInclusiveRange(127, 129), reason: reason);
+        final List<String> wrong = <String>[];
+        for (int y = 0; y < 30; y++) {
+          for (int x = 0; x < 60; x++) {
+            final int expected = box.contains(Offset(x + 0.5, y + 0.5)) ? once : 0;
+            if (p.alpha(x, y) != expected) wrong.add('($x, $y) is ${p.alpha(x, y)}, not $expected');
+          }
+        }
+        expect(wrong, isEmpty, reason: reason);
+      }
+
+      // A 4px top edge on a box that is 2px high: the band stops at the bottom.
+      await expectFilled(const KkEdges(top: KkSide(glass, width: 4)), const Rect.fromLTWH(2, 6, 40, 2), 'top');
+      await expectFilled(const KkEdges(bottom: KkSide(glass, width: 4)), const Rect.fromLTWH(2, 6, 40, 2), 'bottom');
+      await expectFilled(const KkEdges(left: KkSide(glass, width: 9)), const Rect.fromLTWH(10, 4, 3, 20), 'left');
+      await expectFilled(const KkEdges(right: KkSide(glass, width: 9)), const Rect.fromLTWH(10, 4, 3, 20), 'right');
+      // Sides that cannot both fit do not overlap: top and left come first.
+      await expectFilled(KkEdges.line(glass, width: 6), const Rect.fromLTWH(4, 4, 8, 8), 'all round');
+      await expectFilled(KkEdges.line(glass, width: 6), const Rect.fromLTWH(4, 4, 40, 3), 'all round, low');
+      await expectFilled(KkEdges.line(glass, width: 6), const Rect.fromLTWH(4, 4, 5, 20), 'all round, narrow');
+      await expectFilled(KkEdges.line(glass, width: 6, dashed: true), const Rect.fromLTWH(4, 4, 8, 8), 'dashed');
+      await expectFilled(
+        const KkEdges(top: KkSide(glass, width: 3), bottom: KkSide(glass, width: 30)),
+        const Rect.fromLTWH(4, 4, 40, 10),
+        'thin top, thick bottom',
+      );
+      await expectFilled(
+        const KkEdges(left: KkSide(glass, width: 30), right: KkSide(glass, width: 30)),
+        const Rect.fromLTWH(4, 4, 40, 10),
+        'thick left and right',
+      );
+
+      // A box with room for its border is untouched by this: 2px all round.
+      final _Pixels roomy = await _render(
+        tester,
+        20,
+        12,
+        (Canvas canvas) => KkEdges.line(_red, width: 2).paint(canvas, const Rect.fromLTWH(2, 2, 16, 8)),
+      );
+      expect(roomy.rows, <String>[
+        for (int y = 0; y < 12; y++)
+          if (y < 2 || y > 9) '.' * 20 else if (y < 4 || y > 7) '..${'#' * 16}..' else '..##${'.' * 12}##..',
+      ]);
+    });
+
     test('KkBracketSpec', () {
       const KkBracketSpec spec = KkBracketSpec(color: _red);
       expect(spec.length, 12);
