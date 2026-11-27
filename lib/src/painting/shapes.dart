@@ -253,15 +253,17 @@ class KkEdges {
   /// Paints the border just inside [r], and never outside it: where [r] is
   /// thinner than the sides that meet in it, they share what room there is.
   ///
-  /// A dashed side is fitted to its edge the way browsers fit a dashed CSS
-  /// border: it starts and ends on a whole dash, so every corner is solid and
-  /// both ends of a side look the same, and the dashes between are spread
+  /// A dashed side starts and ends on a whole dash, so every corner is solid
+  /// and both ends of a side look the same, and the dashes between are spread
   /// evenly on whole pixels. A dash is three times as long as the side is wide
-  /// (3px at least) and the gaps are as close to that as the length allows. A
-  /// side with no room for two dashes and a gap is solid. A side that starts
-  /// or ends between two pixels is fitted between the whole pixels nearest to
-  /// its ends, and only its first and last dash are cut or stretched to where
-  /// the side really ends.
+  /// (3px at least) and the gaps are as close to that as the length allows.
+  /// This rhythm is KEIKAI's own and the same on every screen. CSS leaves the
+  /// rhythm of a dashed border to the browser: browsers do not agree on one,
+  /// and Chrome changes its own with the device pixel ratio. A side with no
+  /// room for two dashes and a gap is solid. A side that starts or ends
+  /// between two pixels is fitted between the whole pixels nearest to its
+  /// ends, and only its first and last dash are cut or stretched to where the
+  /// side really ends.
   ///
   /// The top and bottom sides own the corners, and the left and right sides
   /// run between them. Dashed sides of one colour share their corner instead

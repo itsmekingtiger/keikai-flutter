@@ -871,6 +871,32 @@ void main() {
       }
     });
 
+    testChecked('the rhythm is the same at every width: a dash of three widths, gaps as near to that as fit', (
+      WidgetTester tester,
+    ) async {
+      Future<List<int>> top(double width, int length) async {
+        final _Pixels p = await _render(
+          tester,
+          length,
+          40,
+          (Canvas canvas) =>
+              KkEdges.line(_red, width: width, dashed: true).paint(canvas, Rect.fromLTWH(0, 0, length.toDouble(), 40)),
+        );
+        return _runs(p.row(0));
+      }
+
+      // Seventeen dashes on 100px. Gaps of 2px, as one browser draws them,
+      // would make room for twenty.
+      final List<int> thin = await top(1, 100);
+      expect(thin, hasLength(17 + 16));
+      expect(thin.toSet(), <int>{3, 4});
+      expect(await top(2, 40), <int>[6, 5, 6, 6, 6, 5, 6]);
+      // A wide side keeps the proportion. Its dashes do not shrink to twice
+      // its width with gaps of once its width.
+      expect(await top(3, 60), <int>[9, 8, 9, 8, 9, 8, 9]);
+      expect(await top(4, 60), <int>[12, 12, 12, 12, 12]);
+    });
+
     testChecked('the second half of a side mirrors the first, whichever way a step rounds', (
       WidgetTester tester,
     ) async {
