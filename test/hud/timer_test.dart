@@ -18,6 +18,14 @@ double _bar(WidgetTester tester) {
   return (paint.painter! as dynamic).value as double;
 }
 
+/// Lets [ms] milliseconds pass in 16ms frames, as a display does.
+Future<void> _frames(WidgetTester tester, int ms) async {
+  assert(ms % 16 == 0);
+  for (int passed = 0; passed < ms; passed += 16) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+}
+
 /// Owns the controller of the stopwatch it shows, and disposes it with itself.
 class _OwnsController extends StatefulWidget {
   const _OwnsController();
@@ -489,8 +497,9 @@ void main() {
     expect(notified, 3, reason: 'the first timer had nothing to tell when it left');
   });
 
-  testWidgets('the bar of a countdown is the time left, not the whole seconds left', (WidgetTester tester) async {
-    // With motion off the bar shows the share that is left at once.
+  testWidgets('with motion off the bar of a countdown is the time left, not the whole seconds left', (
+    WidgetTester tester,
+  ) async {
     await pumpKk(tester, const KkTimer.countdown(from: Duration(seconds: 2)));
     expect(_bar(tester), 1);
     await tester.pump(const Duration(milliseconds: 500));
@@ -502,21 +511,194 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     expect(_digits(tester), '00:00.00');
     expect(_bar(tester), 0);
+  });
 
-    // With motion on it steps down after the time, never more than 0.65s behind it.
+  testWidgets('with motion on the bar of a running countdown makes nine equal jumps a second and then rests', (
+    WidgetTester tester,
+  ) async {
     await pumpKk(tester, const KkTimer.countdown(from: Duration(seconds: 3), boot: false), motion: true);
     expect(_bar(tester), 1);
+    final List<int> jumps = <int>[];
+    double last = 1;
     for (int ms = 16; ms <= 3008; ms += 16) {
       await tester.pump(const Duration(milliseconds: 16));
+      final double bar = _bar(tester);
+      if (bar != last) {
+        // Every jump is a ninth of what one second is of the bar.
+        expect(last - bar, closeTo(1 / 27, 1e-9), reason: '${ms}ms');
+        jumps.add(ms);
+        last = bar;
+      }
+      // A move sets out with the first frame that is no more than half a second before a whole second, and makes
+      // its first jump four frames later. Just before that the bar is 0.56s behind the time, and it is never
+      // further from it. It gets to the whole second a frame or two before the time does.
       final double left = ms >= 3000 ? 0 : (3000 - ms) / 3000;
-      expect(_bar(tester), greaterThanOrEqualTo(left - 1e-9), reason: '${ms}ms');
-      expect(_bar(tester) - left, lessThan(0.65 / 3), reason: '${ms}ms');
+      expect(bar - left, lessThan(0.57 / 3), reason: '${ms}ms');
+      expect(left - bar, lessThan(0.04 / 3), reason: '${ms}ms');
+    }
+    // Nine jumps for each of the three seconds, all of them in the half second before the whole second. The bar is
+    // on the whole second before the time is, empty at the end, and rests for the half second after it.
+    expect(jumps, hasLength(27));
+    for (int second = 0; second < 3; second++) {
+      final List<int> move = jumps.sublist(second * 9, second * 9 + 9);
+      expect(move.first, greaterThan(second * 1000 + 500), reason: '$move');
+      expect(move.last, lessThan(second * 1000 + 1000), reason: '$move');
     }
     expect(_digits(tester), '00:00.00');
-    // It is empty no later than one transition after the time has run out.
-    await tester.pump(const Duration(milliseconds: 450));
+    expect(_bar(tester), 0);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(tester.binding.hasScheduledFrame, isFalse, reason: 'nothing is left to move');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the bar sets out for a whole second with the frame that is half a second before it', (
+    WidgetTester tester,
+  ) async {
+    await pumpKk(tester, const KkTimer.countdown(from: Duration(seconds: 3), boot: false), motion: true);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(_digits(tester), '00:02.50');
+    expect(_bar(tester), 1);
+    // The transition lasts 0.45s: its nine steps are done with a twentieth of a second to spare.
+    await tester.pump(const Duration(milliseconds: 449));
+    expect(_bar(tester), closeTo(2 / 3 + 1 / 27, 1e-9));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(_digits(tester), '00:02.05');
+    expect(_bar(tester), closeTo(2 / 3, 1e-9));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a countdown that does not start on a whole second starts with a full bar', (WidgetTester tester) async {
+    await pumpKk(tester, const KkTimer.countdown(from: Duration(milliseconds: 2400), boot: false), motion: true);
+    expect(_bar(tester), 1);
+    // Its first whole second is less than half a second away, so the bar sets out for it at once.
+    double last = 1;
+    for (int ms = 16; ms <= 480; ms += 16) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(_bar(tester), lessThanOrEqualTo(last), reason: '${ms}ms');
+      last = _bar(tester);
+    }
+    expect(_digits(tester), '00:01.92');
+    expect(_bar(tester), closeTo(2 / 2.4, 1e-9));
+    // From there on it moves as any other: for the one second when 1.5s are left, and so on.
+    await _frames(tester, 416);
+    expect(_digits(tester), '00:01.50');
+    expect(_bar(tester), closeTo(2 / 2.4, 1e-9));
+    await _frames(tester, 480);
+    expect(_digits(tester), '00:01.02');
+    expect(_bar(tester), closeTo(1 / 2.4, 1e-9));
+    await _frames(tester, 512);
+    expect(_digits(tester), '00:00.51');
+    expect(_bar(tester), closeTo(1 / 2.4, 1e-9));
+    await _frames(tester, 480);
+    expect(_digits(tester), '00:00.03');
+    expect(_bar(tester), 0);
+    await _frames(tester, 32);
+    expect(_digits(tester), '00:00.00');
     expect(_bar(tester), 0);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a countdown that is given the time to a deadline with every frame keeps its bar full', (
+    WidgetTester tester,
+  ) async {
+    int done = 0;
+    Duration now = Duration.zero;
+    late StateSetter rebuild;
+    await pumpKk(
+      tester,
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          rebuild = setState;
+          return KkTimer.countdown(from: const Duration(milliseconds: 2400) - now, boot: false, onDone: () => done++);
+        },
+      ),
+      motion: true,
+    );
+    // Every build starts a countdown that has all of its time left, however near its next whole second is.
+    for (int ms = 16; ms < 2400; ms += 16) {
+      rebuild(() => now = Duration(milliseconds: ms));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(_bar(tester), 1, reason: '${ms}ms');
+    }
+    expect(_digits(tester), '00:00.01');
+    expect(done, 0);
+
+    // The deadline passes: the countdown reports that once and its bar steps down to nothing.
+    for (int ms = 2400; ms <= 2864; ms += 16) {
+      rebuild(() => now = Duration(milliseconds: ms));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(_digits(tester), '00:00.00');
+    expect(_bar(tester), 0);
+    expect(done, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('with motion on the bar of a stopped countdown is the time left, and resuming does not move it back', (
+    WidgetTester tester,
+  ) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    Widget timer() => KkTimer.countdown(from: const Duration(seconds: 10), controller: controller, boot: false);
+    await pumpKk(tester, timer(), motion: true);
+    await _frames(tester, 3296);
+    // Running, the bar is on the whole second nearest to the 6.7s that are left.
+    expect(_digits(tester), '00:06.70');
+    expect(_bar(tester), closeTo(0.7, 1e-9));
+
+    // Stopped on its way to the next whole second, it steps on to the time left and stays there.
+    await _frames(tester, 400);
+    expect(_digits(tester), '00:06.30');
+    expect(_bar(tester), inExclusiveRange(0.6304, 0.7));
+    controller.stop();
+    await tester.pump();
+    await _frames(tester, 464);
+    expect(_bar(tester), closeTo(0.6304, 1e-9));
+    await tester.pump(const Duration(seconds: 2));
+    expect(_digits(tester), '00:06.30');
+    expect(_bar(tester), closeTo(0.6304, 1e-9));
+
+    // Started again, it goes on to the six seconds that are nearest.
+    controller.start();
+    await tester.pump();
+    expect(_bar(tester), closeTo(0.6304, 1e-9));
+    await _frames(tester, 480);
+    expect(_digits(tester), '00:05.82');
+    expect(_bar(tester), closeTo(0.6, 1e-9));
+    controller.stop();
+    await tester.pump();
+    await _frames(tester, 464);
+    expect(_bar(tester), closeTo(0.5824, 1e-9));
+
+    // Started again from 5.82s, it does not go back up to the six seconds it has left behind. It waits where it is
+    // until the five are half a second away.
+    controller.start();
+    await tester.pump();
+    for (int ms = 16; ms <= 320; ms += 16) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(_bar(tester), closeTo(0.5824, 1e-9), reason: '${ms}ms');
+    }
+    expect(_digits(tester), '00:05.50');
+    double last = _bar(tester);
+    for (int ms = 16; ms <= 480; ms += 16) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(_bar(tester), lessThanOrEqualTo(last), reason: '${ms}ms');
+      last = _bar(tester);
+    }
+    expect(_digits(tester), '00:05.02');
+    expect(_bar(tester), closeTo(0.5, 1e-9));
+
+    // With motion switched off the bar is the time left at once, and with every frame after that.
+    await pumpKk(tester, timer());
+    expect(_bar(tester), closeTo(0.5024, 1e-9));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(_digits(tester), '00:04.94');
+    expect(_bar(tester), closeTo(0.4944, 1e-9));
+
+    // Reset, it is full again.
+    controller.reset();
+    await tester.pump();
+    expect(_bar(tester), 1);
   });
 
   testWidgets('the bar of a controlled timer follows a progress that changes with every frame', (

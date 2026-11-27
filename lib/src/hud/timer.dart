@@ -140,6 +140,11 @@ const Duration _kBeat = Duration(milliseconds: 100);
 /// page that covers theirs. A countdown that runs out there calls its `onDone`
 /// then, within about a tenth of a second, and the digits are right again as
 /// soon as the page is back.
+///
+/// The bar of a countdown is the share of the time that is left. While the
+/// countdown runs with motion on, the bar moves once a second, so that every
+/// move plays its nine steps and rests: half a second before a whole second it
+/// sets out for it, and it gets there as the time does.
 class KkTimer extends StatefulWidget {
   /// A timer that shows [value]. [progress] (0 to 1) fills the bar.
   const KkTimer({
@@ -291,6 +296,31 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
 
   /// Whether the timer is a countdown with no time left to count.
   bool get _spent => widget._kind == _TimerKind.countdown && _left <= Duration.zero;
+
+  /// The time that the bar of a countdown shows when [left] is left.
+  ///
+  /// That is [left] itself, except while the countdown runs with [motion] on.
+  /// The time left then changes with every frame, and a bar that followed it
+  /// would never play the transition of the design, nine equal steps and a
+  /// rest. So the bar is given one target a second, the whole second nearest
+  /// to the time left: it sets out half a second before the whole second and
+  /// its steps end as the time gets there.
+  ///
+  /// A countdown that has just been started has counted nothing yet, and its
+  /// bar is where the countdown stands: full when it is first shown, and also
+  /// when every build gives it another duration. From there the bar only goes
+  /// down: its target is never above what was left when the countdown was
+  /// started, so resuming does not move it back up to a whole second that has
+  /// passed.
+  Duration _barTime(Duration left, {required bool motion}) {
+    if (!_running || !motion || _run == Duration.zero) return left;
+    // The nearest whole second. Exactly half a second before a whole second
+    // that is the one ahead, so the bar sets out with that frame.
+    final int ahead = left.inMicroseconds - Duration.microsecondsPerSecond ~/ 2;
+    final Duration whole = Duration(seconds: (ahead / Duration.microsecondsPerSecond).ceil());
+    final Duration atStart = (widget.from ?? Duration.zero) - _banked;
+    return whole < atStart ? whole : atStart;
+  }
 
   @override
   void initState() {
@@ -464,9 +494,10 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     KkLevel? level = widget.level;
     if (widget._kind == _TimerKind.countdown) {
       final Duration from = widget.from ?? Duration.zero;
-      // The bar is the share of the time that is left. It changes with every
-      // frame, and the stepped value below still moves it one jump per step.
-      progress = from <= Duration.zero ? 0 : (shown.inMicroseconds / from.inMicroseconds).clamp(0.0, 1.0);
+      // The bar is the share of the time that is left, or of the whole second
+      // that the bar of a running countdown is on its way to.
+      final Duration bar = _barTime(shown, motion: KeikaiTheme.motionOf(context));
+      progress = from <= Duration.zero ? 0 : (bar.inMicroseconds / from.inMicroseconds).clamp(0.0, 1.0);
       final Duration? crit = widget.criticalAt;
       final Duration? caution = widget.cautionAt;
       if (level == null) {
