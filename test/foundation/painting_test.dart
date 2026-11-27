@@ -1328,6 +1328,87 @@ void main() {
       expect(isRed(10, 23), isFalse);
       expect(isRed(47, 47), isFalse);
     });
+
+    testChecked('the lines of a pattern are on whole pixels where its rectangle is not', (WidgetTester tester) async {
+      Future<_Pixels> paint(int width, int height, KkPattern pattern, Rect rect) =>
+          _render(tester, width, height, (Canvas canvas) => pattern.paint(canvas, rect));
+
+      // Scan lines over a panel that starts half a pixel down: one row on and
+      // two off, counted from the nearest whole pixel. The last line is cut
+      // where the panel ends.
+      const KkPattern scan = KkPattern.scanlines(color: _red);
+      expect((await paint(10, 14, scan, const Rect.fromLTWH(0, 0.5, 10, 12))).column(5), '...#..#..#..+.');
+      expect((await paint(10, 14, scan, const Rect.fromLTWH(0, 0.4, 10, 12))).column(5), '..#..#..#..#..');
+      expect((await paint(10, 14, scan, const Rect.fromLTWH(0, 1, 10, 12))).column(5), '...#..#..#..#.');
+      // A corner that misses the half pixel by the last digit of a sum counts as on it.
+      expect((await paint(10, 14, scan, const Rect.fromLTWH(0, 0.5 - 1e-12, 10, 12))).column(5), '...#..#..#..+.');
+
+      // The ticks of a rule that begins where a label ends. A tick that the
+      // edge of the rule runs through is cut there.
+      const KkPattern ticks = KkPattern.ticks(color: _red);
+      expect(
+        (await paint(40, 4, ticks, const Rect.fromLTWH(0.83, 0, 38, 4))).row(2),
+        '.#.......#.......#.......#.......#......',
+      );
+      expect(
+        (await paint(40, 4, ticks, const Rect.fromLTWH(0.3, 0, 38, 4))).row(2),
+        '+.......#.......#.......#.......#.......',
+      );
+
+      // Both directions of a grid.
+      final _Pixels grid = await paint(
+        30,
+        30,
+        const KkPattern.grid(color: _red, pitch: 8),
+        const Rect.fromLTWH(0.4, 0.6, 28, 28),
+      );
+      expect(grid.row(5), '+.......#.......#.......#.....');
+      expect(grid.column(5), '.#.......#.......#.......#....');
+
+      // The major lines of a plot ground stay on the minor ones.
+      final _Pixels plot = await paint(
+        100,
+        12,
+        const KkPattern.plot(minor: _red, major: _blue),
+        const Rect.fromLTWH(0.6, 0.6, 99, 11),
+      );
+      expect(plot.rgba(1, 5), '0000ffff');
+      expect(plot.rgba(9, 5), 'ff0000ff');
+      expect(plot.rgba(65, 5), '0000ffff');
+      for (final int x in <int>[0, 2, 8, 10, 64, 66]) {
+        expect(plot.rgba(x, 5), '00000000', reason: 'x=$x');
+      }
+
+      // Segments begin on a whole pixel and the last one ends with the bar.
+      expect(
+        (await paint(30, 4, const KkPattern.segments(color: _red), const Rect.fromLTWH(0.5, 0, 28, 4))).row(2),
+        '.######..######..######..###+.',
+      );
+    });
+
+    testChecked('a decoration clips a pattern to its own rectangle, wherever the lines fall', (
+      WidgetTester tester,
+    ) async {
+      const Rect box = Rect.fromLTWH(0.5, 0, 20, 4);
+      final _Pixels p = await _render(
+        tester,
+        22,
+        4,
+        (Canvas canvas) => const KkDecoration(
+          fill: _blue,
+          pattern: KkPattern.ticks(color: _red),
+        ).paintBackground(canvas, box),
+      );
+      // The fill is the box, half a pixel in at both ends. The ticks are on
+      // whole pixels over it.
+      expect(p.row(2), '+${'#' * 19}+.');
+      expect(p.rgba(1, 2), 'ff0000ff');
+      expect(p.rgba(9, 2), 'ff0000ff');
+      expect(p.rgba(17, 2), 'ff0000ff');
+      for (final int x in <int>[2, 8, 10, 16, 18, 19]) {
+        expect(p.rgba(x, 2), '0000ffff', reason: 'x=$x');
+      }
+    });
   });
 
   group('KkDecoration', () {

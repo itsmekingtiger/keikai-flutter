@@ -44,8 +44,18 @@ sealed class KkPattern {
   const factory KkPattern.ticks({required Color color, double pitch, double stroke}) = KkTickPattern;
 
   /// Paints the pattern clipped to [rect].
+  ///
+  /// The patterns made of straight lines (grid, plot, scan lines, segments and
+  /// ticks) count their lines from the whole pixel nearest to the top-left
+  /// corner of [rect]. A rectangle that starts between two pixels still gets
+  /// lines of full strength then, not lines smeared over two rows or columns.
   void paint(Canvas canvas, Rect rect);
 }
+
+/// The whole pixel nearest to [v], and the inner one where two are equally
+/// near, give or take the last digit of the sums that placed the rectangle.
+/// The line patterns start to count there.
+double _wholePixel(double v) => (v + 0.5 + 1e-6).floorToDouble();
 
 class KkGridPattern extends KkPattern {
   const KkGridPattern({required this.color, this.pitch = 24, this.stroke = 1});
@@ -181,8 +191,10 @@ class KkScanPattern extends KkPattern {
   void paint(Canvas canvas, Rect rect) {
     if (rect.isEmpty || color.a <= 0 || on <= 0 || off < 0) return;
     final Path p = Path();
-    for (double y = rect.top + off; y < rect.bottom; y += on + off) {
-      p.addRect(Rect.fromLTRB(rect.left, y, rect.right, math.min(y + on, rect.bottom)));
+    for (double y = _wholePixel(rect.top) + off; y < rect.bottom; y += on + off) {
+      final double top = math.max(y, rect.top);
+      final double bottom = math.min(y + on, rect.bottom);
+      if (bottom > top) p.addRect(Rect.fromLTRB(rect.left, top, rect.right, bottom));
     }
     canvas.drawPath(p, Paint()..color = color);
   }
@@ -226,8 +238,10 @@ class KkTickPattern extends KkPattern {
   void paint(Canvas canvas, Rect rect) {
     if (rect.isEmpty || color.a <= 0 || pitch <= 0 || stroke <= 0) return;
     final Path p = Path();
-    for (double x = rect.left; x < rect.right; x += pitch) {
-      p.addRect(Rect.fromLTRB(x, rect.top, math.min(x + stroke, rect.right), rect.bottom));
+    for (double x = _wholePixel(rect.left); x < rect.right; x += pitch) {
+      final double left = math.max(x, rect.left);
+      final double right = math.min(x + stroke, rect.right);
+      if (right > left) p.addRect(Rect.fromLTRB(left, rect.top, right, rect.bottom));
     }
     canvas.drawPath(p, Paint()..color = color);
   }
@@ -241,27 +255,34 @@ class KkTickPattern extends KkPattern {
 }
 
 /// Paints a square grid of [stroke]-wide lines every [pitch], starting at the
-/// top-left corner of [rect].
+/// whole pixel nearest to the top-left corner of [rect] and cut to [rect].
 void kkPaintGrid(Canvas canvas, Rect rect, Color color, double pitch, {double stroke = 1}) {
   if (rect.isEmpty || color.a <= 0 || pitch <= 0 || stroke <= 0) return;
   final Path p = Path();
-  for (double y = rect.top; y < rect.bottom; y += pitch) {
-    p.addRect(Rect.fromLTRB(rect.left, y, rect.right, math.min(y + stroke, rect.bottom)));
+  for (double y = _wholePixel(rect.top); y < rect.bottom; y += pitch) {
+    final double top = math.max(y, rect.top);
+    final double bottom = math.min(y + stroke, rect.bottom);
+    if (bottom > top) p.addRect(Rect.fromLTRB(rect.left, top, rect.right, bottom));
   }
-  for (double x = rect.left; x < rect.right; x += pitch) {
-    p.addRect(Rect.fromLTRB(x, rect.top, math.min(x + stroke, rect.right), rect.bottom));
+  for (double x = _wholePixel(rect.left); x < rect.right; x += pitch) {
+    final double left = math.max(x, rect.left);
+    final double right = math.min(x + stroke, rect.right);
+    if (right > left) p.addRect(Rect.fromLTRB(left, rect.top, right, rect.bottom));
   }
   // Non-zero fill so the crossings are painted once.
   canvas.drawPath(p..fillType = PathFillType.nonZero, Paint()..color = color);
 }
 
-/// Paints segments of ([pitch] − [gap]) px separated by [gap] px across [rect].
+/// Paints segments of ([pitch] − [gap]) px separated by [gap] px across
+/// [rect], counted from the whole pixel nearest to its left edge and cut to
+/// [rect].
 void kkPaintSegments(Canvas canvas, Rect rect, Color color, {double pitch = 8, double gap = 2}) {
   if (rect.isEmpty || color.a <= 0 || pitch <= 0) return;
   final Path p = Path();
-  for (double x = rect.left; x < rect.right; x += pitch) {
+  for (double x = _wholePixel(rect.left); x < rect.right; x += pitch) {
+    final double start = math.max(x, rect.left);
     final double end = math.min(x + pitch - gap, rect.right);
-    if (end > x) p.addRect(Rect.fromLTRB(x, rect.top, end, rect.bottom));
+    if (end > start) p.addRect(Rect.fromLTRB(start, rect.top, end, rect.bottom));
   }
   canvas.drawPath(p, Paint()..color = color);
 }
