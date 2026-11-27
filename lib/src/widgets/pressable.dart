@@ -170,10 +170,10 @@ class _KkPressableState extends State<KkPressable> {
       _node.addListener(_syncRing);
       _ring = _showsFocus;
     }
-    if (!widget.interactive && (_pressed || _hovered)) {
-      _pressed = false;
-      _hovered = false;
-    }
+    // A press ends with the control. The hover is left alone: the look is
+    // masked in build, and the detector reports its end after this frame, the
+    // way that also reaches [KkPressable.onHoverChanged].
+    if (!widget.interactive) _pressed = false;
   }
 
   @override
@@ -225,7 +225,7 @@ class _KkPressableState extends State<KkPressable> {
         shortcuts: _shortcuts,
         actions: _actions,
         onShowHoverHighlight: (bool value) {
-          if (_hovered == value) return;
+          if (_hovered == value || !mounted) return;
           setState(() => _hovered = value);
           widget.onHoverChanged?.call(value);
         },

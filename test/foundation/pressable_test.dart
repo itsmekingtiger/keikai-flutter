@@ -818,4 +818,105 @@ void main() {
       expect(visited, <String>['n0', 'n1', 'n2', 'n0']);
     });
   });
+
+  group('KkPressable hover', () {
+    final List<bool> log = <bool>[];
+    KkStates? states;
+
+    setUp(() {
+      log.clear();
+      states = null;
+    });
+
+    Widget control({bool live = true, bool enabled = true}) => KkPressable(
+      enabled: enabled,
+      onPressed: live ? () {} : null,
+      onHoverChanged: log.add,
+      builder: (BuildContext context, KkStates s) {
+        states = s;
+        return const SizedBox(width: 100, height: 40);
+      },
+    );
+
+    /// A mouse pointer resting on the control.
+    Future<TestGesture> hover(WidgetTester tester) async {
+      final TestGesture mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(400, 400));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(50, 20));
+      await tester.pump();
+      return mouse;
+    }
+
+    _testOnDesktop('a hovered control that stops being interactive reports the end of the hover', (
+      WidgetTester tester,
+    ) async {
+      await pumpKk(tester, control());
+      final TestGesture mouse = await hover(tester);
+      expect(states!.hovered, isTrue);
+      expect(log, <bool>[true]);
+
+      // The callback is taken away: the look goes with the same frame, and
+      // whoever was told that the hover began is told that it ended.
+      await tester.pumpWidget(kkHarness(control(live: false)));
+      expect(states!.hovered, isFalse);
+      await tester.pump();
+      expect(states!.hovered, isFalse);
+      expect(log, <bool>[true, false]);
+
+      // The pointer leaving later has nothing more to say.
+      await mouse.moveTo(const Offset(400, 400));
+      await tester.pump();
+      await tester.pump();
+      expect(log, <bool>[true, false]);
+    });
+
+    _testOnDesktop('enabled again under the pointer it reports the hover again', (WidgetTester tester) async {
+      await pumpKk(tester, control());
+      await hover(tester);
+      expect(log, <bool>[true]);
+
+      await pumpKk(tester, control(enabled: false));
+      expect(states!.hovered, isFalse);
+      expect(log, <bool>[true, false]);
+
+      await pumpKk(tester, control());
+      await tester.pump();
+      expect(states!.hovered, isTrue);
+      expect(log, <bool>[true, false, true], reason: 'every true is followed by a false before the next true');
+    });
+
+    _testOnDesktop('a control that is built disabled under the pointer reports nothing until it is enabled', (
+      WidgetTester tester,
+    ) async {
+      await pumpKk(tester, control(enabled: false));
+      final TestGesture mouse = await hover(tester);
+      expect(states!.hovered, isFalse);
+      expect(log, isEmpty);
+
+      await pumpKk(tester, control());
+      await tester.pump();
+      expect(states!.hovered, isTrue);
+      expect(log, <bool>[true]);
+
+      await mouse.moveTo(const Offset(400, 400));
+      await tester.pump();
+      expect(states!.hovered, isFalse);
+      expect(log, <bool>[true, false]);
+    });
+
+    _testOnDesktop('a press in progress ends when the control is disabled', (WidgetTester tester) async {
+      await pumpKk(tester, control());
+      final TestGesture finger = await tester.startGesture(const Offset(50, 20));
+      await tester.pump();
+      expect(states!.pressed, isTrue);
+      await pumpKk(tester, control(enabled: false));
+      expect(states!.pressed, isFalse);
+      await pumpKk(tester, control());
+      expect(states!.pressed, isFalse);
+      await finger.up();
+      await tester.pump();
+      expect(states!.pressed, isFalse);
+    });
+  });
 }
