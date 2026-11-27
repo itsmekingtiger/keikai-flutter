@@ -451,6 +451,133 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(shown.toSet(), <String>{'0427'});
     });
+
+    /// A builder for [text] that records every form of it that it is handed.
+    Widget probe(
+      String text,
+      List<String> shown, {
+      Duration duration = KkMotion.scramble,
+      int steps = 10,
+      bool enabled = true,
+    }) {
+      return KkScrambleBuilder(
+        text: text,
+        duration: duration,
+        steps: steps,
+        enabled: enabled,
+        builder: (BuildContext context, String s) {
+          shown.add(s);
+          return const KkBox(width: 10, height: 10);
+        },
+      );
+    }
+
+    testWidgets('is handed what a KkScramble of the same value shows, frame for frame', (WidgetTester tester) async {
+      final List<String> shown = <String>[];
+      Widget build(String value) => KkColumn(children: <Widget>[KkScramble(value), probe(value, shown)]);
+      String text() => tester.widget<Text>(find.byType(Text)).data!;
+
+      await pumpKk(tester, build('042.7 °C'), motion: true);
+      expect(shown.last, isNot('042.7 °C'));
+      for (int ms = 0; ms < 460; ms += 23) {
+        expect(shown.last, text(), reason: 'at ${ms}ms');
+        await tester.pump(const Duration(milliseconds: 23));
+      }
+      // Built once for each of the ten noise steps and once for the value.
+      expect(shown, hasLength(11));
+      expect(shown.last, '042.7 °C');
+
+      await tester.pumpWidget(kkHarness(build('113.9 °C'), motion: true));
+      expect(shown.last, isNot('113.9 °C'));
+      for (int ms = 0; ms < 460; ms += 46) {
+        expect(shown.last, text(), reason: 'at ${ms}ms');
+        await tester.pump(const Duration(milliseconds: 46));
+      }
+      expect(shown.last, '113.9 °C');
+    });
+
+    testWidgets('values of the same length do not churn in unison', (WidgetTester tester) async {
+      const List<String> values = <String>['042.7', '078.3', '113.9'];
+      final List<List<String>> shown = <List<String>>[for (final String _ in values) <String>[]];
+      Set<String> now() => <String>{for (final List<String> s in shown) s.last};
+      await pumpKk(
+        tester,
+        KkColumn(children: <Widget>[for (int i = 0; i < values.length; i++) probe(values[i], shown[i])]),
+        motion: true,
+      );
+      // Nothing has settled in the first noise frame: three values show three different numbers.
+      expect(now(), hasLength(3));
+      for (int ms = 0; ms < 460; ms += 23) {
+        expect(now().length, greaterThan(1), reason: 'at ${ms}ms');
+        await tester.pump(const Duration(milliseconds: 23));
+      }
+      await tester.pump(const Duration(milliseconds: 23));
+      expect(<String>[for (final List<String> s in shown) s.last], values);
+    });
+
+    testWidgets('a frame that lands on a step edge is handed the new noise step', (WidgetTester tester) async {
+      // 0.46s in ten steps: with a frame every 46ms each frame is exactly on an edge.
+      final List<String> shown = <String>[];
+      await pumpKk(tester, probe('0' * 30, shown), motion: true);
+      final List<String> tails = <String>[];
+      for (int step = 0; step < 10; step++) {
+        // Three more digits are final at every step.
+        expect(shown.last.substring(0, step * 3), '0' * (step * 3), reason: 'step $step');
+        expect(shown.last.substring(step * 3), isNot('0' * (30 - step * 3)), reason: 'step $step');
+        tails.add(shown.last.substring(27));
+        await tester.pump(const Duration(milliseconds: 46));
+      }
+      // The last three digits churn to the end: ten steps, ten different noise frames.
+      expect(tails.toSet(), hasLength(10));
+      expect(shown.last, '0' * 30);
+    });
+
+    test('the step count must be positive', () {
+      Widget none(BuildContext context, String shown) => const KkBox();
+      expect(() => KkScrambleBuilder(text: '31337', steps: 0, builder: none), throwsAssertionError);
+      expect(() => KkScrambleBuilder(text: '31337', steps: -3, builder: none), throwsAssertionError);
+      expect(KkScrambleBuilder(text: '31337', steps: 1, builder: none).steps, 1);
+    });
+
+    testWidgets('a scramble in flight ends when motion is switched off', (WidgetTester tester) async {
+      const Duration slow = Duration(seconds: 2);
+      Widget keyed(int key, Widget child) => KeyedSubtree(key: ValueKey<int>(key), child: child);
+      final List<String> shown = <String>[];
+
+      // The platform asks for reduced motion.
+      await pumpKk(tester, keyed(1, probe('0000000000', shown, duration: slow)), motion: true);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(shown.last, isNot('0000000000'));
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pump();
+      await tester.pump();
+      expect(shown.last, '0000000000');
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'the scramble has stopped');
+      tester.platformDispatcher.clearAccessibilityFeaturesTestValue();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(shown.last, '0000000000', reason: 'motion coming back does not replay what was cut short');
+
+      // The theme switches motion off.
+      await pumpKk(tester, keyed(2, probe('1111111111', shown, duration: slow)), motion: true);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(shown.last, isNot('1111111111'));
+      await pumpKk(tester, keyed(2, probe('1111111111', shown, duration: slow)));
+      expect(shown.last, '1111111111');
+      await tester.pumpAndSettle();
+
+      // The scramble itself is disabled.
+      await pumpKk(tester, keyed(3, probe('2222222222', shown, duration: slow)), motion: true);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(shown.last, isNot('2222222222'));
+      await pumpKk(tester, keyed(3, probe('2222222222', shown, duration: slow, enabled: false)), motion: true);
+      expect(shown.last, '2222222222');
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(shown.last, '2222222222');
+    });
   });
 
   group('painting helpers', () {

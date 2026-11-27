@@ -551,9 +551,11 @@ Rect kkPaintChartTip(
 /// Hands the scrambling form of [text] to [builder]: the digits churn for
 /// 0.46s whenever the text changes and settle from the front.
 ///
-/// It is `KkScramble` for text that is drawn on a canvas instead of laid out
-/// as a widget (a gauge's value, for example).
-class KkScrambleBuilder extends StatefulWidget {
+/// It is the scramble of a value that is drawn on a canvas instead of laid out
+/// as a widget (a gauge's value, for example), and it is [KkScramble.builder]
+/// under the name the chart toolkit has for it: the noise, the steps and the
+/// way it stops when motion is switched off are those of every [KkScramble].
+class KkScrambleBuilder extends StatelessWidget {
   const KkScrambleBuilder({
     super.key,
     required this.text,
@@ -563,12 +565,12 @@ class KkScrambleBuilder extends StatefulWidget {
     this.letters = false,
     this.enabled = true,
     required this.builder,
-  });
+  }) : assert(steps > 0);
 
   final String text;
   final Duration duration;
 
-  /// How many times the noise changes during the scramble.
+  /// How many times the noise changes during the scramble. At least 1.
   final int steps;
 
   /// Scramble when first shown as well as on change.
@@ -582,64 +584,16 @@ class KkScrambleBuilder extends StatefulWidget {
   final Widget Function(BuildContext context, String shown) builder;
 
   @override
-  State<KkScrambleBuilder> createState() => _KkScrambleBuilderState();
-}
-
-class _KkScrambleBuilderState extends State<KkScrambleBuilder> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, value: 1)..addListener(_onTick);
-  int _step = -1;
-  int _generation = 0;
-  bool _started = false;
-
-  void _onTick() {
-    final int s = (_controller.value * widget.steps).floor();
-    if (s != _step) setState(() => _step = s);
-  }
-
-  void _run() {
-    if (!widget.enabled || !KeikaiTheme.motionOf(context)) {
-      _controller.value = 1;
-      return;
-    }
-    _generation++;
-    _controller.duration = KeikaiTheme.of(context).motion.scaled(widget.duration);
-    _controller.forward(from: 0);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_started) {
-      _started = true;
-      if (widget.onMount) _run();
-    }
-  }
-
-  @override
-  void didUpdateWidget(KkScrambleBuilder oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text) _run();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final double p = _controller.value;
-    final String shown = p >= 1
-        ? widget.text
-        : kkScrambleText(
-            widget.text,
-            p,
-            step: (p * widget.steps).floor(),
-            seed: _generation * 31 + widget.text.length,
-            letters: widget.letters,
-          );
-    return widget.builder(context, shown);
+    return KkScramble.builder(
+      text,
+      duration: duration,
+      steps: steps,
+      onMount: onMount,
+      letters: letters,
+      enabled: enabled,
+      builder: builder,
+    );
   }
 }
 

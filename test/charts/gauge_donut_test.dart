@@ -137,6 +137,58 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
+    testWidgets('gauges with values of the same length do not churn in unison', (WidgetTester tester) async {
+      await pumpKk(
+        tester,
+        const KkColumn(
+          children: <Widget>[
+            KkGauge(frame: false, value: 42.7, display: '042.7'),
+            KkGauge(frame: false, value: 78.3, display: '078.3'),
+            KkGauge(frame: false, value: 11.9, display: '011.9'),
+          ],
+        ),
+        size: const Size(800, 900),
+        motion: true,
+      );
+      List<String> values() => <String>[
+        for (final CustomPaint paint in tester.widgetList<CustomPaint>(find.byType(CustomPaint)))
+          if (paint.painter case final KkGaugePainter painter) painter.valueText,
+      ];
+      // Nothing has settled in the first noise frame: three dials show three different numbers.
+      expect(values().toSet(), hasLength(3));
+      for (int ms = 0; ms < 460; ms += 46) {
+        expect(values().toSet().length, greaterThan(1), reason: 'at ${ms}ms');
+        await tester.pump(const Duration(milliseconds: 46));
+      }
+      expect(values(), <String>['042.7', '078.3', '011.9']);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('reduced motion that arrives mid-entrance shows the final state at once', (WidgetTester tester) async {
+      // At a quarter of the speed the value scrambles for 1.84s and the needle starts its sweep after 1.2s.
+      await pumpKk(
+        tester,
+        const KkGauge(value: 62, display: '0620'),
+        motion: true,
+        theme: const KeikaiThemeData(motion: KkMotion(timeScale: 4)),
+      );
+      KkGaugePainter p() => painterOf<KkGaugePainter>(tester);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(p().valueText, isNot('0620'));
+      expect(p().needleFraction, 0);
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pump();
+      await tester.pump();
+      expect(p().valueText, '0620');
+      expect(p().needleFraction, 0.62);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(p().valueText, '0620');
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'nothing is left to animate');
+    });
+
     testWidgets('with motion off it shows the final state at once', (WidgetTester tester) async {
       await pumpKk(tester, const KkGauge(value: 75));
       expect(painterOf<KkGaugePainter>(tester).needleFraction, 0.75);
