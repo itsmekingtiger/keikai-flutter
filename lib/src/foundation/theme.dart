@@ -98,9 +98,14 @@ class KeikaiTheme extends StatelessWidget {
 
   /// Whether animations should run here: the theme allows motion and the
   /// platform has not asked for reduced motion.
+  ///
+  /// The platform asks in one of two ways, and either switches motion off:
+  /// "Remove animations" on Android and "Reduce Motion" on iOS. On the web
+  /// both stand for `prefers-reduced-motion`.
   static bool motionOf(BuildContext context) {
     if (!of(context).motion.enabled) return false;
-    return !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return false;
+    return !(MediaQuery.maybeReduceMotionOf(context) ?? false);
   }
 
   @override

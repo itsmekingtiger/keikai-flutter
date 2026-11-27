@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
 import '../layout/layout_util.dart' show testChecked;
+import '../support/harness.dart';
 
 /// Captures what a descendant sees.
 class _Seen {
@@ -184,6 +185,56 @@ void main() {
         ),
       );
       expect(seen.motion, isTrue);
+    });
+
+    testChecked('motionOf: Reduce Motion (iOS) switches motion off as Remove animations (Android) does', (
+      WidgetTester tester,
+    ) async {
+      final _Seen seen = _Seen();
+      // One probe for every pump: it is rebuilt only when something it depends on changes.
+      final Widget probe = seen.probe();
+      Widget tree(MediaQueryData media) => _dir(
+        MediaQuery(
+          data: media,
+          child: KeikaiTheme(data: const KeikaiThemeData(), child: probe),
+        ),
+      );
+      await tester.pumpWidget(tree(const MediaQueryData()));
+      expect(seen.motion, isTrue);
+      await tester.pumpWidget(tree(const MediaQueryData(reduceMotion: true)));
+      expect(seen.motion, isFalse);
+      await tester.pumpWidget(tree(const MediaQueryData()));
+      expect(seen.motion, isTrue);
+      // Both settings, then one after the other goes off.
+      await tester.pumpWidget(tree(const MediaQueryData(disableAnimations: true, reduceMotion: true)));
+      expect(seen.motion, isFalse);
+      await tester.pumpWidget(tree(const MediaQueryData(reduceMotion: true)));
+      expect(seen.motion, isFalse);
+      await tester.pumpWidget(tree(const MediaQueryData()));
+      expect(seen.motion, isTrue);
+    });
+
+    testChecked('with Reduce Motion on in the platform a blink stays lit', (WidgetTester tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(reduceMotion: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await pumpKk(tester, const KkBlink(child: SizedBox(width: 10, height: 10)), motion: true);
+      final Finder opacity = find.descendant(of: find.byType(KkBlink), matching: find.byType(Opacity));
+      expect(KeikaiTheme.motionOf(tester.element(find.byType(KkBlink))), isFalse);
+      for (int ms = 0; ms <= 1400; ms += 100) {
+        expect(tester.widget<Opacity>(opacity).opacity, 1, reason: 'at ${ms}ms');
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      // The setting goes off: the blink runs again, dim in the second half of its 1.2s.
+      tester.platformDispatcher.clearAccessibilityFeaturesTestValue();
+      await tester.pump();
+      await tester.pump();
+      expect(KeikaiTheme.motionOf(tester.element(find.byType(KkBlink))), isTrue);
+      final Set<double> seen = <double>{};
+      for (int ms = 0; ms <= 1400; ms += 100) {
+        seen.add(tester.widget<Opacity>(opacity).opacity);
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(seen, <double>{1, 0.2});
     });
   });
 
