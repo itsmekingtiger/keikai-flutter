@@ -4,10 +4,17 @@ import 'package:keikai/keikai.dart';
 import '../support/harness.dart';
 
 String _digits(WidgetTester tester) {
-  final Text text = tester.widget(
-    find.descendant(of: find.byType(KkBlink), matching: find.byType(Text)),
-  );
+  final Text text = tester.widget(find.descendant(of: find.byType(KkBlink), matching: find.byType(Text)));
   return text.textSpan!.toPlainText();
+}
+
+/// The fill the bar is painted with, 0 to 1.
+double _bar(WidgetTester tester) {
+  final CustomPaint paint = tester.widget(
+    find.descendant(of: find.byType(KkTimer), matching: find.byType(CustomPaint)),
+  );
+  // ignore: avoid_dynamic_calls
+  return (paint.painter! as dynamic).value as double;
 }
 
 void main() {
@@ -31,15 +38,18 @@ void main() {
 
     test('hours from one hour on', () {
       expect(f(const Duration(hours: 1)), (digits: '01:00:00', centis: null));
-      expect(f(const Duration(hours: 1, minutes: 2, seconds: 3, milliseconds: 456)), (digits: '01:02:03', centis: null));
+      expect(f(const Duration(hours: 1, minutes: 2, seconds: 3, milliseconds: 456)), (
+        digits: '01:02:03',
+        centis: null,
+      ));
       expect(f(const Duration(hours: 123, minutes: 4, seconds: 5)), (digits: '123:04:05', centis: null));
     });
 
     test('forced formats', () {
-      expect(
-        f(const Duration(hours: 2, minutes: 5, seconds: 7, milliseconds: 330), KkTimerFormat.minutes),
-        (digits: '125:07', centis: '.33'),
-      );
+      expect(f(const Duration(hours: 2, minutes: 5, seconds: 7, milliseconds: 330), KkTimerFormat.minutes), (
+        digits: '125:07',
+        centis: '.33',
+      ));
       expect(f(const Duration(seconds: 61), KkTimerFormat.hours), (digits: '00:01:01', centis: null));
     });
 
@@ -50,7 +60,9 @@ void main() {
     });
   });
 
-  testWidgets('a controlled timer shows its value; the box hugs the digits, 264px at least', (WidgetTester tester) async {
+  testWidgets('a controlled timer shows its value; the box hugs the digits, 264px at least', (
+    WidgetTester tester,
+  ) async {
     await pumpKk(
       tester,
       const KkTimer(
@@ -77,9 +89,8 @@ void main() {
 
   testWidgets('caution colours the border; critical adds the glow and blinks the digits', (WidgetTester tester) async {
     const KkColors c = KkColors.standby;
-    KkDecoration frame() => tester
-        .widget<KkBox>(find.descendant(of: find.byType(KkTimer), matching: find.byType(KkBox)).first)
-        .decoration!;
+    KkDecoration frame() =>
+        tester.widget<KkBox>(find.descendant(of: find.byType(KkTimer), matching: find.byType(KkBox)).first).decoration!;
 
     await pumpKk(tester, const KkTimer(value: Duration(seconds: 90)));
     expect(frame().edges.top.color, c.line);
@@ -102,9 +113,8 @@ void main() {
       const KkTimer(value: Duration(seconds: 9), level: KkLevel.critical, boot: false),
       motion: true,
     );
-    double opacity() => tester
-        .widget<Opacity>(find.descendant(of: find.byType(KkBlink), matching: find.byType(Opacity)))
-        .opacity;
+    double opacity() =>
+        tester.widget<Opacity>(find.descendant(of: find.byType(KkBlink), matching: find.byType(Opacity))).opacity;
     await tester.pump(const Duration(milliseconds: 100));
     expect(opacity(), 1);
     await tester.pump(const Duration(milliseconds: 600));
@@ -127,9 +137,8 @@ void main() {
         onDone: () => done++,
       ),
     );
-    KkDecoration frame() => tester
-        .widget<KkBox>(find.descendant(of: find.byType(KkTimer), matching: find.byType(KkBox)).first)
-        .decoration!;
+    KkDecoration frame() =>
+        tester.widget<KkBox>(find.descendant(of: find.byType(KkTimer), matching: find.byType(KkBox)).first).decoration!;
     expect(_digits(tester), '00:03.00');
     expect(frame().edges.top.color, KkColors.standby.line);
 
@@ -150,6 +159,68 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     expect(_digits(tester), '00:00.00');
     expect(done, 1);
+  });
+
+  testWidgets('the bar of a countdown is the time left, not the whole seconds left', (WidgetTester tester) async {
+    // With motion off the bar shows the share that is left at once.
+    await pumpKk(tester, const KkTimer.countdown(from: Duration(seconds: 2)));
+    expect(_bar(tester), 1);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(_digits(tester), '00:01.50');
+    expect(_bar(tester), 0.75);
+    await tester.pump(const Duration(milliseconds: 1250));
+    expect(_digits(tester), '00:00.25');
+    expect(_bar(tester), 0.125);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(_digits(tester), '00:00.00');
+    expect(_bar(tester), 0);
+
+    // With motion on it steps down after the time, never more than 0.65s behind it.
+    await pumpKk(tester, const KkTimer.countdown(from: Duration(seconds: 3), boot: false), motion: true);
+    expect(_bar(tester), 1);
+    for (int ms = 16; ms <= 3008; ms += 16) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final double left = ms >= 3000 ? 0 : (3000 - ms) / 3000;
+      expect(_bar(tester), greaterThanOrEqualTo(left - 1e-9), reason: '${ms}ms');
+      expect(_bar(tester) - left, lessThan(0.65 / 3), reason: '${ms}ms');
+    }
+    expect(_digits(tester), '00:00.00');
+    // It is empty no later than one transition after the time has run out.
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(_bar(tester), 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the bar of a controlled timer follows a progress that changes with every frame', (
+    WidgetTester tester,
+  ) async {
+    Duration left = const Duration(seconds: 10);
+    late StateSetter rebuild;
+    await pumpKk(
+      tester,
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          rebuild = setState;
+          return KkTimer(value: left, progress: left.inMilliseconds / 10000, boot: false);
+        },
+      ),
+      motion: true,
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(_bar(tester), 1);
+    // The app counts down itself and rebuilds the timer with each 16ms frame.
+    for (int frame = 1; frame <= 300; frame++) {
+      rebuild(() => left = Duration(milliseconds: 10000 - frame * 16));
+      await tester.pump(const Duration(milliseconds: 16));
+      final double progress = left.inMilliseconds / 10000;
+      expect(_bar(tester), greaterThanOrEqualTo(progress - 1e-9), reason: 'frame $frame');
+      expect(_bar(tester) - progress, lessThan(0.65 / 10), reason: 'frame $frame');
+    }
+    expect(_digits(tester), '00:05.20');
+    expect(_bar(tester), lessThan(0.6));
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(_bar(tester), closeTo(0.52, 1e-9));
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('a controller starts, stops and resets a stopwatch', (WidgetTester tester) async {

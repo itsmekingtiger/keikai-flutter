@@ -5,6 +5,15 @@ import '../support/harness.dart';
 
 Color? _numberColor(WidgetTester tester, String number) => tester.widget<Text>(find.text(number)).style!.color;
 
+/// The fill the bar is painted with, 0 to 1.
+double _bar(WidgetTester tester) {
+  final CustomPaint paint = tester.widget(
+    find.descendant(of: find.byType(KkMeter), matching: find.byType(CustomPaint)),
+  );
+  // ignore: avoid_dynamic_calls
+  return (paint.painter! as dynamic).value as double;
+}
+
 void main() {
   setUpAll(loadKkFonts);
 
@@ -42,7 +51,13 @@ void main() {
 
   testWidgets('shows the percentage with three digits and takes its level from the value', (WidgetTester tester) async {
     const KkColors c = KkColors.standby;
-    await pumpKk(tester, const KkBox(width: 320, child: KkMeter(cjk: '出力', en: 'output', value: 0.42, unit: '%')));
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 320,
+        child: KkMeter(cjk: '出力', en: 'output', value: 0.42, unit: '%'),
+      ),
+    );
     expect(find.text('042'), findsOneWidget);
     expect(_numberColor(tester, '042'), c.ink);
     expect(find.byType(KkGlyph), findsNothing);
@@ -60,7 +75,13 @@ void main() {
     await pumpKk(tester, const KkBox(width: 320, child: KkMeter(value: 0.94, autoLevel: false)));
     expect(_numberColor(tester, '094'), c.ink);
 
-    await pumpKk(tester, const KkBox(width: 320, child: KkMeter(value: 0.61, valueText: '1220', unit: 'L')));
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 320,
+        child: KkMeter(value: 0.61, valueText: '1220', unit: 'L'),
+      ),
+    );
     expect(find.text('1220'), findsOneWidget);
     expect(find.text('L'), findsOneWidget);
   });
@@ -123,9 +144,49 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('a value that changes with every frame keeps the bar moving', (WidgetTester tester) async {
+    double value = 0;
+    late StateSetter rebuild;
+    await pumpKk(
+      tester,
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          rebuild = setState;
+          return KkBox(
+            width: 320,
+            child: KkMeter(value: value, unit: '%'),
+          );
+        },
+      ),
+      motion: true,
+    );
+    await tester.pump(const Duration(seconds: 1));
+    // 0 to 0.9 in 2.88s, a new value with each 16ms frame: three arrive inside every 50ms step.
+    const int frames = 180;
+    for (int frame = 1; frame <= frames; frame++) {
+      rebuild(() => value = 0.9 * frame / frames);
+      await tester.pump(const Duration(milliseconds: 16));
+      // The bar steps after the value and is never more than 0.65s of rise behind it.
+      expect(_bar(tester), lessThanOrEqualTo(value), reason: 'frame $frame');
+      expect(value - _bar(tester), lessThan(0.9 / 2.88 * 0.65), reason: 'frame $frame');
+    }
+    expect(find.text('090'), findsOneWidget);
+    expect(_bar(tester), greaterThan(0.7));
+    // It ends on the last value no later than one transition after it.
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(_bar(tester), 0.9);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('odd values and tiny boxes do not throw', (WidgetTester tester) async {
     for (final double v in <double>[-3, 0, 1, 42, double.nan, double.infinity, double.negativeInfinity]) {
-      await pumpKk(tester, KkBox(width: 240, child: KkMeter(cjk: '負荷', en: 'load', value: v, unit: '%')));
+      await pumpKk(
+        tester,
+        KkBox(
+          width: 240,
+          child: KkMeter(cjk: '負荷', en: 'load', value: v, unit: '%'),
+        ),
+      );
       expect(tester.takeException(), isNull, reason: '$v');
     }
     await pumpKk(

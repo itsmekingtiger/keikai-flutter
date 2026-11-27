@@ -317,9 +317,9 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     KkLevel? level = widget.level;
     if (widget._kind == _TimerKind.countdown) {
       final Duration from = widget.from ?? Duration.zero;
-      // The bar moves once a second, so each move can play its nine steps.
-      final int wholeLeft = (shown.inMilliseconds / 1000).ceil();
-      progress = from.inMilliseconds <= 0 ? 0 : (wholeLeft * 1000 / from.inMilliseconds).clamp(0.0, 1.0);
+      // The bar is the share of the time that is left. It changes with every
+      // frame, and the stepped value below still moves it one jump per step.
+      progress = from <= Duration.zero ? 0 : (shown.inMicroseconds / from.inMicroseconds).clamp(0.0, 1.0);
       final Duration? crit = widget.criticalAt;
       final Duration? caution = widget.cautionAt;
       if (level == null) {
