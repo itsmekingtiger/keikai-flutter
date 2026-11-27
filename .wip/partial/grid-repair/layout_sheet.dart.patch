@@ -1,0 +1,29 @@
+--- /home/user/keikai-flutter/example/lib/sheets/layout_sheet.dart	2026-11-25 02:22:31.798118498 +0000
++++ /home/user/keikai/example/lib/sheets/layout_sheet.dart	2026-11-27 08:33:46.412225987 +0000
+@@ -191,14 +191,19 @@
+         final int columns = theme.metrics.columnsFor(constraints.maxWidth);
+         return KkLayers(
+           children: <Widget>[
+-            // The column tracks, visible wherever no cell covers them.
++            // The column tracks, visible wherever no cell covers them. They are a grid of their own, one row as
++            // tall as the specimen: a grid shares its width between the columns in whole pixels, so only a grid
++            // ends each track where the cell over it ends. An even split of the width would show beside the cells.
+             KkPositioned.fill(
+-              child: KkRow(
+-                gap: theme.metrics.gridGutter,
+-                cross: KkCrossAlign.stretch,
+-                children: <Widget>[
+-                  for (int i = 0; i < columns; i++) KkExpanded(child: KkBox(fill: c.grid)),
+-                ],
++              child: LayoutBuilder(
++                builder: (BuildContext context, BoxConstraints box) => KkGrid(
++                  columns: columns,
++                  rowUnit: box.maxHeight,
++                  stagger: false,
++                  children: <Widget>[
++                    for (int i = 0; i < columns; i++) KkCell(span: 1, rows: 1, child: KkBox(fill: c.grid)),
++                  ],
++                ),
+               ),
+             ),
+             KkGrid(

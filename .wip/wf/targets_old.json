@@ -1,0 +1,164 @@
+{
+ "old": {
+  "tokens-theme": {
+   "key": "tokens-theme",
+   "files": [
+    "lib/src/foundation/tokens.dart",
+    "lib/src/foundation/colors.dart",
+    "lib/src/foundation/level.dart",
+    "lib/src/foundation/typography.dart",
+    "lib/src/foundation/theme.dart"
+   ],
+   "focus": "every token value against tokens.json for BOTH themes (standby and alert), including glows (ring, blur, alpha), the ramp (color-mix percentages used by .kk-heat / .kk-wf in bundle.css), scrims; breakpoints, column counts and margins against the layout / breakpoint tokens and the .kk-grid / .kk-screen CSS; the named type scale against tokens.json (size, line-height, weight, letter-spacing in em converted to px); copyWith / == / hashCode completeness; font family and fallback resolution with and without a package; InheritedWidget updateShouldNotify and KkConditionScope."
+  },
+  "motion": {
+   "key": "motion",
+   "files": [
+    "lib/src/foundation/motion.dart",
+    "lib/src/motion/loops.dart",
+    "lib/src/motion/entrances.dart",
+    "lib/src/motion/scramble.dart",
+    "lib/src/motion/stagger.dart"
+   ],
+   "focus": "KkSteps and kkKeyframes against the CSS semantics of steps(n, end) applied per keyframe segment (compare with the @keyframes and animation declarations in bundle.css lines 54-65 and 1891-1975: kk-boot, kk-flicker, kk-blink, kk-strobe, kk-grow, timings and delays); floating point at step boundaries; ticker and AnimationController lifecycle; replay when the trigger changes; behaviour when motion is switched off or the theme changes mid-animation; timeScale; stagger delay; setState after dispose; the shared frame clock (kkFrameTime) in and out of a frame; scramble determinism and settling order."
+  },
+  "effects": {
+   "key": "effects",
+   "files": [
+    "lib/src/motion/effects.dart",
+    "lib/src/widgets/clock.dart"
+   ],
+   "focus": "the hazard maths against the CSS (.kk-hazard lines 76-82: repeating-linear-gradient(-45deg, a 0 12px, b 12px 24px); the running version lines 1924-1932: square tile of pitch*2.8284 shifted one tile per 0.9s) including stripe direction, phase and seamless looping; the marquee; the CRT painter (image shader, static cache); RenderKkGlitch (listener attach / detach, layer handles, transform and clip correctness, the flash timing against @keyframes kk-glitch / kk-flash); KkGlitch firing only on trigger change; KkClock timer scheduling, drift, disposal and behaviour under fake time."
+  },
+  "painting": {
+   "key": "painting",
+   "files": [
+    "lib/src/painting/shapes.dart",
+    "lib/src/painting/patterns.dart",
+    "lib/src/painting/decoration.dart",
+    "lib/src/painting/svg_path.dart",
+    "lib/src/painting/text.dart",
+    "lib/src/foundation/icons.dart",
+    "lib/src/widgets/icon.dart"
+   ],
+   "focus": "KkShape paths against the CSS clip-path polygons (button plate lines 623-631, icon button 697-705, code block slant 219, hexagon 537 / 767, mode step 2484-2486), the two-layer edge + inset fill construction, contains(); glow painting against box-shadow semantics; KkEdges / dashed sides; bracket geometry against lines 105-123; every pattern painter (grid, plot, stripes, hex field lines 83-94, scan lines 95-104, segments, ticks) for correctness on empty, tiny, negative-origin and non-integer rects; the SVG path parser against the SVG path grammar (implicit repeats, relative commands, arcs and their flags, S / T reflection, numbers like 1.5.5 and -1-1, error reporting); kkDashPath; that every KkIconData path parses and the status glyphs equal the data URIs in bundle.css lines 29-33; the icon painter's caching and fill rule."
+  },
+  "flex": {
+   "key": "flex",
+   "files": [
+    "lib/src/layout/flex.dart"
+   ],
+   "focus": "RenderKkFlex as a correct RenderBox: gap handling, every KkMainAlign and KkCrossAlign, baseline alignment, flex shares (tight and loose) and rounding, shrinkWrap, unbounded main and cross constraints, the stretch re-layout pass (children laid out twice: is it legal and are sizes consistent), computeDryLayout / computeDryBaseline / intrinsics agreeing with performLayout, overflow detection and clipping, hit testing, parent data updates from KkFlexible / KkExpanded / KkAlignSelf, RenderKkGap inside and outside a flex, behaviour with zero children."
+  },
+  "layout-rest": {
+   "key": "layout-rest",
+   "files": [
+    "lib/src/layout/box.dart",
+    "lib/src/layout/layers.dart",
+    "lib/src/layout/wrap.dart",
+    "lib/src/layout/grid.dart",
+    "lib/src/layout/scroll.dart"
+   ],
+   "focus": "RenderKkBox (border-box maths: border widths plus padding inside the box; alignment expansion; additional constraints enforcement; intrinsics; dry layout and baseline; hit-test opacity; clip layer), RenderKkSurface (hit test follows the shape; clip path layer), RenderKkLayers (positioned children with every combination of left / top / right / bottom / width / height; expand; sizes with no children), RenderKkWrap (run breaking, alignment, intrinsics), RenderKkGrid against the CSS (.kk-grid / .kk-cell lines 1859-1889: columns 4 / 8 / 12 / 16 / 24 by container width, grid-auto-rows 48px, 8px gap, row dense packing, span clamped to the column count, rows span) and the stagger wrapping of KkCell children, KkScrollBehavior / KkScrollbar."
+  },
+  "widgets-app": {
+   "key": "widgets-app",
+   "files": [
+    "lib/src/widgets/text.dart",
+    "lib/src/widgets/pressable.dart",
+    "lib/src/widgets/frame.dart",
+    "lib/src/app/app.dart",
+    "lib/src/app/routes.dart",
+    "test/support/harness.dart"
+   ],
+   "focus": "KkText voice resolution and colour inheritance, RenderKkSqueeze (layout maths, paint transform, hit testing, baseline), RenderKkTate (painter lifecycle, sizes, overflow), KkLabel; KkPressable (hover / focus / press state machine, keyboard activation, disabled, semantics flags, focus ring only for keyboard focus) and RenderKkFocusRing geometry against the CSS outline rules (2px solid, 2px offset; negative offsets inside); KkWidgetFrame / KkWidgetHead / KkWidgetFoot against .kk-wgt-head / .kk-wgt-foot (lines 1629-1652); KeikaiApp (theme and condition handling, controlled versus own condition, glitch trigger counting, wall scale, the user builder, WidgetsApp parameters), KkPageRoute and KkPopupRoute (transition durations with motion on and off, barrier, semantics), and the test harness helpers."
+  }
+ },
+ "hud": {
+  "hud-panel": {
+   "key": "hud-panel",
+   "files": [
+    "lib/src/hud/panel.dart",
+    "lib/src/hud/fill_column.dart",
+    "lib/src/hud/hug.dart",
+    "lib/src/hud/state_word.dart",
+    "lib/src/hud/heading.dart"
+   ],
+   "focus": "KkPanel against bundle.css .kk-panel (lines 190-287) and its entrance (lines 1916-1923) and running hazard (1925-1932): 1px line border, bg-100, corner brackets, the 32px head band, the code block with the chamfer-lg slant, title sizes (cjk 21px/1, en 11px 700 .14em), meta, body padding 16 and flush, spine (24px column, 14px display, .12em), collapse toggle and its keyboard / semantics, the quiet and active variants, critical (alert frame + glow + 48px running hazard) and offline (dashed, greyscale body) levels, entrance timings (wipe .42s steps(7), head grow .3s steps(6) +.1s, body flicker .5s steps(10) +.3s, stagger 60ms) and behaviour with motion off; layout in a tight grid cell, in a scroll view, with no code / no title / very long title / zero size; the helper render objects in fill_column.dart and hug.dart as correct RenderBoxes; KkHeading against .kk-heading (2494-2501)."
+  },
+  "hud-readouts": {
+   "key": "hud-readouts",
+   "files": [
+    "lib/src/hud/alert_bar.dart",
+    "lib/src/hud/readout.dart",
+    "lib/src/hud/meter.dart",
+    "lib/src/hud/timer.dart"
+   ],
+   "focus": "KkAlertBar against .kk-alert (289-321): min height 64, 2px level border, 64px hazard blocks that run only when critical, cjk 40px, title 26px label 800 with ellipsis, sub 12px mono, code; critical fill and glow. KkReadout against .kk-readout (344-397): min width 208, 2px top border, head, state word, 32px mono value in the level colour, unit, the tick scale and marker position maths (min(pos*100%, 100% - 2px)), foot. KkMeter against .kk-meter (399-441) and the transition (1940): the segmented bar (pitch 8, 6 on / 2 off), lit width rounded DOWN to the pitch, threshold marks at warn / crit, automatic level, 9-step .45s transition, values outside 0..1 and NaN. KkTimer against .kk-timer (443-469): formatting (zero, negative, over an hour, centiseconds), the countdown / stopwatch controller (Ticker lifecycle, pause and resume, reset, disposal, behaviour under fake time), level borders, critical blink."
+  },
+  "hud-matrix-log": {
+   "key": "hud-matrix-log",
+   "files": [
+    "lib/src/hud/hex_matrix.dart",
+    "lib/src/hud/data_log.dart",
+    "lib/src/hud/sequence.dart"
+   ],
+   "focus": "KkHexMatrix against .kk-hexes / .kk-hex (512-550) and the entrance (1902, 1939): cell 64 x 73.92, gap 4, odd-row offset of half a cell plus half a gap, row overlap of -25% of the height plus gap * 0.866, the 2px hexagon frame, critical / offline / void cells, hit testing inside the hexagon only, hover and tap callbacks, wrapping to the width, the custom render object's layout / intrinsics / hit test, pop-in timing (.32s steps(4), 22ms apart). KkDataLog against .kk-log (552-599) and the new-row motion (1901, 1938): 24px header, rows min 26px on a 96 / 60 / 92 / 1fr grid, critical rows on alert-deep, hover, max height scrolling, auto-scroll to the newest (ScrollController lifecycle, scrolling after layout), detection of newly added entries when the list is replaced or prepended, the 1s steps(10) row-in animation. KkSequence against .kk-seq (1736-1800): the 22 / 16 / 1fr / auto / auto grid, min row height 40, the 2px rail (cut at the first and last step, signal for done steps), each status look (done, active with blinking core, pending, failed, skipped), the progress bar value, tap callbacks and keyboard."
+  },
+  "hud-alarms": {
+   "key": "hud-alarms",
+   "files": [
+    "lib/src/hud/annunciator.dart",
+    "lib/src/hud/consensus.dart",
+    "lib/src/hud/mode_strip.dart",
+    "lib/src/hud/emergency.dart"
+   ],
+   "focus": "KkAnnunciator against .kk-ann (2417-2445): grid columns, 3px gaps and padding, tile min height 68, each state (normal, alarm flashing every .5s, ack steady, rtn with a blinking 2px inset border at 1.2s, test), the state machine helpers (acknowledged / cleared / reset), which states call back, arrow-key navigation and focus, semantics. KkConsensus against .kk-vote (2447-2469): voter columns, the 4px top border by vote, verdict sizes, fault hatch, the result band colours and blink while waiting, and the result maths (resultOf / quorumFor) for every combination: all go, any nogo, waiting, faults, quorum larger than the voter count, zero voters. KkModeStrip against .kk-mode (2471-2492): arrow shape (12px heads, first step without a notch), 54px height, 2px gaps, past / current / target (blinking at .6s) / future looks, tap and keyboard. KkEmergency against .kk-emer (2503-2542): veil, hazard bands, marquees, the plate (strobe 1s, rings, glow), sizes inline versus full screen, showKkEmergency (route, dismissal rules, focus, semantics), behaviour on small screens (does the plate overflow?)."
+  }
+ },
+ "ctl": {
+  "ctl-plates": {
+   "key": "ctl-plates",
+   "files": [
+    "lib/src/controls/control_style.dart",
+    "lib/src/controls/button.dart",
+    "lib/src/controls/icon_button.dart",
+    "lib/src/controls/badge.dart",
+    "lib/src/controls/fab.dart",
+    "lib/src/controls/status_tag.dart",
+    "lib/src/controls/kbd.dart"
+   ],
+   "focus": "KkButton against bundle.css .kk-btn (lines 601-650, 670-676): heights 28 / 36 / 48, padding, 15px label 700 .08em caps (13 for sm, 18 for lg), the plate shape (chamfer-md top-left and bottom-right; a 1px edge plate with the fill inset by 1px), each variant's edge / fill / ink in rest, hover, pressed (translateY 1px) and disabled, the primary hover glow, the focus ring (2px, 2px away), icon spacing, cjk word (14px display), loading state, expand; KkIconButton against .kk-iconbtn (678-718): 24 / 32 / 40, chamfer-sm top-left only, plain / outline / filled / tonal, toggled look, disabled, badge position (top -5, right -7), the spin (0.6s steps(8), one turn per trigger change); KkBadge against .kk-badge (720-738): min 16x16, 4px padding, 10px mono 600, top-right cut 4px, dot 8x8, anchor offsets (top -6, right -8), count formatting over max; KkFab against .kk-fab (740-778): hexagon 56x64, sm 40x46, extended 48 high with chamfer-lg plate, danger, hover glow, pressed; KkStatusTag against .kk-tag (323-342): 22 / 28 high, 8 / 12 padding, 12 / 15px label 700 .12em, 1px currentColor border, solid variant, glyph 12 / 14, cjk part; KkKbd against .kk-kbd (657-668). Also: semantics (button role, enabled, label), keyboard activation, behaviour inside unbounded and zero-size parents, very long labels, KkStateOverride leaking state to nested controls."
+  },
+  "ctl-choice": {
+   "key": "ctl-choice",
+   "files": [
+    "lib/src/controls/segmented.dart",
+    "lib/src/controls/chip.dart",
+    "lib/src/controls/checkbox.dart",
+    "lib/src/controls/radio.dart",
+    "lib/src/controls/switch.dart",
+    "lib/src/controls/option_label.dart"
+   ],
+   "focus": "KkSegmented against .kk-seg (780-816): 1px ink-faint frame, 30px buttons, padding 0 12 0 10, 13px label 700 .1em, the 12px lamp slot with an 8px square lamp, separators (1px line, 7px inset) hidden next to a selected segment, the 2px bg-000 separator between two adjacent selected segments, hover, disabled, single versus multi selection logic, arrow / Home / End keys skipping disabled segments and wrapping, focus handling as one tab stop, semantics (selected / checked); KkChip against .kk-chip (818-858): 28 high, 12 padding, 13px label 600 .08em, assist icon in signal, filter lamp 10px and pressed look, suggestion dashed, input chip with a 20x20 remove button and its own focus, disabled; KkCheckbox against .kk-check (860-908): 16px box, tick / dash, tri-state cycle order, error, disabled, label; KkRadioGroup against .kk-radio (910-922): hexagon mark, column / row wrap layout with gaps 8 / (8, 16), selection by equality including null values, arrow keys, disabled options; KkSwitch against .kk-switch (924-945): 24 high track, cells min 34 wide with 6px padding, 11px mono 700 .06em, off cell bg-300 + ink, on cell signal + on-fill, disabled looks, semantics toggled."
+  },
+  "ctl-slider": {
+   "key": "ctl-slider",
+   "files": [
+    "lib/src/controls/slider.dart"
+   ],
+   "focus": "KkSlider against .kk-slider (947-997): head (cjk 14 + en 11 600 .14em, value 18px mono 500 + small unit), the 22px hit row with an 8px track of 6-on / 2-off segments (signal for the filled part, signal-dim for the rest), the 8x22 thumb in ink with a 2px bg-000 outline turning signal on hover, marks row (first left-aligned, last right-aligned, others centred, 10px mono). The value maths: valueAt for a pointer position (thumb width accounted for at both ends), snap to divisions, clamping, min == max, min > max, non-finite values, a value outside the range; drag and tap; keys (arrows, PageUp / PageDown, Home / End) with and without divisions; onChangeStart / onChangeEnd pairing in every path including a cancelled gesture and disposal mid-drag; a controlled slider whose owner rejects the change; disabled; semantics (value, increase / decrease actions); layout in unbounded width."
+  },
+  "ctl-feedback": {
+   "key": "ctl-feedback",
+   "files": [
+    "lib/src/controls/progress.dart",
+    "lib/src/controls/scan.dart",
+    "lib/src/controls/divider.dart",
+    "lib/src/controls/skeleton.dart",
+    "lib/src/controls/empty.dart"
+   ],
+   "focus": "KkProgress against .kk-progress (1289-1313) and the transition (1940): head, 6px bar of 6-on / 2-off segments, the lit width rounded DOWN to the 8px pitch (round(down, value*100%, 8px)), level colours, the 0.45s steps(9) transition on value change, the indeterminate bar (25% wide, translateX from -100% to 400% in 1.6s steps(20)), reduced-motion fallback (static at 150%), values outside 0..1, NaN; KkRing against .kk-ring (1314-1325): track and fill stroke 4, the arc maths (start angle, direction, full circle at 1.0), centred 13px mono text, indeterminate rotation 1.2s steps(24); KkScanBar / kkScanOffset maths and ticker lifecycle; KkDivider against .kk-divider (1559-1568): label parts, the ticks variant (6px high, 1px ticks every 8px over a baseline), vertical variant (1px, min height 16); KkSkeleton against .kk-skel (2391-2395): 10px lines on bg-200 with a 25% signal-dim block scanning in 1.4s steps(14), block variant; KkEmpty against .kk-empty (2396-2415): min height 168, 24 padding, dashed ink-faint border on bg-000, cjk 36px, en 13px .2em, sub 11px/1.5 mono, the 160px bar, the nosignal variant (solid offline border, cjk flicker 2.4s steps(12) infinite) and its noise overlay; all of them with motion off and in both themes."
+  }
+ }
+}

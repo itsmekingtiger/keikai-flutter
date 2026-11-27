@@ -1,0 +1,3 @@
+Stop KkGlitch clipping its child outside the two slices
+
+RenderKkGlitch pushed a clip of its own box for the whole 0.7s, although kk-glitch has clip-path: none everywhere but in its two slices. Whatever the child paints beyond its box, such as the glow ring and halo of an alarm panel, corner brackets or a focus ring, vanished for 0.7s and then popped back. A clip is now pushed only while a slice is cut out of the child, on the canvas and in the layer tree alike.

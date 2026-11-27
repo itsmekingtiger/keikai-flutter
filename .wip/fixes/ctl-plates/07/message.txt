@@ -1,0 +1,3 @@
+Add KkTextScaleLimit to keep enlarged text inside fixed plates
+
+The text of a badge, a key cap, a tag, a button and the extended FAB follows the text size set on the device, but their plates have a fixed height, so from about 1.6 times the normal size the glyphs were cut off at the bottom. The content of each plate now sits in KkTextScaleLimit, which lets the text grow until one line is as high as the plate is inside its border and holds it there. The type scale of the theme is counted in, and the plates keep their height.

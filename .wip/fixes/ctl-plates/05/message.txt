@@ -1,0 +1,3 @@
+Keep KkButton's content in place when loading starts or ends
+
+The scan of the busy bar was wrapped around the content only while the button was loading. The content sat one level deeper for that time, so it was unmounted and built again at both ends of every busy period, and a custom child lost its State twice. The scan is now always in the tree: it is switched off and has no painter while the button is not busy.

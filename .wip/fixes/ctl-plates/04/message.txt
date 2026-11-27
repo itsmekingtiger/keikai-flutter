@@ -1,0 +1,3 @@
+Keep KkButton focusable while it is loading
+
+A loading button handed its pressable no callbacks, which made it a disabled control: the node that held the keyboard focus dropped it to the page, the ring went, screen readers heard a disabled button, and nothing gave the focus back when the work was done. The button now stays a control while it is busy and swallows the press instead. It shows its focus but no hover or pressed look, and tells screen readers that it is busy with the new loadingLabel, "Loading" unless another word is given.

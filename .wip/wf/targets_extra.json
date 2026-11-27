@@ -1,0 +1,78 @@
+{
+ "ctl-slider": {
+  "key": "ctl-slider",
+  "files": [
+   "lib/src/controls/slider.dart"
+  ],
+  "focus": "KkSlider against .kk-slider (947-997): head (cjk 14 + en 11 600 .14em, value 18px mono 500 + small unit), the 22px hit row with an 8px track of 6-on / 2-off segments (signal for the filled part, signal-dim for the rest), the 8x22 thumb in ink with a 2px bg-000 outline turning signal on hover, marks row (first left-aligned, last right-aligned, others centred, 10px mono). The value maths: valueAt for a pointer position (thumb width accounted for at both ends), snap to divisions, clamping, min == max, min > max, non-finite values, a value outside the range; drag and tap; keys (arrows, PageUp / PageDown, Home / End) with and without divisions; onChangeStart / onChangeEnd pairing in every path including a cancelled gesture and disposal mid-drag; a controlled slider whose owner rejects the change; disabled; semantics (value, increase / decrease actions); layout in unbounded width. Reported by the author of an app built on the package, to be verified: pressing the track does not give the slider the keyboard focus, so the arrow keys do nothing after a press."
+ },
+ "ctl-feedback": {
+  "key": "ctl-feedback",
+  "files": [
+   "lib/src/controls/progress.dart",
+   "lib/src/controls/scan.dart",
+   "lib/src/controls/divider.dart",
+   "lib/src/controls/skeleton.dart",
+   "lib/src/controls/empty.dart"
+  ],
+  "focus": "KkProgress against .kk-progress (1289-1313) and the transition (1940): head, 6px bar of 6-on / 2-off segments, the lit width rounded DOWN to the 8px pitch (round(down, value*100%, 8px)), level colours, the 0.45s steps(9) transition on value change, the indeterminate bar (25% wide, translateX from -100% to 400% in 1.6s steps(20)), reduced-motion fallback (static at 150%), values outside 0..1, NaN; KkRing against .kk-ring (1314-1325): track and fill stroke 4, the arc maths (start angle, direction, full circle at 1.0), centred 13px mono text, indeterminate rotation 1.2s steps(24); KkScanBar / kkScanOffset maths and ticker lifecycle; KkDivider against .kk-divider (1559-1568): label parts, the ticks variant (6px high, 1px ticks every 8px over a baseline), vertical variant (1px, min height 16); KkSkeleton against .kk-skel (2391-2395): 10px lines on bg-200 with a 25% signal-dim block scanning in 1.4s steps(14), block variant; KkEmpty against .kk-empty (2396-2415): min height 168, 24 padding, dashed ink-faint border on bg-000, cjk 36px, en 13px .2em, sub 11px/1.5 mono, the 160px bar, the nosignal variant (solid offline border, cjk flicker 2.4s steps(12) infinite) and its noise overlay; all of them with motion off and in both themes. Reported by an app author, to be verified: KkProgress cannot switch off its 0.45s chase, and a value that is updated faster than that used to leave the bar behind its number (KkSteppedValue has since been changed to keep its clock when it is retargeted: check that the bar now reaches the latest value)."
+ },
+ "in-popup": {
+  "key": "in-popup",
+  "files": [
+   "lib/src/inputs/popup.dart",
+   "lib/src/inputs/menu.dart",
+   "lib/src/inputs/modality.dart",
+   "lib/src/inputs/tooltip.dart"
+  ],
+  "focus": "KkPopup / RenderKkPopupLayout: the anchoring maths for every side and align, flipping when there is no room, the 4px clamp inside the screen, matchWidth / minAnchorWidth / minWidth, whole-pixel snapping, following the anchor when it scrolls, resizes or moves, the overlay entry lifecycle (removed on dispose, on route pop, when the anchor is unmounted while open), tap-outside closing and groupId, focus handling and restore, a popup opened from build. KkMenu against .kk-menu (lines 1113-1159): min width 232, item height and padding, the icon slot, shortcut hint, check mark, danger rows (rest and highlighted), separators and labels, hover and keyboard highlight, the 2px focus bar; keyboard (arrows, Home / End, Enter / Space, Escape, type-ahead), disabled items skipped, the .25s steps(5) wipe, maxHeight scrolling and keeping the highlighted row in view, semantics (menu and item roles, checked, enabled). KkMenuAnchor (controller ownership, onOpen / onClose pairing, restoreFocus), showKkMenu (route result, dismissal, position and anchorRect). KkInputModality (global listeners: registered once, removed, isolated between tests). KkTooltip against .kk-tip (lines 1364-1408): the plain and the rich look, the stem, the four sides, the 400ms wait and 1500ms show timers and their cancellation, hover versus keyboard focus versus focus after a click, dismissal on leave, press, wheel, scroll and Escape, the 160ms grace of the rich card, controlled `open`, timers and overlay entries after dispose, semantics. Reported by an app author, to be verified: a popup stays on screen, clamped to the window edge, after its anchor has scrolled out of its scroll view; KkMenuAnchor(initiallyOpen: true) opens in initState, takes the keyboard focus and scrolls its ancestors to itself."
+ },
+ "sh-overlays": {
+  "key": "sh-overlays",
+  "files": [
+   "lib/src/shell/dialog.dart",
+   "lib/src/shell/sheet.dart",
+   "lib/src/shell/snackbar.dart"
+  ],
+  "focus": "KkDialog against .kk-dialog (lines 1409-1469): 520px wide and clamped to the screen, the head (code block, title, close), body padding, the actions row, the critical variant (alert frame, glow, hazard strip), the corner brackets, the 78% scrim, the wipe in and out, the body flicker; showKkDialog: focus trap and initial focus, Escape and barrier dismissal versus dismissible false, results, a tall body on a small screen (scrollable), nested dialogs, focus restore on close, semantics (dialog / alertDialog roles and label). showKkConfirm (danger look, default focus, result on dismissal). KkSheet against .kk-sheet (lines 1470-1487): side 400px and bottom up to 60% of the height, the grip, the stepped slide in and out (.42s in 7 steps), the 70% scrim, safe areas, the foot that wraps, dismissal, focus. KkSnackbar / KkMessenger against .kk-snack (lines 1327-1363): min height 40, max width 560, the code block and its slant by level, action, close, the stack position (left 24, bottom toolbar height + 16), maxVisible and which one is evicted, the duration timers (cancelled on close and dispose), KkSnackbarHandle.close and its closed future (completed exactly once in every path), clear, show after the messenger is disposed, messages during a route transition, the live region semantics. Also how lib/src/app/app.dart mounts KkMessenger. Reported by an app author, to be verified: the snackbar stack covers the nav rail's lowest button and, on a phone, the bottom navigation bar; its width limit (window width minus twice `left`) makes it impossible to put the stack on the right; the app-level stack lies above every route, dialogs and the full-screen alarm included."
+ },
+ "ch-xy": {
+  "key": "ch-xy",
+  "files": [
+   "lib/src/charts/time_series.dart",
+   "lib/src/charts/bar_chart.dart",
+   "lib/src/charts/sparkline.dart",
+   "lib/src/charts/stat.dart"
+  ],
+  "focus": "KkTimeSeries against .kk-chart (lines 2025-2060): axes, grid lines, line / area / step drawing, thresholds (dashed line, label, level colour), gaps for null or NaN values, a single point, a constant series, uneven x spacing, the y range override, the hover crosshair and readout, the entrance wipe and its timing, updates when the data changes in place, many points. KkBarChart: grouped and stacked bars, negative values and the baseline, bar width and gap rules, labels, hover, the entrance, zero and one category. KkSparkline against the sparkline rules in lines 1977-2024: default size, the last point marker, min / max, level colour, fill, fewer than two points. KkStat / KkDelta against the stat rules in lines 1977-2024: the value typography, unit, the delta arrow and sign, the level by direction (and the inverse option), the sparkline slot, the scramble on change, sizes in a grid cell. Reported by an app author, to be verified: KkStat / KkReadout scramble all digits on every change, so a value that changes every second shows noise digits for 0.46s of each second."
+ },
+ "tb-core": {
+  "key": "tb-core",
+  "files": [
+   "lib/src/table/column.dart",
+   "lib/src/table/widths.dart",
+   "lib/src/table/layout.dart",
+   "lib/src/table/frame.dart",
+   "lib/src/table/rows.dart"
+  ],
+  "focus": "The column model (KkTableColumn, KkTableWidth fixed / content / flex with min and max, KkTableSort, kkCompareTableValues with nulls, NaN, mixed types and stable order) and the ONE width resolution (kkResolveTableWidths, KkTableGeometry) shared by header, rows, summary and detail: fixed, flex and content columns together, available width smaller than the minimums (horizontal scroll), zero columns, one column, snapping to whole pixels, the running maximum of content widths. The render objects (RenderKkTableCells, RenderKkTableFrame, RenderKkTableGrid, the rows sliver): layout protocol, intrinsics, dry layout and dry baseline agreeing with performLayout (testChecked in test/layout/layout_util.dart), hit testing, paint of row grounds (hover, selected, row fill, critical) and separators, lazy building of rows (how many are built for 10 000 rows), scroll extent estimates with detail rows of unknown height, the free-height case, sticky header and summary, horizontal scrolling of header, body and summary together. Compare every size with .kk-table (bundle.css lines 2106-2326): 32 / 24px rows, 30 / 42 / 24 / 36px header, 8px cell padding, checkbox 36, number 40 and expander 28 columns."
+ },
+ "tb-interaction": {
+  "key": "tb-interaction",
+  "files": [
+   "lib/src/table/data_table.dart",
+   "lib/src/table/header.dart",
+   "lib/src/table/edit.dart"
+  ],
+  "focus": "KkDataTable state: controlled versus own sort, filter, selection, expanded, page and page size (a non-null value is controlled) and what happens when the owner changes them or the rows under them; the sort cycle and its stability; filtering (filterPredicate, searchable columns, the no-match state); selection (single, multi, the tri-state header checkbox on the page, Shift range, selection that names rows that are gone, selection across pages); paging (page beyond the last page after a filter, page size change, totalRows for server paging and which callbacks fire then); detail rows (canExpand, controlled set); change tracking (a changed cell flashes once for 0.9s in 6 steps, a row whose level changed strobes three times in 1.2s; never on first build, sort, filter or paging; values compared by column value; flashChanges false); the keyboard model (rows as one tab stop; arrows, Home / End, Page keys, Enter, Space, Shift+Space, Ctrl+A, Left / Right for the detail) and scrolling the focused row into view; inline editing (opening, text selection, Enter, Escape, blur with and without commitOnBlur, validator and its error look, formatters, editing a row that scrolls away or is removed, initiallyEditing); header sort buttons and their semantics; lifecycle (controllers, focus nodes, tickers, timers, listeners disposed; no setState after dispose); cost of a rebuild with many rows."
+ },
+ "tb-chrome": {
+  "key": "tb-chrome",
+  "files": [
+   "lib/src/table/band.dart",
+   "lib/src/table/cells.dart",
+   "lib/src/table/pagination.dart"
+  ],
+  "focus": "The band against lines 2114-2186: 40px, the code block and its slant, title (cjk 17px, en 11px), meta, the filter field (the .kk-table__filter look, clear button that keeps its slot, focus), actions, how the row gives way when it is too narrow; the selecting band (solid signal, the count block, the label, bulk buttons, the close button, the .25s wipe, same height and no shift), danger bulk actions that arm on the first press (blink at 1s, timeout, Escape, focus loss, a press elsewhere, selection change) and fire on the second, the live announcement of the count. The cell kinds against lines 2245-2265: level word with glyph, code, value with level and glyph slot, the 72 x 6 bar, the segmented meter (5 x 10 segments, 1px gap, percent), the 80 x 18 sparkline, summary cells; their looks inside a critical row (ink on alert-deep) through KkTableRowScope, dense rows, NaN and out-of-range values. KkPagination and the footer against lines 2313-2321: 36px, the range text, the per-page select, first / previous / next / last buttons and their enabled states at the ends, page count 0 and 1, keyboard, semantics."
+ }
+}

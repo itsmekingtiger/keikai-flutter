@@ -1,0 +1,3 @@
+Keep KkIconButton's plate mounted when its badge comes or goes
+
+The button built its plate alone without a badge and inside the badge anchor with one, so whenever the badge went from null to a widget or back the plate was unmounted and built again, the state of the icon's spin included. A spinTrigger that changed in the same build as the badge gave no turn, and a badge that arrived or left during a turn stopped it. The button now builds the anchor in both cases and KkBadgeAnchor takes a null badge, so the plate keeps its place in the tree.

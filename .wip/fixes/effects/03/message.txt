@@ -1,0 +1,3 @@
+Keep the child of KkCrt in place when a texture is switched
+
+KkCrt built three different trees: the bare child with every texture off, a CustomPaint around it for scan lines, and a KkLoop around that for the sweep and the noise. Switching a texture on or off therefore moved the child to another depth, and the framework threw its subtree away and built a new one, so scroll offsets, input and running animations were lost. It now builds the loop and the CustomPaint for every set of textures: a loop that is not enabled starts no ticker, and a CustomPaint without a painter draws nothing. The test that expected no CustomPaint with every texture off now expects one without a painter.

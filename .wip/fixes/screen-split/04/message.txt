@@ -1,0 +1,3 @@
+Make RenderKkScreen exactly as tall as its height limit
+
+With a height limit the layout added the screen's height up again from the bars and what they leave between them. In floating point that sum can come out a rounding step below the limit, so with bars of fractional height and loose constraints the screen was not quite the size its dry layout reports, which is an assertion when the framework checks render boxes. The layout now returns the limit itself, as the dry layout does.

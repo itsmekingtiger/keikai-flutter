@@ -1,0 +1,3 @@
+Pin KkBadgeAnchor's badge to its child's own box
+
+KkBadgeAnchor and KkIconButton pinned a badge with a stack, which lays its child out loose but takes the size its parent gives it. Under a tight or minimum constraint (a larger touch target, a column or row that stretches) the badge sat on the far corner of the parent's box, away from the plate, and a button with a badge came out smaller than one without. The anchor is now a render object that hands the child its own constraints, takes the child's size and places the badge from the child's top-right corner.

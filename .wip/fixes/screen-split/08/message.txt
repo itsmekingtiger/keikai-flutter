@@ -1,0 +1,3 @@
+Announce where the divider of KkSplit is, not the share it was given
+
+The slider semantics were built from the stored ratio, which the pane minimums can keep the divider away from: assistive technology was told a position the divider was not at, was promised steps it could not take, and a first step only rewrote the ratio while the divider stayed put. The split now lays its handle out with the divider's position, and the handle builds its value from that and its next values within what the divider can reach, in the same frame and also when only the space changes. A step moves the divider from where it is.

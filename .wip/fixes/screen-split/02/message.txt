@@ -1,0 +1,3 @@
+Let KkScreen hand nav and side the exact height of their region
+
+Nav and side always sat in a scroll view, so their content was given a least height and no limit. A KkSheet there could not keep its foot on the bottom edge and scrolled away as a whole, a list that builds its rows lazily threw, and a spacer had nothing to share out. With the new scrollNav or scrollSide turned off the content is handed the region itself: exactly its height beside the body, and its own height up to all there is under the body. The default is unchanged, so fixed content that is taller than its region still scrolls.

@@ -1,0 +1,3 @@
+Give KkMarquee a finite width where the width is free
+
+The band always asked for an infinite width, so in a row, a sideways scroll view or an UnconstrainedBox its CustomPaint was laid out as Size(Infinity, 13), and the painter, which repeats the text up to the right edge, never returned: the app froze. Where no width is imposed the band is now one repetition wide, the text and the gap after it, and the painter draws nothing on a canvas that has no finite width.

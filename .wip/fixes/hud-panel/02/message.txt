@@ -1,0 +1,3 @@
+Hide the body of a collapsed KkPanel instead of removing it
+
+Collapsing built no body at all, so everything stateful in it was disposed and started over on expand: a countdown, a scroll offset, typed text. The body now stays in the tree while it is collapsed, hidden the way the stylesheet's display: none hides it: it takes no room, is not painted, hit, read or focused, and its animations rest. The flicker still plays each time the body comes back.

@@ -1,0 +1,3 @@
+Leave KkSplit's ratio alone when the divider cannot move
+
+A key press, a slider step or a drag was turned into a ratio from the extent the minimums allow, and only that ratio was compared with the stored one. Where the divider had nowhere to go (too little room for both minimums, or parked at a minimum by its ratio) the interaction left it in place but replaced the stored ratio and reported it through onChanged, so the divider was somewhere else once there was room again. An interaction that does not move the divider now changes nothing and reports nothing.

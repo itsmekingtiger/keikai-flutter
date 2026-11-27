@@ -1,0 +1,3 @@
+Let KkScreen grow with a stretched region when it has no height limit
+
+Without a height limit the regions that are not the tallest were laid out a second time at an exact size, which made them relayout boundaries: when such a region grew later the screen kept its old height until something else laid it out again. The exact height also made the scroll wrapper of nav and side appear and disappear twice in every layout, taking both regions out of the tree and putting them back each time. A shorter region is now told to be at least as tall as the tallest one, with no upper limit, so the screen hears of its growth and nav and side stay where they are.

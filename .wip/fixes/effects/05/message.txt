@@ -1,0 +1,3 @@
+Skew KkGlitch about the centre of its box
+
+The glitch matrix sheared about the top left corner of the box, while kk-glitch sets no transform-origin and so shears about the centre. At the peak of the skew the whole child was pushed tan(5°) times half its height further left, about 33px instead of 7px on a window 600px high: the top edge did not swing right at all and the bottom edge swung twice as far left. The matrix now takes that half height back out, so the middle row only shifts and the edges lean to opposite sides.

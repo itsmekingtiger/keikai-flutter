@@ -1,0 +1,3 @@
+Fill a least height with KkScreen's regions when it has no limit
+
+Given a least height and no limit (a page that fills the window and scrolls when it is taller), the screen took the least height but placed its regions for their content, so the footer sat in the middle with empty ground under it. What the bars leave of the least height now goes to the regions: nav, body and side beside each other all take it, and where they are stacked the body takes the extra while side and nav sit on the footer. The body also takes what the side leaves when the nav is the tallest region, as it does with a height limit.

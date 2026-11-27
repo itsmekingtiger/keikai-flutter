@@ -1,0 +1,66 @@
+--- /tmp/claude-0/-home-user/f20da2ea-0faa-5ffb-843b-e952279df433/scratchpad/fixes/grid/02/test/layout/grid_test.dart	2026-11-25 06:34:19.530361473 +0000
++++ /home/user/keikai/test/layout/grid_test.dart	2026-11-27 08:30:31.869989059 +0000
+@@ -5,6 +5,9 @@
+ import 'package:flutter_test/flutter_test.dart';
+ import 'package:keikai/keikai.dart';
+ 
++// ignore: avoid_relative_lib_imports
++import '../../example/lib/sheets/layout_sheet.dart';
++import '../support/harness.dart';
+ import 'layout_util.dart';
+ 
+ Widget _cell(String id, {int span = 4, int rows = 4, KkSpanBuilder? spanBuilder}) =>
+@@ -656,4 +659,53 @@
+       expect(rectOf(tester, 'a').width, 0);
+     });
+   });
++
++  group('the grid specimens of the layout sheet', () {
++    setUpAll(loadKkFonts);
++
++    testChecked('the column ruler behind the cells starts and ends where they do', (WidgetTester tester) async {
++      Finder named(String type) => find.byWidgetPredicate((Widget w) => w.runtimeType.toString() == type);
++      List<Rect> rects(Finder finder) => <Rect>[
++        for (final Element e in finder.evaluate()) tester.getRect(find.byElementPredicate((Element x) => x == e)),
++      ];
++      // The full-width specimen is 64px narrower than the sheet. Its 12, 12, 16 and 8 columns then share a width
++      // that leaves a third, two thirds, a half and a half of a pixel over.
++      for (final (double width, int columns) in <(double, int)>[(1440, 12), (1024, 12), (2560, 16), (677, 8)]) {
++        await pumpKkSheet(tester, const LayoutSheet(), width: width, pixelRatio: 1);
++        expect(tester.takeException(), isNull, reason: 'sheet $width');
++        final Finder specimens = named('_GridSpecimen');
++        expect(specimens, findsNWidgets(3));
++        expect(tester.getSize(specimens.at(2)).width, width - 64);
++        for (final (int index, int count) in <(int, int)>[(0, 4), (1, 8), (2, columns)]) {
++          final String which = 'specimen $index of sheet $width';
++          final Finder specimen = specimens.at(index);
++          final Rect whole = tester.getRect(specimen);
++          // The ruler is the boxes filled with the colour of the grid lines.
++          final Color ruled = KeikaiTheme.of(tester.element(specimen)).colors.grid;
++          final List<Rect> tracks = rects(
++            find.descendant(
++              of: specimen,
++              matching: find.byWidgetPredicate((Widget w) => w is KkBox && w.fill == ruled),
++            ),
++          )..sort((Rect a, Rect b) => a.left.compareTo(b.left));
++          expect(tracks, hasLength(count), reason: which);
++          expect(tracks.first.left, whole.left, reason: which);
++          expect(tracks.last.right, whole.right, reason: which);
++          for (int c = 0; c < count; c++) {
++            // A track runs from the top of the specimen to its bottom, 8px from the one before it.
++            expect((tracks[c].top, tracks[c].bottom), (whole.top, whole.bottom), reason: 'track $c of $which');
++            if (c > 0) expect(tracks[c].left - tracks[c - 1].right, 8, reason: 'track $c of $which');
++          }
++          final List<Rect> cells = rects(find.descendant(of: specimen, matching: named('_GridCell')));
++          expect(cells, hasLength(8), reason: which);
++          final Iterable<double> lefts = tracks.map((Rect t) => t.left);
++          final Iterable<double> rights = tracks.map((Rect t) => t.right);
++          for (int i = 0; i < cells.length; i++) {
++            expect(lefts, contains(cells[i].left), reason: 'left edge of cell $i of $which');
++            expect(rights, contains(cells[i].right), reason: 'right edge of cell $i of $which');
++          }
++        }
++      }
++    });
++  });
+ }

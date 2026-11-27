@@ -1,0 +1,3 @@
+Measure KkFillColumn's body at the height it is given
+
+Where the width is not limited the column laid every child out without any constraints to find its width, the body too, although a column of fixed height then gives the body a fixed height. A body that needs one bounded side, such as an aspect-ratio box, threw there, and a LayoutBuilder body was built for an infinite height. The body is now measured last, at the height the other children leave it, in the layout, the dry layout and the dry baseline alike, and the intrinsic width asks it at that height too.

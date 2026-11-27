@@ -1,0 +1,3 @@
+Give KkPanel's head its own heading node in the semantics tree
+
+The label sat on a container around the whole panel while the title and every plain text of the body merged into it, so a screen reader announced the entire panel as one heading, said the title twice, and read the title even when a semanticLabel was given. The head band is now the heading and says the code and title, or the semanticLabel, once; meta, trailing widgets, the toggle and the body are nodes of their own, and a panel without a title has no heading.

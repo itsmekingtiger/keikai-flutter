@@ -1,0 +1,58 @@
+import 'dart:math' as math;
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:keikai/keikai.dart';
+
+// ignore: avoid_relative_lib_imports
+import '../../../example/lib/sheets/layout_sheet.dart';
+import '../../layout/layout_util.dart';
+import '../../support/harness.dart';
+
+void main() {
+  setUpAll(loadKkFonts);
+
+  testChecked('P1: worst distance between a cell edge and the ruler track under it', (WidgetTester tester) async {
+    for (final double width in <double>[1440, 1024, 1048, 1240, 2560, 677]) {
+      await pumpKkSheet(tester, const LayoutSheet(), width: width, pixelRatio: 1);
+      expect(tester.takeException(), isNull, reason: 'width $width');
+      final Finder specimens = find.byWidgetPredicate((Widget w) => w.runtimeType.toString() == '_GridSpecimen');
+      final int n = tester.widgetList(specimens).length;
+      for (int s = 0; s < n; s++) {
+        final Finder specimen = specimens.at(s);
+        final Color grid = KeikaiTheme.of(tester.element(specimen)).colors.grid;
+        final List<Rect> tracks = <Rect>[
+          for (final Element e in find
+              .descendant(of: specimen, matching: find.byWidgetPredicate((Widget w) => w is KkBox && w.fill == grid))
+              .evaluate())
+            tester.getRect(find.byElementPredicate((Element x) => x == e)),
+        ]..sort((Rect a, Rect b) => a.left.compareTo(b.left));
+        final List<Rect> cells = <Rect>[
+          for (final Element e in find
+              .descendant(
+                of: specimen,
+                matching: find.byWidgetPredicate((Widget w) => w.runtimeType.toString() == '_GridCell'),
+              )
+              .evaluate())
+            tester.getRect(find.byElementPredicate((Element x) => x == e)),
+        ];
+        double worst = 0;
+        for (final Rect cell in cells) {
+          double left = double.infinity;
+          double right = double.infinity;
+          for (final Rect t in tracks) {
+            left = math.min(left, (t.left - cell.left).abs());
+            right = math.min(right, (t.right - cell.right).abs());
+          }
+          worst = math.max(worst, math.max(left, right));
+        }
+        final Rect whole = tester.getRect(specimen);
+        // ignore: avoid_print
+        print(
+          'sheet $width specimen $s width ${whole.width} tracks ${tracks.length} cells ${cells.length} '
+          'worst ${worst.toStringAsFixed(3)} trackHeights ${tracks.map((Rect t) => t.height).toSet()} '
+          'specimenHeight ${whole.height}',
+        );
+      }
+    }
+  });
+}

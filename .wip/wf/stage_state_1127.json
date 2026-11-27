@@ -1,0 +1,23 @@
+{
+ "wf_4338d661-03c": {
+  "repair:motion-core": "done",
+  "fix:pressable": "done",
+  "attack:pressable": "done",
+  "repair:scroll": "done",
+  "repair:pressable": "done",
+  "attack:hud-readouts": "done",
+  "repair:hud-readouts": "done",
+  "repair:painting": "done",
+  "attack:theme-app": "done",
+  "fix:effects": "done",
+  "repair:grid": "stopped",
+  "attack:effects": "stopped"
+ },
+ "wf_7bb44fe3-8bb": {
+  "fix:hud-panel": "done",
+  "fix:ctl-plates": "done",
+  "attack:hud-panel": "done",
+  "attack:ctl-plates": "stopped",
+  "repair:hud-panel": "stopped"
+ }
+}

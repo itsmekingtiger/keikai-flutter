@@ -1,0 +1,3 @@
+Write status tags in KkPanel's head in the ink of the band
+
+A KkStatusTag given in trailing kept its level colour, so a default tag was signal on the signal band: an outline tag could not be seen and a solid one was a plate in the band's own colour. The head now hands such a tag the colours the stylesheet gives tags in the band: on-fill for an outline tag and a ground plate with frame-coloured text for a solid one, and on the quiet band the level colour with a ground plate for a solid tag. A tag that was given colours of its own keeps them.

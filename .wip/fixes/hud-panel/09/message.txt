@@ -1,0 +1,3 @@
+Leave a stem that is not shown out of KkHeading's label
+
+A stacked heading drops its stem, but the semantics label was still built from it, so a screen reader announced text that is not on the screen. The label is now made of what the heading shows.

@@ -1,0 +1,377 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:keikai/keikai.dart';
+
+import '../../controls/util.dart';
+import '../../layout/layout_util.dart';
+import '../../support/harness.dart';
+
+class _Probe extends StatefulWidget {
+  const _Probe({required this.onCreated, this.onDisposed});
+
+  final VoidCallback onCreated;
+  final VoidCallback? onDisposed;
+
+  @override
+  State<_Probe> createState() => _ProbeState();
+}
+
+class _ProbeState extends State<_Probe> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onCreated();
+  }
+
+  @override
+  void dispose() {
+    widget.onDisposed?.call();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const KkText('T-00:42');
+}
+
+void main() {
+  setUpAll(loadKkFonts);
+
+  group('busy button', () {
+    testWidgets('a press that starts while busy and ends after loading is done', (WidgetTester tester) async {
+      int presses = 0;
+      final ValueNotifier<bool> loading = ValueNotifier<bool>(true);
+      addTearDown(loading.dispose);
+      await pumpKk(
+        tester,
+        ValueListenableBuilder<bool>(
+          valueListenable: loading,
+          builder: (BuildContext context, bool busy, Widget? child) =>
+              KkButton(label: 'engage', loading: busy, onPressed: () => presses++),
+        ),
+        padding: const EdgeInsets.all(20),
+      );
+      final TestGesture press = await tester.startGesture(tester.getCenter(find.byType(KkButton)));
+      await tester.pump(const Duration(milliseconds: 50));
+      loading.value = false;
+      await tester.pump();
+      await press.up();
+      await tester.pump();
+      // ignore: avoid_print
+      debugPrint('ATTACK press spanning end of loading: presses=$presses');
+    });
+
+    testWidgets('a long press that starts while busy and loading ends before it fires', (WidgetTester tester) async {
+      int holds = 0;
+      final ValueNotifier<bool> loading = ValueNotifier<bool>(true);
+      addTearDown(loading.dispose);
+      await pumpKk(
+        tester,
+        ValueListenableBuilder<bool>(
+          valueListenable: loading,
+          builder: (BuildContext context, bool busy, Widget? child) =>
+              KkButton(label: 'engage', loading: busy, onLongPress: () => holds++),
+        ),
+        padding: const EdgeInsets.all(20),
+      );
+      final TestGesture press = await tester.startGesture(tester.getCenter(find.byType(KkButton)));
+      await tester.pump(const Duration(milliseconds: 100));
+      loading.value = false;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await press.up();
+      await tester.pump();
+      debugPrint('ATTACK long press spanning end of loading: holds=$holds');
+    });
+
+    testWidgets('disposed while the bar scans', (WidgetTester tester) async {
+      await pumpKk(tester, KkButton(label: 'engage', loading: true, onPressed: () {}), motion: true);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await tester.pumpWidget(kkHarness(const SizedBox(), motion: true));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(tester.takeException(), isNull);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testWidgets('rapid toggling of loading with motion', (WidgetTester tester) async {
+      for (int i = 0; i < 40; i++) {
+        await tester.pumpWidget(
+          kkHarness(KkButton(label: 'engage', loading: i.isEven, onPressed: () {}), motion: true),
+        );
+        await tester.pump(Duration(milliseconds: 37 * (i % 5)));
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(kkHarness(KkButton(label: 'engage', onPressed: () {}), motion: true));
+      await tester.pump(const Duration(seconds: 2));
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testWidgets('busy bar with motion off rests at 0.375, with tickers muted stays', (WidgetTester tester) async {
+      await pumpKk(tester, KkButton(label: 'engage', loading: true, onPressed: () {}));
+      final CustomPaint paint = tester
+          .widgetList<CustomPaint>(find.descendant(of: find.byType(KkButton), matching: find.byType(CustomPaint)))
+          .firstWhere((CustomPaint p) => p.foregroundPainter != null);
+      debugPrint('ATTACK busy painter (motion off): ${(paint.foregroundPainter! as dynamic).start}');
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testWidgets('semantics: tap action of busy button swallows; long-press-only button', (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      int presses = 0;
+      int holds = 0;
+      await pumpKk(
+        tester,
+        KkColumn(
+          shrinkWrap: true,
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            KkButton(label: 'engage', loading: true, onPressed: () => presses++),
+            KkButton(label: 'hold', loading: true, onLongPress: () => holds++),
+          ],
+        ),
+      );
+      final SemanticsNode a = tester.getSemantics(find.text('ENGAGE'));
+      final SemanticsNode b = tester.getSemantics(find.text('HOLD'));
+      debugPrint('ATTACK sem engage: $a');
+      debugPrint('ATTACK sem hold: $b');
+      tester.semantics.tap(find.semantics.byLabel('ENGAGE'));
+      await tester.pump();
+      expect(presses, 0);
+      expect(holds, 0);
+      handle.dispose();
+    });
+
+    testWidgets('state override on a busy button', (WidgetTester tester) async {
+      await pumpKk(
+        tester,
+        KkStateOverride(
+          hovered: true,
+          focused: true,
+          pressed: true,
+          child: KkButton(label: 'engage', loading: true, onPressed: () {}),
+        ),
+        padding: const EdgeInsets.all(20),
+      );
+      expect(ringOf(tester, find.byType(KkButton)).visible, isTrue);
+      expect(surfaceOf(tester, find.byType(KkButton)).fill, KkColors.standby.bg100);
+      expect(tester.getTopLeft(find.byType(KkSurface)).dy, 20);
+    });
+
+    testWidgets('a custom child that is disposed only once when the button goes away', (WidgetTester tester) async {
+      int created = 0;
+      int disposed = 0;
+      Widget build(bool loading, {bool enabled = true, String? semanticLabel, bool expand = false}) => KkButton(
+        loading: loading,
+        enabled: enabled,
+        expand: expand,
+        semanticLabel: semanticLabel,
+        onPressed: () {},
+        child: _Probe(onCreated: () => created++, onDisposed: () => disposed++),
+      );
+      await pumpKk(tester, build(false), motion: true);
+      await tester.pumpWidget(kkHarness(build(true), motion: true));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(kkHarness(build(true, enabled: false), motion: true));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(kkHarness(build(true, semanticLabel: 'x'), motion: true));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(kkHarness(build(false, expand: true), motion: true));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(created, 1);
+      expect(disposed, 0);
+    });
+
+    testWidgets('focus: busy button keeps focus when its node is swapped / removed', (WidgetTester tester) async {
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      await pumpKk(tester, KkButton(label: 'engage', focusNode: a, loading: true, onPressed: () {}));
+      a.requestFocus();
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      await tester.pumpWidget(kkHarness(KkButton(label: 'engage', focusNode: b, loading: true, onPressed: () {})));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(kkHarness(KkButton(label: 'engage', focusNode: b, loading: true)));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('badge pin', () {
+    for (final (String name, Widget Function(Widget) wrap) in <(String, Widget Function(Widget))>[
+      ('zero tight', (Widget w) => SizedBox(width: 0, height: 0, child: w)),
+      ('tiny tight', (Widget w) => SizedBox(width: 10, height: 10, child: w)),
+      ('unbounded row', (Widget w) => KkRow(children: <Widget>[w])),
+      ('unbounded both', (Widget w) => UnconstrainedBox(child: w)),
+      ('intrinsic width', (Widget w) => IntrinsicWidth(child: w)),
+      ('intrinsic height', (Widget w) => IntrinsicHeight(child: w)),
+      ('baseline row', (Widget w) => KkRow(cross: KkCrossAlign.baseline, children: <Widget>[const KkText.en('a'), w])),
+      ('layers positioned', (Widget w) => KkLayers(children: <Widget>[KkPositioned(left: 3, top: 3, child: w)])),
+      ('fractional', (Widget w) => SizedBox(width: 33.3, height: 31.7, child: w)),
+    ]) {
+      testChecked('icon button with a badge in $name', (WidgetTester tester) async {
+        await pumpKk(
+          tester,
+          wrap(KkIconButton(icon: KkIcons.bell, badge: const KkBadge(count: 120), onPressed: () {})),
+          padding: const EdgeInsets.all(40),
+        );
+        expect(tester.takeException(), isNull);
+        final Rect plate = tester.getRect(find.byType(KkSurface).first);
+        final Rect badge = tester.getRect(find.byType(KkBadge));
+        expect(badge.right, moreOrLessEquals(plate.right + 7, epsilon: 0.001), reason: name);
+        expect(badge.top, moreOrLessEquals(plate.top - 5, epsilon: 0.001), reason: name);
+        // and without a badge the plate is the same
+        await pumpKk(
+          tester,
+          wrap(KkIconButton(icon: KkIcons.bell, onPressed: () {})),
+          padding: const EdgeInsets.all(40),
+        );
+        expect(tester.getRect(find.byType(KkSurface).first), plate, reason: name);
+      });
+
+      testChecked('badge anchor in $name', (WidgetTester tester) async {
+        await pumpKk(
+          tester,
+          wrap(const KkBadgeAnchor(badge: KkBadge(count: 5), child: KkText.en('inbox', size: 15))),
+          padding: const EdgeInsets.all(40),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('host keeps state through show / badge changes and top/right changes', (WidgetTester tester) async {
+      int created = 0;
+      int badgeCreated = 0;
+      Widget build({bool show = true, bool badge = true, double top = -6, double right = -8}) => KkBadgeAnchor(
+        show: show,
+        top: top,
+        right: right,
+        badge: badge ? _Probe(onCreated: () => badgeCreated++) : null,
+        child: _Probe(onCreated: () => created++),
+      );
+      await pumpKk(tester, build(), padding: const EdgeInsets.all(40));
+      await tester.pumpWidget(kkHarness(build(show: false), padding: const EdgeInsets.all(40)));
+      await tester.pumpWidget(kkHarness(build(badge: false), padding: const EdgeInsets.all(40)));
+      await tester.pumpWidget(kkHarness(build(top: 3, right: 4), padding: const EdgeInsets.all(40)));
+      await tester.pumpWidget(kkHarness(build(top: 5, right: 9), padding: const EdgeInsets.all(40)));
+      expect(created, 1);
+      debugPrint('ATTACK badge states created: $badgeCreated');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('semantics of a badged icon button', (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpKk(
+        tester,
+        KkIconButton(icon: KkIcons.bell, semanticLabel: 'Alarms', badge: const KkBadge(count: 3), onPressed: () {}),
+      );
+      debugPrint('ATTACK sem badged: ${tester.getSemantics(find.byType(KkIconButton))}');
+      handle.dispose();
+    });
+
+    testWidgets('pointer on the overhanging badge goes to what is under it', (WidgetTester tester) async {
+      int left = 0;
+      int right = 0;
+      await pumpKk(
+        tester,
+        KkRow(
+          shrinkWrap: true,
+          children: <Widget>[
+            KkIconButton(icon: KkIcons.bell, badge: const KkBadge(count: 3), onPressed: () => left++),
+            KkIconButton(icon: KkIcons.refresh, onPressed: () => right++),
+          ],
+        ),
+        padding: const EdgeInsets.all(40),
+      );
+      final Rect badge = tester.getRect(find.byType(KkBadge));
+      // The part of the badge that hangs over the neighbour.
+      await tester.tapAt(Offset(badge.right - 2, badge.bottom - 2));
+      debugPrint('ATTACK overhang tap: left=$left right=$right badge=$badge');
+    });
+
+    testWidgets('mouse region / hover of the icon button under the badge', (WidgetTester tester) async {
+      await pumpKk(
+        tester,
+        KkIconButton(
+          icon: KkIcons.bell,
+          variant: KkIconButtonVariant.outline,
+          badge: const KkBadge(count: 3),
+          onPressed: () {},
+        ),
+        padding: const EdgeInsets.all(40),
+      );
+      useTraditionalHighlights();
+      final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: const Offset(799, 599));
+      addTearDown(gesture.removePointer);
+      final Rect plate = tester.getRect(find.byType(KkSurface).first);
+      final Rect badge = tester.getRect(find.byType(KkBadge));
+      final Rect shared = plate.intersect(badge);
+      await gesture.moveTo(shared.center);
+      await tester.pump();
+      expect(surfaceOf(tester, find.byType(KkIconButton)).edge, KkColors.standby.signal);
+    });
+  });
+
+  group('whole width', () {
+    testChecked('edge inputs', (WidgetTester tester) async {
+      for (final double w in <double>[0, 0.0004, 0.4, 9.9995, 10, 10.0005, 10.001, 10.0011, 10.5, 1e7 + 0.5]) {
+        await pumpRaw(tester, KkWholeWidth(child: SizedBox(width: w, height: 5)));
+        final double got = tester.getSize(find.byType(KkWholeWidth)).width;
+        debugPrint('ATTACK whole($w) = $got');
+        expect(tester.takeException(), isNull);
+      }
+      // No child.
+      await pumpRaw(tester, const KkWholeWidth());
+      expect(tester.getSize(find.byType(KkWholeWidth)), Size.zero);
+      // Fractional max below the content.
+      await pumpRaw(
+        tester,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 10.3),
+          child: const KkWholeWidth(child: SizedBox(width: 10.2, height: 5)),
+        ),
+      );
+      expect(tester.getSize(find.byType(KkWholeWidth)).width, 10.3);
+      // Tight fractional.
+      await pumpRaw(
+        tester,
+        const SizedBox(width: 10.3, child: KkWholeWidth(child: SizedBox(width: 3, height: 5))),
+      );
+      expect(tester.getSize(find.byType(KkWholeWidth)).width, 10.3);
+    });
+
+    testChecked('plates in awkward constraints', (WidgetTester tester) async {
+      final List<Widget> plates = <Widget>[
+        const KkStatusTag.status(KkLevel.critical),
+        const KkKbd('CTRL+K'),
+        KkButton(label: 'engage', cjk: '起動', icon: KkIcons.power, trailingIcon: KkIcons.chevronRight, onPressed: () {}),
+        KkButton(label: 'engage', expand: true, onPressed: () {}),
+        KkFab.extended(label: 'new report', icon: KkIcons.plus, onPressed: () {}),
+        const KkBadge(count: 12345, max: 99999),
+      ];
+      for (final Widget plate in plates) {
+        for (final Widget Function(Widget) wrap in <Widget Function(Widget)>[
+          (Widget w) => SizedBox(width: 0, child: w),
+          (Widget w) => SizedBox(width: 13.7, child: w),
+          (Widget w) => ConstrainedBox(constraints: const BoxConstraints(maxWidth: 40.5), child: w),
+          (Widget w) => ConstrainedBox(constraints: const BoxConstraints(minWidth: 220.5), child: w),
+          (Widget w) => IntrinsicWidth(child: w),
+          (Widget w) => IntrinsicHeight(child: w),
+          (Widget w) => UnconstrainedBox(child: w),
+          (Widget w) => KkRow(cross: KkCrossAlign.baseline, children: <Widget>[const KkText.en('a'), w]),
+          (Widget w) => KkRow(children: <Widget>[KkExpanded(child: w)]),
+          (Widget w) => KkColumn(shrinkWrap: true, children: <Widget>[const SizedBox(width: 91.3, height: 2), w]),
+        ]) {
+          await pumpKk(tester, wrap(plate), padding: const EdgeInsets.all(8));
+          expect(tester.takeException(), isNull);
+        }
+      }
+    });
+  });
+}

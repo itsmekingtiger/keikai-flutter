@@ -1,0 +1,3 @@
+Give RenderKkScreen intrinsic sizes
+
+The render object answered 0 to every intrinsic query although it is as tall as its regions when it has no height limit, so a parent that sizes its child from intrinsics collapsed it. The intrinsic heights are now the height the regions come to at a width, worked out by the rules of the layout with each region asked at the width it would get. The intrinsic widths are the room the regions need beside and above each other in the current mode.

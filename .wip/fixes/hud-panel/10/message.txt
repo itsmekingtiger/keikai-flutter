@@ -1,0 +1,3 @@
+Write no sign on a kkFixedDigits value that prints as zero
+
+The sign was taken from the value before rounding, so -0.04 was written -000.0: one character wider than any other reading around zero. The sign now follows the digits that are written. The count of decimals is also held to the 20 a number can be written with, where more used to throw a RangeError.

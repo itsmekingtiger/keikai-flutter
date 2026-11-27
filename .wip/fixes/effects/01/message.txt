@@ -1,0 +1,3 @@
+Pin the time scale of KkHazard and KkMarquee
+
+KkLoop already hands out a clock that runs at the theme's time scale, so a painter that stretched its period as well would run at the square of the scale. The charts are pinned against that, but the hazard band and the marquee were not. A test now measures how far the stripes and the text travel at time scales 1, 2 and 4, and a comment at both painters says why the period is passed on as it is.

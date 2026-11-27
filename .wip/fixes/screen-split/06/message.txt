@@ -1,0 +1,3 @@
+Let KkSplit grow with a stretched pane when it has no cross-axis limit
+
+Without a cross-axis limit the shorter pane was laid out a second time at an exact size to stretch it to the taller one, which made it a relayout boundary. When its content grew past the other pane later, the split was not laid out again: the new content was cut off, took no pointer events and gave a scroll view around the split nothing to scroll. The shorter pane is now told to be at least as large as the other one, with no upper limit, so the split hears of it when the pane grows.

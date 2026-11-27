@@ -1,0 +1,3 @@
+Cut KkGlitch's slices in the windows and steps of kk-glitch
+
+The first slice was shown from 30% to 50% of the glitch and the second from 50% to 70%, as if clip-path cut over half way between neighbouring keyframes. In kk-glitch the property has keyframes at 0, 40, 60 and 80% only and is played with steps(5, end) from each to the next: none gives way to the first slice at 24%, the slice moves down to the second in five steps between 40% and 60%, and the second stays until 72%. RenderKkGlitch now works the clip out that way, as a browser plays the rule.

@@ -1,0 +1,3 @@
+Clip the head band of KkPanel to the panel
+
+The code block, meta, toggle and hazard strip of the head keep their own widths, and in a panel too narrow for them they were painted past its right edge, over the gutter and the next cell. The head row now clips what does not fit, as the stylesheet's overflow: hidden does on the band.

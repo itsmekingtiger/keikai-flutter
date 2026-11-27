@@ -1,0 +1,3 @@
+Share KkGrid's width between its columns in whole pixels
+
+A grid whose width did not divide evenly gave every column a fraction of a pixel, so cells started and ended between pixels and their 1px borders were painted across two. Each column now starts on a whole logical pixel: some columns are a pixel wider than their neighbours, none is more than half a pixel from its exact place, every gutter is still exactly the gutter and the last column still ends on the grid's own edge. A width that divides evenly is laid out as before.

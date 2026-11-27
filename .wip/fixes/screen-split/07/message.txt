@@ -1,0 +1,3 @@
+Put the divider of KkSplit on a whole pixel
+
+The first pane took its exact share of the space, which is rarely a whole number: at an odd width, at most ratios and after any drag followed by a resize, the divider and the edges of both panes sat between pixels, and their 1px lines were painted across two. The first pane's extent is now rounded to a whole logical pixel before the minimums are applied, in the layout, in the intrinsic sizes and in what a drag or a key reports. A step of the slider semantics lands on a whole pixel too, which the test that pinned 117.6px and 78.4px now expects.

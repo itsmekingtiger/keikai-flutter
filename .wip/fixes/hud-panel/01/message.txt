@@ -1,0 +1,3 @@
+Keep KkPanel's body in place when the level turns offline
+
+The body was wrapped in a ColorFiltered only while the level was offline, so every change to or from offline built the content again: the State of the child, the offset of a scrolling body and a running countdown were lost. The body's own render object now paints the content through the greyscale layer while the panel is offline, and the widgets under the panel are the same at every level.

@@ -1,0 +1,3 @@
+Clip the body of a KkPanel whose height is fixed
+
+In a grid cell the body is given the height the head leaves, and content taller than that was painted across the panel's border, the gutter and whatever came after it. A body whose height is fixed from outside now cuts off what is painted outside it, as the stylesheet clips the panels of a cell; a panel that is as tall as its content is not clipped. Scrolling stays a choice (scrollBody), because a scrolling body cannot also stretch a chart to fill it.

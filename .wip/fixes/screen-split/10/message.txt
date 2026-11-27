@@ -1,0 +1,3 @@
+End KkSplit's drag when its axis changes
+
+The drag callbacks belong to the recognizer of one axis. When the split was turned while its handle was held, that recognizer was thrown away without ending or cancelling the drag, so the split still thought it was being dragged and the divider kept the signal colour after the pointer was gone, until the next complete drag. A change of axis now ends the drag.

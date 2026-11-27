@@ -1,0 +1,3 @@
+Record KkPlate's hollow frame as a decided difference from the CSS
+
+A plate with an edge and a clear fill is drawn as an empty frame, while the two stacked plates of the web system show a block in the edge colour: a browser paints a disabled filled or pressed icon button as a solid signal plate with an ink-faint icon on it, at a contrast of about 1.5:1 and against the rule the tokens give for ink-faint. The frame is kept. The comments of KkPlate, KkPlateStyle.fill and KkIconButton now say that it differs from the stylesheet and why, and pixel tests pin it.

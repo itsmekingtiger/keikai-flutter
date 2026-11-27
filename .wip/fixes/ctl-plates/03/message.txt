@@ -1,0 +1,3 @@
+Leave a pinned badge out of KkBadgeAnchor's baseline
+
+The anchor reported the highest baseline of its child and its badge, as the stack before it did. A badge sits above its host and holds digits, so a baseline-aligned row placed the anchor by the badge: showing the badge moved the child down 6px, and an icon button dropped 5px the moment it got one. The anchor now has the baseline of its child alone, the way an absolutely positioned badge takes no part in alignment in CSS.
