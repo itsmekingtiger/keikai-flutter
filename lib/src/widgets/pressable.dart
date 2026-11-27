@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -105,12 +107,12 @@ class KkPressable extends StatefulWidget {
 
 class _KkPressableState extends State<KkPressable> {
   bool _hovered = false;
-  bool _focused = false;
   bool _pressed = false;
 
-  /// Whether the control itself is the focused element. With the focus on a
-  /// control inside it, it only has the focus within it.
-  bool _primary = false;
+  /// Whether the focus ring shows: the control itself is the focused element
+  /// (with the focus on a control inside it, it only has the focus within it)
+  /// and the focus came from the keyboard.
+  bool _ring = false;
 
   static final Map<ShortcutActivator, Intent> _shortcuts = <ShortcutActivator, Intent>{
     const SingleActivator(LogicalKeyboardKey.enter): const ActivateIntent(),
@@ -135,28 +137,34 @@ class _KkPressableState extends State<KkPressable> {
     setState(() => _pressed = value);
   }
 
-  /// The node also tells when the focus moves between the control and
-  /// something inside it. The detector does not: for it the control is
-  /// focused in both cases.
-  void _onNodeChanged() {
-    final bool primary = _node.hasPrimaryFocus;
-    if (primary != _primary) setState(() => _primary = primary);
+  bool get _showsFocus => _node.hasPrimaryFocus && _KkFocusVisibility.visible;
+
+  /// Called when the focus moves and when the user changes between the
+  /// keyboard and a pointer.
+  ///
+  /// The node is asked rather than the detector: the node also tells when the
+  /// focus moves between the control and something inside it, and for the
+  /// detector the control is focused in both cases.
+  void _syncRing() {
+    final bool ring = _showsFocus;
+    if (ring != _ring) setState(() => _ring = ring);
   }
 
   @override
   void initState() {
     super.initState();
-    _node.addListener(_onNodeChanged);
-    _primary = _node.hasPrimaryFocus;
+    _node.addListener(_syncRing);
+    _KkFocusVisibility.addListener(_syncRing);
+    _ring = _showsFocus;
   }
 
   @override
   void didUpdateWidget(KkPressable oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focusNode != widget.focusNode) {
-      (oldWidget.focusNode ?? _ownNode)?.removeListener(_onNodeChanged);
-      _node.addListener(_onNodeChanged);
-      _primary = _node.hasPrimaryFocus;
+      (oldWidget.focusNode ?? _ownNode)?.removeListener(_syncRing);
+      _node.addListener(_syncRing);
+      _ring = _showsFocus;
     }
     if (!widget.interactive && (_pressed || _hovered)) {
       _pressed = false;
@@ -166,7 +174,8 @@ class _KkPressableState extends State<KkPressable> {
 
   @override
   void dispose() {
-    _node.removeListener(_onNodeChanged);
+    _KkFocusVisibility.removeListener(_syncRing);
+    _node.removeListener(_syncRing);
     _ownNode?.dispose();
     super.dispose();
   }
@@ -176,7 +185,7 @@ class _KkPressableState extends State<KkPressable> {
     final bool interactive = widget.interactive;
     final KkStates states = KkStates(
       hovered: _hovered && interactive,
-      focused: _focused && _primary && interactive,
+      focused: _ring && interactive,
       pressed: _pressed && interactive,
       enabled: interactive,
     );
@@ -208,10 +217,6 @@ class _KkPressableState extends State<KkPressable> {
           setState(() => _hovered = value);
           widget.onHoverChanged?.call(value);
         },
-        onShowFocusHighlight: (bool value) {
-          if (_focused == value) return;
-          setState(() => _focused = value);
-        },
         onFocusChange: widget.onFocusChanged,
         child: GestureDetector(
           behavior: widget.behavior,
@@ -225,6 +230,86 @@ class _KkPressableState extends State<KkPressable> {
         ),
       ),
     );
+  }
+}
+
+/// Tells whether a control that has the focus should show it, the way
+/// `:focus-visible` does in a browser: after a key press, not after a press of
+/// a pointer.
+///
+/// The framework's highlight mode is the start: it is off after a touch and on
+/// after a key press. But it takes the mouse for "traditional" input, the same
+/// as keys, so a control that took the focus on a click would show its ring.
+/// This adds the missing half: a pointer that goes down hides the focus until
+/// the next key press.
+abstract final class _KkFocusVisibility {
+  /// The focus manager that [_pointer] was recorded under.
+  static WeakReference<FocusManager>? _manager;
+  static bool _routed = false;
+
+  /// Whether a pointer went down after the last key press.
+  static bool _pointer = false;
+
+  static final HashedObserverList<VoidCallback> _listeners = HashedObserverList<VoidCallback>();
+
+  static void _bind() {
+    final FocusManager manager = FocusManager.instance;
+    if (identical(_manager?.target, manager)) return;
+    // An app keeps one focus manager. Tests get a new one each, and what the
+    // pointer did in one test is not the next one's business.
+    _manager = WeakReference<FocusManager>(manager);
+    _pointer = false;
+    manager.addHighlightModeListener(_onMode);
+  }
+
+  /// Whether the focused control shows its ring.
+  static bool get visible {
+    _bind();
+    return FocusManager.instance.highlightMode == FocusHighlightMode.traditional && !_pointer;
+  }
+
+  /// Calls [listener] when [visible] may have changed.
+  static void addListener(VoidCallback listener) {
+    _bind();
+    // The keyboard drops its handlers when its state is cleared (the test
+    // binding does that between tests), so the handler is put back each time
+    // rather than installed once.
+    HardwareKeyboard.instance
+      ..removeHandler(_onKey)
+      ..addHandler(_onKey);
+    if (!_routed) {
+      _routed = true;
+      GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
+    }
+    _listeners.add(listener);
+  }
+
+  static void removeListener(VoidCallback listener) => _listeners.remove(listener);
+
+  static bool _onKey(KeyEvent event) {
+    // A synthesized event repairs the keyboard state, nobody pressed a key.
+    if (event is KeyDownEvent && !event.synthesized) _setPointer(false);
+    return false;
+  }
+
+  static void _onPointer(PointerEvent event) {
+    // Moving the mouse or turning its wheel is not a press.
+    if (event is PointerDownEvent) _setPointer(true);
+  }
+
+  static void _onMode(FocusHighlightMode mode) => _notify();
+
+  static void _setPointer(bool value) {
+    _bind();
+    if (value == _pointer) return;
+    _pointer = value;
+    _notify();
+  }
+
+  static void _notify() {
+    for (final VoidCallback listener in _listeners.toList(growable: false)) {
+      if (_listeners.contains(listener)) listener();
+    }
   }
 }
 

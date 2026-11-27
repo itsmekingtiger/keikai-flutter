@@ -1,8 +1,33 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
 import '../layout/layout_util.dart' show testChecked;
 import '../support/harness.dart';
+
+/// [testChecked] as the app runs on a desktop, where the framework shows
+/// focus and hover highlights from the start.
+void _testOnDesktop(String description, WidgetTesterCallback body) {
+  testChecked(description, (WidgetTester tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      await body(tester);
+    } finally {
+      // The binding insists that the override is gone when a test ends.
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+}
+
+/// One click of the left mouse button at [at].
+Future<void> _click(WidgetTester tester, Offset at) async {
+  final TestGesture mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  await mouse.addPointer(location: at);
+  await mouse.down(at);
+  await mouse.up();
+  await mouse.removePointer();
+}
 
 void main() {
   setUpAll(loadKkFonts);
@@ -303,6 +328,222 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(outer!.focused, isFalse);
+    });
+  });
+
+  group('KkPressable focus ring and the pointer', () {
+    KkStates? states;
+
+    setUp(() => states = null);
+
+    /// A control that takes the focus when it is pressed, the way a select does.
+    Widget control(FocusNode node) => KkPressable(
+      focusNode: node,
+      onPressed: node.requestFocus,
+      builder: (BuildContext context, KkStates s) {
+        states = s;
+        return KkFocusRing(visible: s.focused, child: const SizedBox(width: 100, height: 40));
+      },
+    );
+
+    _testOnDesktop('focus taken with a mouse click shows no ring', (WidgetTester tester) async {
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      expect(FocusManager.instance.highlightMode, FocusHighlightMode.traditional);
+
+      await _click(tester, const Offset(50, 20));
+      await tester.pump();
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isFalse, reason: 'no key was pressed: :focus-visible would not match');
+
+      // The next key press shows where the focus is.
+      await tester.sendKeyEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(states!.focused, isTrue);
+
+      // And the next press of a pointer, anywhere, hides it again. The focus stays.
+      await _click(tester, const Offset(400, 400));
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isFalse);
+    });
+
+    _testOnDesktop('a ring left by the Tab key goes when a pointer is pressed', (WidgetTester tester) async {
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isTrue);
+
+      // Moving the mouse or turning its wheel is not a press.
+      final TestGesture mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(400, 400));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(50, 20));
+      await mouse.moveTo(const Offset(60, 20));
+      await tester.sendEventToBinding(const PointerScrollEvent(position: Offset(60, 20), scrollDelta: Offset(0, 20)));
+      await tester.pump();
+      expect(states!.focused, isTrue);
+
+      await mouse.down(const Offset(400, 400));
+      await tester.pump();
+      expect(states!.focused, isFalse);
+      await mouse.up();
+      await tester.pump();
+      expect(states!.focused, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(states!.focused, isTrue);
+
+      // A finger is a pointer too.
+      await tester.tapAt(const Offset(400, 400));
+      await tester.pump();
+      expect(states!.focused, isFalse);
+    });
+
+    _testOnDesktop('focus given by the program shows as the last input says', (WidgetTester tester) async {
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      final List<bool?> rings = <bool?>[null, null];
+      Widget plain(FocusNode node, int at) => KkPressable(
+        focusNode: node,
+        onPressed: () {},
+        builder: (BuildContext context, KkStates s) {
+          rings[at] = s.focused;
+          return const SizedBox(width: 100, height: 40);
+        },
+      );
+      await pumpKk(tester, KkRow(shrinkWrap: true, children: <Widget>[plain(a, 0), plain(b, 1)]));
+
+      // Nothing was pressed yet: a control that is given the focus shows it,
+      // as an autofocused one does when the app starts.
+      a.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(rings, <bool>[true, false]);
+
+      // After a press of the mouse the program moves the focus: no ring.
+      await _click(tester, const Offset(400, 400));
+      b.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(b.hasPrimaryFocus, isTrue);
+      expect(rings, <bool>[false, false]);
+
+      // After a key it does show.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      a.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(rings, <bool>[true, false]);
+    });
+
+    testChecked('highlights forced on for the whole app still tell the mouse from the keyboard', (
+      WidgetTester tester,
+    ) async {
+      FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() => FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic);
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      await _click(tester, const Offset(50, 20));
+      await tester.pump();
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(states!.focused, isTrue);
+    });
+
+    testChecked('highlights forced off for the whole app never show the ring', (WidgetTester tester) async {
+      FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTouch;
+      addTearDown(() => FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic);
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isFalse);
+    });
+
+    testChecked('what the pointer did in one test does not reach the next', (WidgetTester tester) async {
+      // The test before this one ended on a press of the mouse or of a finger.
+      FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() => FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic);
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      node.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(states!.focused, isTrue);
+      await tester.tapAt(const Offset(400, 400));
+      await tester.pump();
+      expect(states!.focused, isFalse);
+    });
+
+    testChecked('and again: a press in the test before does not hide the ring here', (WidgetTester tester) async {
+      FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() => FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic);
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(tester, control(node));
+      node.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(states!.focused, isTrue);
+    });
+
+    _testOnDesktop('a select worked with the mouse shows no ring; worked with the keys it does', (
+      WidgetTester tester,
+    ) async {
+      String value = 'alpha';
+      await pumpKk(
+        tester,
+        StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) => KkSelect<String>(
+            size: KkSelectSize.sm,
+            value: value,
+            onChanged: (String next) => setState(() => value = next),
+            options: const <KkSelectOption<String>>[
+              KkSelectOption<String>(value: 'alpha', label: 'alpha'),
+              KkSelectOption<String>(value: 'bravo', label: 'bravo'),
+            ],
+          ),
+        ),
+        padding: const EdgeInsets.all(40),
+      );
+      final Finder select = find.byType(KkSelect<String>);
+      bool ring() =>
+          tester.widget<KkFocusRing>(find.descendant(of: select, matching: find.byType(KkFocusRing)).first).visible;
+
+      await _click(tester, tester.getCenter(select));
+      await tester.pumpAndSettle();
+      expect(ring(), isFalse);
+      await _click(tester, tester.getCenter(find.text('BRAVO').last));
+      await tester.pumpAndSettle();
+      expect(value, 'bravo');
+      expect(
+        Focus.of(tester.element(find.descendant(of: select, matching: find.byType(KkFocusRing)))).hasFocus,
+        isTrue,
+      );
+      expect(ring(), isFalse, reason: 'the keyboard was never touched');
+
+      // Opened and closed again with the keys, the select shows its focus.
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(ring(), isTrue);
     });
   });
 }
