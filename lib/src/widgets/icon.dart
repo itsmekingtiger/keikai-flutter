@@ -42,7 +42,10 @@ void kkPaintIcon(Canvas canvas, Rect rect, KkIconData icon, Color color) {
       ..strokeJoin = StrokeJoin.miter
       ..color = color;
     if (stroke != null) canvas.drawPath(stroke, line);
-    if (dashed != null) canvas.drawPath(dashed, line..strokeCap = StrokeCap.butt);
+    // Every dash keeps the square ends of the line. The SVG a status glyph
+    // comes from sets the cap once for all of its paths, and SVG caps each
+    // dash, so a 2.6 dash is inked over 4.1 and the 1.9 gap closes to 0.4.
+    if (dashed != null) canvas.drawPath(dashed, line);
   }
   canvas.restore();
 }

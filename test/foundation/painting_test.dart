@@ -278,6 +278,27 @@ void main() {
       }
     });
 
+    testChecked('every dash of the offline plate has the square ends of the line, as its SVG source draws it', (
+      WidgetTester tester,
+    ) async {
+      // The source is one <svg stroke-width='1.5' stroke-linecap='square'> whose
+      // plate path adds stroke-dasharray='2.6 1.9'. The cap is inherited and
+      // SVG caps every dash, which adds half the line width at both ends: 4.1
+      // is inked and 0.4 left open. Drawn at 20px per unit that is 82 and 8.
+      final _Pixels p = await _render(
+        tester,
+        320,
+        320,
+        (Canvas canvas) => kkPaintIcon(canvas, const Rect.fromLTWH(0, 0, 320, 320), KkIcons.statusOffline, _red),
+      );
+      List<int> inked(int Function(int i) alpha) =>
+          _runs(String.fromCharCodes(<int>[for (int i = 0; i < 320; i++) alpha(i) < 128 ? 0x2E : 0x23]));
+      // Along the bottom side of the plate (y = 14.25), and down its right side
+      // (x = 14.25), which starts inside the dash that turns the top right corner.
+      expect(inked((int x) => p.alpha(x, 285)), <int>[23, 82, 8, 82, 8, 82, 35]);
+      expect(inked((int y) => p.alpha(285, y)), <int>[20, 77, 8, 82, 8, 82, 43]);
+    });
+
     test('bad path data throws and leaves the canvas as it was', () {
       final ui.PictureRecorder recorder = ui.PictureRecorder();
       final Canvas canvas = Canvas(recorder);

@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 /// One icon: path data on a 16×16 grid.
 ///
 /// [stroke] is drawn with a 1.5px line, square ends and mitred joins;
-/// [fill] is filled (even-odd); [dashed] is stroked with a 2.6 / 1.9 dash.
+/// [fill] is filled (even-odd); [dashed] is the same line cut into dashes of
+/// 2.6 with 1.9 between them. As in SVG every dash has the square ends of the
+/// line, so 4.1 is inked and 0.4 is left open.
 /// All three take the current text colour.
 @immutable
 class KkIconData {
