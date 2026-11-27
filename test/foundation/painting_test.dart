@@ -585,6 +585,43 @@ void main() {
       }
     });
 
+    testChecked('the halo of a glow is the blurred outline itself, with the ring painted over its first pixel', (
+      WidgetTester tester,
+    ) async {
+      // glow-signal is two shadows of one box: `0 0 0 1px c` and `0 0 18px c` at 30%.
+      const Rect box = Rect.fromLTWH(60, 60, 200, 200);
+      Future<_Pixels> glow(KkGlow g) => _render(tester, 320, 320, (Canvas canvas) => kkPaintGlow(canvas, box, g));
+      final _Pixels ringed = await glow(const KkGlow(color: _red));
+      final _Pixels halo = await glow(const KkGlow(color: _red, ring: 0));
+      final Rect ring = box.inflate(1);
+      int wrong = 0;
+      String first = '';
+      for (int y = 0; y < 320; y++) {
+        for (int x = 0; x < 320; x++) {
+          final Offset centre = Offset(x + 0.5, y + 0.5);
+          // Nothing inside the box, the hard ring around it, and beyond the
+          // ring the same halo as without one: the ring does not push it out.
+          final int expected = box.contains(centre)
+              ? 0
+              : ring.contains(centre)
+              ? 255
+              : halo.alpha(x, y);
+          if (ringed.alpha(x, y) != expected && wrong++ == 0) {
+            first = 'alpha at ($x, $y) is ${ringed.alpha(x, y)}, not $expected';
+          }
+        }
+      }
+      expect(wrong, 0, reason: first);
+      // The halo is the box blurred by half the CSS radius: d px from the
+      // edge its alpha is 30% × (1 − Φ(d / 9)).
+      expect(halo.alpha(59, 160), closeTo(36.6, 1.5));
+      expect(ringed.alpha(58, 160), closeTo(33.2, 1.5));
+      expect(ringed.alpha(50, 160), closeTo(11.1, 1.5));
+      expect(ringed.alpha(41, 160), closeTo(1.5, 1.5));
+      expect(ringed.alpha(160, 58), ringed.alpha(58, 160));
+      expect(ringed.alpha(261, 160), ringed.alpha(58, 160));
+    });
+
     test('KkSide and KkEdges', () {
       expect(KkSide.none.width, 0);
       expect(const KkSide(_red), const KkSide(_red, width: 1));

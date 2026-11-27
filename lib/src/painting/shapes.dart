@@ -168,10 +168,14 @@ void kkPaintSurface(
 }
 
 /// Paints [glow] around [shape] fitted to [rect]: a blurred halo and a hard ring.
+///
+/// Like the two CSS box shadows a glow stands for, both are shadows of the
+/// same outline. The halo is that outline blurred, and the ring is painted
+/// over the first [KkGlow.ring] pixels of it.
 void kkPaintGlow(Canvas canvas, Rect rect, KkGlow glow, {KkShape shape = const KkShape.rect()}) {
   if (glow.blur > 0 && glow.alpha > 0) {
     canvas.drawPath(
-      shape.path(rect.inflate(glow.ring)),
+      shape.path(rect),
       Paint()
         ..color = kkFade(glow.color, glow.alpha)
         ..maskFilter = MaskFilter.blur(BlurStyle.outer, glow.blur / 2),
