@@ -72,6 +72,10 @@ class KkPressable extends StatefulWidget {
 
   final KkPressableBuilder builder;
   final VoidCallback? onPressed;
+
+  /// Called when a pointer has been held on the control. On a control with no
+  /// [onPressed] it is the one action there is, and Enter and Space perform it
+  /// as well.
   final VoidCallback? onLongPress;
 
   /// A control with no [onPressed] and no [onLongPress] is disabled too.
@@ -133,7 +137,9 @@ class _KkPressableState extends State<KkPressable> {
 
   void _activate() {
     if (!widget.interactive) return;
-    widget.onPressed?.call();
+    // The keys are taken either way, so a control with a long press alone
+    // does the one thing it has to do.
+    (widget.onPressed ?? widget.onLongPress)?.call();
   }
 
   void _setPressed(bool value) {

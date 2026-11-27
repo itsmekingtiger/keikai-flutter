@@ -177,6 +177,108 @@ void main() {
     });
   });
 
+  group('KkPressable keys and the long press', () {
+    testChecked('a control with a long press alone is operated with Enter and Space', (WidgetTester tester) async {
+      int holds = 0;
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(
+        tester,
+        KkPressable(
+          focusNode: node,
+          onLongPress: () => holds++,
+          builder: (BuildContext context, KkStates states) => const SizedBox(width: 100, height: 40),
+        ),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+
+      // The keys are taken, so they must do the one thing the control does.
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isTrue);
+      expect(holds, 1, reason: 'the only action of a focusable control must be reachable from the keyboard');
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.space), isTrue);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter), isTrue);
+      expect(holds, 3);
+
+      // The pointer still has to hold.
+      await tester.tap(find.byType(KkPressable));
+      expect(holds, 3);
+      await tester.longPress(find.byType(KkPressable));
+      expect(holds, 4);
+    });
+
+    testChecked('with a press and a long press the keys press', (WidgetTester tester) async {
+      int presses = 0;
+      int holds = 0;
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(
+        tester,
+        KkPressable(
+          focusNode: node,
+          onPressed: () => presses++,
+          onLongPress: () => holds++,
+          builder: (BuildContext context, KkStates states) => const SizedBox(width: 100, height: 40),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      expect(presses, 2);
+      expect(holds, 0);
+    });
+
+    testChecked('a disabled control with a long press alone does nothing', (WidgetTester tester) async {
+      int holds = 0;
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpKk(
+        tester,
+        KkPressable(
+          focusNode: node,
+          enabled: false,
+          onLongPress: () => holds++,
+          builder: (BuildContext context, KkStates states) => const SizedBox(width: 100, height: 40),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+      expect(node.hasFocus, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.longPress(find.byType(KkPressable));
+      expect(holds, 0);
+    });
+
+    testChecked('a button, an icon button, a FAB and a list row with a long press alone answer to Enter', (
+      WidgetTester tester,
+    ) async {
+      final List<String> held = <String>[];
+      await pumpKk(
+        tester,
+        KkColumn(
+          shrinkWrap: true,
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            KkButton(label: 'hold', onLongPress: () => held.add('button')),
+            KkIconButton(icon: KkIcons.power, semanticLabel: 'power', onLongPress: () => held.add('icon button')),
+            KkFab(icon: KkIcons.plus, semanticLabel: 'add', onLongPress: () => held.add('fab')),
+            KkListRow(en: 'sector', onLongPress: () => held.add('row')),
+          ],
+        ),
+        size: const Size(600, 400),
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+      }
+      expect(held, <String>['button', 'icon button', 'fab', 'row']);
+    });
+  });
+
   group('KkPressable focus', () {
     /// The focus rings that are showing.
     int rings(WidgetTester tester) =>
