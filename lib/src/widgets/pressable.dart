@@ -108,6 +108,10 @@ class _KkPressableState extends State<KkPressable> {
   bool _focused = false;
   bool _pressed = false;
 
+  /// Whether the control itself is the focused element. With the focus on a
+  /// control inside it, it only has the focus within it.
+  bool _primary = false;
+
   static final Map<ShortcutActivator, Intent> _shortcuts = <ShortcutActivator, Intent>{
     const SingleActivator(LogicalKeyboardKey.enter): const ActivateIntent(),
     const SingleActivator(LogicalKeyboardKey.numpadEnter): const ActivateIntent(),
@@ -131,9 +135,29 @@ class _KkPressableState extends State<KkPressable> {
     setState(() => _pressed = value);
   }
 
+  /// The node also tells when the focus moves between the control and
+  /// something inside it. The detector does not: for it the control is
+  /// focused in both cases.
+  void _onNodeChanged() {
+    final bool primary = _node.hasPrimaryFocus;
+    if (primary != _primary) setState(() => _primary = primary);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _node.addListener(_onNodeChanged);
+    _primary = _node.hasPrimaryFocus;
+  }
+
   @override
   void didUpdateWidget(KkPressable oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      (oldWidget.focusNode ?? _ownNode)?.removeListener(_onNodeChanged);
+      _node.addListener(_onNodeChanged);
+      _primary = _node.hasPrimaryFocus;
+    }
     if (!widget.interactive && (_pressed || _hovered)) {
       _pressed = false;
       _hovered = false;
@@ -142,6 +166,7 @@ class _KkPressableState extends State<KkPressable> {
 
   @override
   void dispose() {
+    _node.removeListener(_onNodeChanged);
     _ownNode?.dispose();
     super.dispose();
   }
@@ -151,7 +176,7 @@ class _KkPressableState extends State<KkPressable> {
     final bool interactive = widget.interactive;
     final KkStates states = KkStates(
       hovered: _hovered && interactive,
-      focused: _focused && interactive,
+      focused: _focused && _primary && interactive,
       pressed: _pressed && interactive,
       enabled: interactive,
     );
