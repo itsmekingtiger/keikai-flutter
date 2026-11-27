@@ -365,14 +365,21 @@ class KkBracketSpec {
 }
 
 /// Cuts [source] into dashes following [pattern] (on, off, on, off …).
+///
+/// An odd number of lengths is read twice over with on and off swapped, as in
+/// SVG: `[5]` is 5 on, 5 off. [phase] is how far into the pattern each contour
+/// starts. It wraps at one whole period and may be negative.
 Path kkDashPath(Path source, List<double> pattern, {double phase = 0}) {
   assert(pattern.isNotEmpty && pattern.every((double v) => v > 0));
   final Path out = Path();
   final double total = pattern.fold<double>(0, (double a, double b) => a + b);
   // A pattern that does not advance would never end: leave the path solid.
   if (pattern.isEmpty || total <= 0 || pattern.any((double v) => v <= 0)) return Path.from(source);
+  // On and off swap on each pass through an odd list, so it takes two passes
+  // to come round again.
+  final double period = pattern.length.isOdd ? total * 2 : total;
   for (final PathMetric metric in source.computeMetrics()) {
-    double distance = -(phase % total);
+    double distance = -(phase % period);
     int i = 0;
     bool draw = true;
     while (distance < metric.length) {

@@ -315,6 +315,45 @@ void main() {
       expect(kkDashPath(line, const <double>[2, 3], phase: 5).getBounds(), _rect(0, 0, 7, 0));
     });
 
+    test('an odd number of lengths repeats as on and off in turn, and the phase wraps at that whole period', () {
+      final Path long = Path()
+        ..moveTo(0, 0)
+        ..lineTo(20, 0);
+      // Where each dash starts and ends along the line.
+      List<String> spans(Path dashed) => <String>[
+        for (final ui.PathMetric m in dashed.computeMetrics())
+          '${m.getTangentForOffset(0)!.position.dx.toStringAsFixed(1)}..'
+              '${m.getTangentForOffset(m.length)!.position.dx.toStringAsFixed(1)}',
+      ];
+      // [5] is 5 on, 5 off: one period is 10, twice the sum of the list.
+      expect(spans(kkDashPath(long, const <double>[5])), <String>['0.0..5.0', '10.0..15.0']);
+      expect(spans(kkDashPath(long, const <double>[5], phase: 5)), <String>['5.0..10.0', '15.0..20.0']);
+      expect(spans(kkDashPath(long, const <double>[5], phase: 7)), <String>['3.0..8.0', '13.0..18.0']);
+      expect(spans(kkDashPath(long, const <double>[5], phase: 10)), <String>['0.0..5.0', '10.0..15.0']);
+      expect(spans(kkDashPath(long, const <double>[5], phase: 15)), <String>['5.0..10.0', '15.0..20.0']);
+      // A negative phase moves the pattern the other way.
+      expect(spans(kkDashPath(long, const <double>[5], phase: -3)), <String>['3.0..8.0', '13.0..18.0']);
+      expect(spans(kkDashPath(long, const <double>[5], phase: -13)), <String>['3.0..8.0', '13.0..18.0']);
+      // [5, 3, 2] is [5, 3, 2, 5, 3, 2], whatever the phase.
+      for (final double phase in <double>[0, 4, 10, 13.5, 20, 27, -6, -10, -31]) {
+        expect(
+          spans(kkDashPath(long, const <double>[5, 3, 2], phase: phase)),
+          spans(kkDashPath(long, const <double>[5, 3, 2, 5, 3, 2], phase: phase)),
+          reason: 'phase $phase',
+        );
+      }
+      expect(
+        spans(kkDashPath(long, const <double>[5, 3, 2], phase: 10)),
+        <String>['5.0..8.0', '10.0..15.0', '18.0..20.0'],
+      );
+      // An even number of lengths wraps at its sum.
+      expect(spans(kkDashPath(long, const <double>[5, 5], phase: 5)), <String>['5.0..10.0', '15.0..20.0']);
+      expect(
+        spans(kkDashPath(long, const <double>[2, 3], phase: -1)),
+        <String>['1.0..3.0', '6.0..8.0', '11.0..13.0', '16.0..18.0'],
+      );
+    });
+
     test('a pattern longer than the path keeps what fits', () {
       expect(_length(kkDashPath(line, const <double>[50, 5])), closeTo(10, 1e-3));
       expect(_length(kkDashPath(line, const <double>[4])), closeTo(6, 1e-3));
