@@ -50,9 +50,13 @@ String _two(int v) => v < 10 ? '0$v' : '$v';
 /// `KkTimer.stopwatch`) and reports its state.
 ///
 /// Listeners are told when the timer starts, stops, is reset or runs out, not
-/// on every tick.
+/// on every tick. A timer that starts by itself, starts again because it was
+/// given a new duration, or leaves the tree does so while the tree is being
+/// built: listeners are told of that at the end of the frame.
 class KkTimerController extends ChangeNotifier {
   _KkTimerState? _state;
+  bool _disposed = false;
+  bool _telling = false;
 
   /// Whether the attached timer is counting.
   bool get isRunning => _state?._running ?? false;
@@ -73,7 +77,33 @@ class KkTimerController extends ChangeNotifier {
   /// Stops and goes back to the beginning.
   void reset() => _state?._reset();
 
-  void _changed() => notifyListeners();
+  /// What the controller reports about its timer: whether it is counting,
+  /// and the time counted.
+  (bool, Duration) get _report => (isRunning, elapsed);
+
+  void _changed() {
+    if (!_disposed) notifyListeners();
+  }
+
+  /// Tells the listeners at the end of the frame, if the controller no longer
+  /// reports what it did [before].
+  ///
+  /// This is for changes that are made while the tree is being built, when
+  /// listeners must not be called.
+  void _changedSince((bool, Duration) before) {
+    if (_telling || _report == before) return;
+    _telling = true;
+    SchedulerBinding.instance.addPostFrameCallback((Duration _) {
+      _telling = false;
+      _changed();
+    });
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 }
 
 enum _TimerKind { controlled, countdown, stopwatch }
@@ -240,8 +270,11 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    widget.controller?._state = this;
+    final KkTimerController? controller = widget.controller;
+    final (bool, Duration)? before = controller?._report;
+    controller?._state = this;
     if (_live && widget.autostart) _start(notify: false);
+    if (before != null) controller?._changedSince(before);
   }
 
   @override
@@ -256,9 +289,13 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(KkTimer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      if (oldWidget.controller?._state == this) oldWidget.controller?._state = null;
-      widget.controller?._state = this;
+    final KkTimerController? old = oldWidget.controller;
+    final KkTimerController? controller = widget.controller;
+    final (bool, Duration)? oldBefore = old?._report;
+    final (bool, Duration)? before = controller?._report;
+    if (old != controller) {
+      if (old?._state == this) old?._state = null;
+      controller?._state = this;
     }
     if (oldWidget._kind != widget._kind || oldWidget.from != widget.from) {
       _stop(notify: false);
@@ -266,11 +303,18 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
       _doneFired = false;
       if (_live && widget.autostart) _start(notify: false);
     }
+    if (oldBefore != null) old?._changedSince(oldBefore);
+    if (before != null) controller?._changedSince(before);
   }
 
   @override
   void dispose() {
-    if (widget.controller?._state == this) widget.controller?._state = null;
+    final KkTimerController? controller = widget.controller;
+    if (controller != null && controller._state == this) {
+      final (bool, Duration) before = controller._report;
+      controller._state = null;
+      controller._changedSince(before);
+    }
     _beat?.cancel();
     _ticker?.dispose();
     super.dispose();

@@ -18,6 +18,31 @@ double _bar(WidgetTester tester) {
   return (paint.painter! as dynamic).value as double;
 }
 
+/// Owns the controller of the stopwatch it shows, and disposes it with itself.
+class _OwnsController extends StatefulWidget {
+  const _OwnsController();
+
+  @override
+  State<_OwnsController> createState() => _OwnsControllerState();
+}
+
+class _OwnsControllerState extends State<_OwnsController> {
+  final KkTimerController _controller = KkTimerController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _controller,
+    builder: (BuildContext context, Widget? child) => child!,
+    child: KkTimer.stopwatch(controller: _controller),
+  );
+}
+
 void main() {
   setUpAll(loadKkFonts);
 
@@ -359,11 +384,11 @@ void main() {
     addTearDown(controller.dispose);
     int done = 0;
     int notified = 0;
-    controller.addListener(() => notified++);
     await pumpKk(
       tester,
       KkTimer.countdown(from: const Duration(seconds: 5), controller: controller, onDone: () => done++),
     );
+    controller.addListener(() => notified++);
     await tester.pump(const Duration(seconds: 1));
     expect(_digits(tester), '00:04.00');
 
@@ -502,6 +527,102 @@ void main() {
     expect(done, 1);
     expect(controller.isRunning, isFalse);
     expect(_digits(tester), '00:00.00');
+  });
+
+  testWidgets('a controller tells its listeners when the timer starts by itself', (WidgetTester tester) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    int notified = 0;
+    controller.addListener(() => notified++);
+    // The label is built before the timer below it attaches and starts.
+    await pumpKk(
+      tester,
+      KkColumn(
+        shrinkWrap: true,
+        children: <Widget>[
+          ListenableBuilder(
+            listenable: controller,
+            builder: (BuildContext context, Widget? _) => KkText.en(controller.isRunning ? 'running' : 'stopped'),
+          ),
+          KkTimer.stopwatch(controller: controller),
+        ],
+      ),
+    );
+    expect(controller.isRunning, isTrue);
+    expect(notified, 1);
+    expect(find.text('RUNNING'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(notified, 1, reason: 'not on every tick');
+
+    // A timer that does not start by itself changes nothing, so it tells nothing.
+    final KkTimerController idle = KkTimerController();
+    addTearDown(idle.dispose);
+    int idleNotified = 0;
+    idle.addListener(() => idleNotified++);
+    await pumpKk(tester, KkTimer.stopwatch(controller: idle, autostart: false));
+    expect(idleNotified, 0);
+  });
+
+  testWidgets('a controller tells its listeners when the timer starts again with a new duration', (
+    WidgetTester tester,
+  ) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    await pumpKk(tester, KkTimer.countdown(from: const Duration(seconds: 1), controller: controller));
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(controller.isRunning, isFalse);
+    int notified = 0;
+    controller.addListener(() => notified++);
+
+    await pumpKk(tester, KkTimer.countdown(from: const Duration(seconds: 5), controller: controller));
+    expect(controller.isRunning, isTrue);
+    expect(notified, 1);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(_digits(tester), '00:04.50');
+    expect(notified, 1);
+
+    // Rebuilt with the same duration it goes on and tells nothing.
+    await pumpKk(tester, KkTimer.countdown(from: const Duration(seconds: 5), controller: controller, en: 'hold'));
+    expect(notified, 1);
+  });
+
+  testWidgets('a controller tells its listeners when its timer leaves the tree or takes another controller', (
+    WidgetTester tester,
+  ) async {
+    final KkTimerController first = KkTimerController();
+    final KkTimerController second = KkTimerController();
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+    await pumpKk(tester, KkTimer.stopwatch(controller: first));
+    await tester.pump(const Duration(seconds: 1));
+    int firstNotified = 0;
+    int secondNotified = 0;
+    first.addListener(() => firstNotified++);
+    second.addListener(() => secondNotified++);
+
+    // The running timer is handed to the second controller.
+    await pumpKk(tester, KkTimer.stopwatch(controller: second));
+    expect(first.isRunning, isFalse);
+    expect(first.elapsed, Duration.zero);
+    expect(firstNotified, 1);
+    expect(second.isRunning, isTrue);
+    expect(second.elapsed, const Duration(seconds: 1));
+    expect(secondNotified, 1);
+
+    // The timer is removed.
+    await pumpKk(tester, const KkText.en('no timer'));
+    expect(second.isRunning, isFalse);
+    expect(secondNotified, 2);
+    expect(firstNotified, 1);
+  });
+
+  testWidgets('a controller disposed together with its timer is left alone', (WidgetTester tester) async {
+    await pumpKk(tester, const _OwnsController());
+    await tester.pump(const Duration(seconds: 1));
+    expect(_digits(tester), '00:01.00');
+    // The timer is disposed first and its owner, with the controller, right after it in the same frame.
+    await pumpKk(tester, const KkText.en('no timer'));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a disposed stopwatch lets go of its controller and its ticker', (WidgetTester tester) async {
