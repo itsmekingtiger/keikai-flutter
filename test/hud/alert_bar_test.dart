@@ -3,9 +3,8 @@ import 'package:keikai/keikai.dart';
 
 import '../support/harness.dart';
 
-KkDecoration _frame(WidgetTester tester) => tester
-    .widget<KkBox>(find.descendant(of: find.byType(KkAlertBar), matching: find.byType(KkBox)).first)
-    .decoration!;
+KkDecoration _frame(WidgetTester tester) =>
+    tester.widget<KkBox>(find.descendant(of: find.byType(KkAlertBar), matching: find.byType(KkBox)).first).decoration!;
 
 void main() {
   setUpAll(loadKkFonts);
@@ -45,14 +44,26 @@ void main() {
   });
 
   testWidgets('hazard blocks are 64px wide and only run when critical', (WidgetTester tester) async {
-    await pumpKk(tester, const KkBox(width: 700, child: KkAlertBar(level: KkLevel.caution, title: 'caution')));
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 700,
+        child: KkAlertBar(level: KkLevel.caution, title: 'caution'),
+      ),
+    );
     List<KkHazard> hazards = tester.widgetList<KkHazard>(find.byType(KkHazard)).toList();
     expect(hazards, hasLength(2));
     expect(hazards.every((KkHazard h) => !h.running && h.width == 64), isTrue);
     expect(hazards.first.color, KkColors.standby.caution);
     expect(hazards.first.background, KkColors.standby.bg000);
 
-    await pumpKk(tester, const KkBox(width: 700, child: KkAlertBar(level: KkLevel.critical, title: 'critical')));
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 700,
+        child: KkAlertBar(level: KkLevel.critical, title: 'critical'),
+      ),
+    );
     hazards = tester.widgetList<KkHazard>(find.byType(KkHazard)).toList();
     expect(hazards.every((KkHazard h) => h.running), isTrue);
     expect(hazards.first.color, KkColors.standby.onFill);
@@ -97,12 +108,50 @@ void main() {
     expect(tester.takeException(), isNull);
     await pumpKk(
       tester,
-      const KkBox(width: 600, child: KkAlertBar(title: 'advisory', action: KkText.en('acknowledge'))),
+      const KkBox(
+        width: 600,
+        child: KkAlertBar(title: 'advisory', action: KkText.en('acknowledge')),
+      ),
     );
     expect(find.text('ACKNOWLEDGE'), findsOneWidget);
     // The action takes the bar's ink.
     final DefaultTextStyle ink = DefaultTextStyle.of(tester.element(find.text('ACKNOWLEDGE')));
     expect(ink.style.color, KkColors.standby.signal);
+  });
+
+  testWidgets('says the alarm once, with or without an action', (WidgetTester tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    const String said = 'critical — coolant pressure low, 冷却水圧 低下 · SEC-04, E-4127';
+    int pressed = 0;
+    Widget bar({bool action = false}) => KkBox(
+      width: 900,
+      child: KkAlertBar(
+        level: KkLevel.critical,
+        cjk: '警報',
+        title: 'critical — coolant pressure low',
+        sub: '冷却水圧 低下 · SEC-04',
+        code: 'E-4127',
+        action: action
+            ? KkPressable(
+                onPressed: () => pressed++,
+                builder: (BuildContext context, KkStates states) => const KkText.en('ack'),
+              )
+            : null,
+      ),
+    );
+
+    await pumpKk(tester, bar());
+    expect(tester.getSemantics(find.byType(KkAlertBar)), isSemantics(label: said, isLiveRegion: true));
+
+    // The texts that are drawn do not come after the label a second time.
+    await pumpKk(tester, bar(action: true));
+    expect(tester.getSemantics(find.byType(KkAlertBar)), isSemantics(label: said, isLiveRegion: true));
+    // The action stays a node of its own under the bar.
+    expect(tester.getSemantics(find.text('ACK')), isSemantics(label: 'ACK', isButton: true, hasTapAction: true));
+    expect(tester.getSemantics(find.text('ACK')).parent, tester.getSemantics(find.byType(KkAlertBar)));
+    await tester.tap(find.text('ACK'));
+    expect(pressed, 1);
+    handle.dispose();
   });
 
   testWidgets('follows the alert theme', (WidgetTester tester) async {

@@ -79,24 +79,27 @@ class KkAlertBar extends StatelessWidget {
       width: block,
     );
 
+    // The label says what the bar shows, so the texts that are drawn are kept
+    // out of the semantics tree one by one. Only the action stays in it: taken
+    // out as a whole the bar would lose it, left in as a whole the live region
+    // would read the alarm twice.
     return Semantics(
       container: true,
       liveRegion: true,
       label: <String>[title, ?detail, ?id].join(', '),
-      child: ExcludeSemantics(
-        excluding: trailing == null,
-        child: KkBox(
-          minHeight: minHeight ?? block,
-          decoration: KkDecoration(
-            fill: critical ? c.alert : c.bg100,
-            edges: KkEdges.line(lv, width: m.stroke2),
-            glow: critical ? c.glowAlert : null,
-          ),
-          child: KkRow(
-            cross: KkCrossAlign.stretch,
-            children: <Widget>[
-              if (hazards) hazard(),
-              KkExpanded(
+      child: KkBox(
+        minHeight: minHeight ?? block,
+        decoration: KkDecoration(
+          fill: critical ? c.alert : c.bg100,
+          edges: KkEdges.line(lv, width: m.stroke2),
+          glow: critical ? c.glowAlert : null,
+        ),
+        child: KkRow(
+          cross: KkCrossAlign.stretch,
+          children: <Widget>[
+            if (hazards) hazard(),
+            KkExpanded(
+              child: ExcludeSemantics(
                 child: KkBox(
                   padding: EdgeInsets.symmetric(horizontal: m.space4, vertical: m.space2),
                   child: KkRow(
@@ -131,25 +134,27 @@ class KkAlertBar extends StatelessWidget {
                   ),
                 ),
               ),
-              if (id != null)
-                KkAlignSelf(
-                  align: KkCrossAlign.center,
+            ),
+            if (id != null)
+              KkAlignSelf(
+                align: KkCrossAlign.center,
+                child: ExcludeSemantics(
                   child: KkBox(
                     padding: EdgeInsets.symmetric(horizontal: m.space4),
                     child: KkText.num(id, size: 13, weight: FontWeight.w600, spacing: 0.06, color: ink),
                   ),
                 ),
-              if (trailing != null)
-                KkAlignSelf(
-                  align: KkCrossAlign.center,
-                  child: KkBox(
-                    padding: EdgeInsets.only(right: m.space4),
-                    child: KkInk(color: ink, child: trailing),
-                  ),
+              ),
+            if (trailing != null)
+              KkAlignSelf(
+                align: KkCrossAlign.center,
+                child: KkBox(
+                  padding: EdgeInsets.only(right: m.space4),
+                  child: KkInk(color: ink, child: trailing),
                 ),
-              if (hazards) hazard(),
-            ],
-          ),
+              ),
+            if (hazards) hazard(),
+          ],
         ),
       ),
     );
