@@ -354,6 +354,156 @@ void main() {
     expect(loose.elapsed, Duration.zero);
   });
 
+  testWidgets('a countdown keeps time under a page that covers it and reports done there', (WidgetTester tester) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    int done = 0;
+    int notified = 0;
+    controller.addListener(() => notified++);
+    await pumpKk(
+      tester,
+      KkTimer.countdown(from: const Duration(seconds: 5), controller: controller, onDone: () => done++),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(_digits(tester), '00:04.00');
+
+    // Another page covers the timer's. Tickers under it are silent from here on.
+    final NavigatorState navigator = tester.state(find.byType(Navigator));
+    navigator.push(KkPageRoute<void>(builder: (BuildContext context) => const KkText.en('another page')));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(KkTimer), findsNothing);
+    expect(find.byType(KkTimer, skipOffstage: false), findsOneWidget);
+
+    // The time is counted all the same, a tenth of a second at a time.
+    await tester.pump(const Duration(milliseconds: 3900));
+    expect(done, 0);
+    expect(controller.isRunning, isTrue);
+    expect(controller.elapsed.inMilliseconds, inInclusiveRange(4800, 4900));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(done, 1, reason: 'when the time is up, not when the page comes back');
+    expect(notified, 1);
+    expect(controller.isRunning, isFalse);
+    expect(controller.elapsed, const Duration(seconds: 5));
+
+    await tester.pump(const Duration(seconds: 6));
+    navigator.pop();
+    await tester.pump();
+    await tester.pump();
+    expect(_digits(tester), '00:00.00');
+    expect(done, 1);
+    expect(notified, 1);
+  });
+
+  testWidgets('a stopwatch keeps time while tickers are disabled around it', (WidgetTester tester) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    bool enabled = true;
+    late StateSetter rebuild;
+    await pumpKk(
+      tester,
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          rebuild = setState;
+          return TickerMode(
+            enabled: enabled,
+            child: KkTimer.stopwatch(controller: controller),
+          );
+        },
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(_digits(tester), '00:01.00');
+
+    rebuild(() => enabled = false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 5050));
+    // No frame reports the time now, so the digits stand still, but the time is counted.
+    expect(_digits(tester), '00:01.00');
+    expect(controller.isRunning, isTrue);
+    expect(controller.elapsed.inMilliseconds, inInclusiveRange(5950, 6050));
+
+    // Stopped there, the timer keeps what was counted there.
+    controller.stop();
+    await tester.pump(const Duration(seconds: 3));
+    expect(controller.elapsed.inMilliseconds, inInclusiveRange(5950, 6050));
+    controller.start();
+    await tester.pump(const Duration(seconds: 1));
+    expect(controller.elapsed.inMilliseconds, inInclusiveRange(6950, 7050));
+
+    // Back on the frame clock the count goes on from there.
+    rebuild(() => enabled = true);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(controller.elapsed.inMilliseconds, inInclusiveRange(7450, 7550));
+    expect(_digits(tester), startsWith('00:07.5'));
+  });
+
+  testWidgets('time under disabled tickers is exact once frames report it again', (WidgetTester tester) async {
+    bool enabled = true;
+    late StateSetter rebuild;
+    await pumpKk(
+      tester,
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          rebuild = setState;
+          return TickerMode(enabled: enabled, child: const KkTimer.stopwatch());
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1230));
+    rebuild(() => enabled = false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 5040));
+    rebuild(() => enabled = true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    // 1.23s shown, 5.04s hidden, 0.1s shown: nothing is rounded to the tenths counted while hidden.
+    expect(_digits(tester), '00:06.37');
+  });
+
+  testWidgets('a countdown built under disabled tickers counts from its first frame, once', (
+    WidgetTester tester,
+  ) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    bool enabled = false;
+    int done = 0;
+    late StateSetter rebuild;
+    await pumpKk(
+      tester,
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          rebuild = setState;
+          return TickerMode(
+            enabled: enabled,
+            child: KkTimer.countdown(from: const Duration(seconds: 3), controller: controller, onDone: () => done++),
+          );
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1040));
+    expect(controller.elapsed, const Duration(seconds: 1));
+
+    // The frame clock takes over with the whole 1.04s, not on top of the second counted so far.
+    rebuild(() => enabled = true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(controller.elapsed, const Duration(milliseconds: 1540));
+    expect(_digits(tester), '00:01.46');
+
+    // Hidden again, it runs out there.
+    rebuild(() => enabled = false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1400));
+    expect(done, 0);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(done, 1);
+    expect(controller.isRunning, isFalse);
+    expect(_digits(tester), '00:00.00');
+  });
+
   testWidgets('a disposed stopwatch lets go of its controller and its ticker', (WidgetTester tester) async {
     final KkTimerController controller = KkTimerController();
     addTearDown(controller.dispose);

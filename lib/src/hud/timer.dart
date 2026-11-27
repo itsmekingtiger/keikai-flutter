@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -55,7 +57,8 @@ class KkTimerController extends ChangeNotifier {
   /// Whether the attached timer is counting.
   bool get isRunning => _state?._running ?? false;
 
-  /// The time counted so far.
+  /// The time counted so far. While the timer's page is covered by another it
+  /// is counted in tenths of a second.
   Duration get elapsed => _state?._elapsed ?? Duration.zero;
 
   /// Starts or resumes counting.
@@ -75,6 +78,9 @@ class KkTimerController extends ChangeNotifier {
 
 enum _TimerKind { controlled, countdown, stopwatch }
 
+/// How often a self-running timer counts while no frame does it for it.
+const Duration _kBeat = Duration(milliseconds: 100);
+
 /// The timer: one key figure in 56px tabular mono with a progress bar under
 /// it.
 ///
@@ -83,8 +89,12 @@ enum _TimerKind { controlled, countdown, stopwatch }
 /// * [KkTimer.stopwatch] counts up by itself.
 ///
 /// Caution colours the border; critical adds the alarm glow and makes the
-/// digits blink at 1.2s. The self-running forms tick with the frame clock, so
-/// they pause while their route is off screen.
+/// digits blink at 1.2s.
+///
+/// The self-running forms keep time while they are not drawn, as under a
+/// page that covers theirs. A countdown that runs out there calls its `onDone`
+/// then, within about a tenth of a second, and the digits are right again as
+/// soon as the page is back.
 class KkTimer extends StatefulWidget {
   /// A timer that shows [value]. [progress] (0 to 1) fills the bar.
   const KkTimer({
@@ -205,9 +215,16 @@ class KkTimer extends StatefulWidget {
 
 class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   Ticker? _ticker;
+
+  /// Counts in place of the ticker while that is muted, [_kBeat] at a time.
+  Timer? _beat;
   Duration _banked = Duration.zero;
   Duration _run = Duration.zero;
   bool _running = false;
+
+  /// Whether tickers are disabled around the timer, as they are under a page
+  /// that covers its own.
+  bool _muted = false;
   bool _doneFired = false;
   int _shownCs = -1;
 
@@ -228,6 +245,15 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bool muted = !TickerMode.valuesOf(context).enabled;
+    if (muted == _muted) return;
+    _muted = muted;
+    if (_running) _keepTime();
+  }
+
+  @override
   void didUpdateWidget(KkTimer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
@@ -245,8 +271,23 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     if (widget.controller?._state == this) widget.controller?._state = null;
+    _beat?.cancel();
     _ticker?.dispose();
     super.dispose();
+  }
+
+  /// Lets the beat count for as long as the ticker is muted.
+  ///
+  /// A muted ticker keeps its clock but is not called. Left to it, a countdown
+  /// under another page would only find out that it has run out when the page
+  /// comes back, and its controller would report the time of the last frame
+  /// that was drawn.
+  void _keepTime() {
+    _beat?.cancel();
+    _beat = null;
+    if (!_muted) return;
+    final Duration counted = _run;
+    _beat = Timer.periodic(_kBeat, (Timer beat) => _count(counted + _kBeat * beat.tick, repaint: false));
   }
 
   void _start({bool notify = true}) {
@@ -256,6 +297,7 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     _run = Duration.zero;
     _running = true;
     ticker.start();
+    _keepTime();
     if (notify) {
       if (mounted) setState(() {});
       widget.controller?._changed();
@@ -265,6 +307,8 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   void _stop({bool notify = true}) {
     if (!_running) return;
     _ticker?.stop();
+    _beat?.cancel();
+    _beat = null;
     _banked += _run;
     _run = Duration.zero;
     _running = false;
@@ -284,9 +328,21 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   }
 
   void _onTick(Duration elapsed) {
-    _run = elapsed;
+    // At zero the ticker's clock starts with this tick: it was started between
+    // frames. If it was muted until now, what the beat counted in its place is
+    // not part of [elapsed] and is kept here.
+    if (elapsed == Duration.zero) _banked += _run;
+    _count(elapsed);
+  }
+
+  /// Takes [run], the time counted since the timer was last started, from a
+  /// frame or from the beat. Only a frame repaints the digits.
+  void _count(Duration run, {bool repaint = true}) {
+    _run = run;
     if (widget._kind == _TimerKind.countdown && _left <= Duration.zero) {
       _ticker?.stop();
+      _beat?.cancel();
+      _beat = null;
       _banked = widget.from ?? Duration.zero;
       _run = Duration.zero;
       _running = false;
@@ -298,6 +354,7 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
       widget.controller?._changed();
       return;
     }
+    if (!repaint) return;
     final int cs = _elapsed.inMicroseconds ~/ 10000;
     if (cs != _shownCs) setState(() => _shownCs = cs);
   }
