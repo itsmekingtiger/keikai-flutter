@@ -24,6 +24,44 @@ class _Seen {
 
 Widget _dir(Widget child) => Directionality(textDirection: TextDirection.ltr, child: child);
 
+/// What happened to the State of a [_Kept].
+class _Life {
+  int inits = 0;
+  int disposals = 0;
+  KkCondition? condition;
+}
+
+/// A stateful leaf that reads the theme. Its State has to outlive every
+/// switch of the condition above it.
+class _Kept extends StatefulWidget {
+  const _Kept(this.life);
+
+  final _Life life;
+
+  @override
+  State<_Kept> createState() => _KeptState();
+}
+
+class _KeptState extends State<_Kept> {
+  @override
+  void initState() {
+    super.initState();
+    widget.life.inits++;
+  }
+
+  @override
+  void dispose() {
+    widget.life.disposals++;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    widget.life.condition = KeikaiTheme.of(context).condition;
+    return const SizedBox.shrink();
+  }
+}
+
 void main() {
   group('KeikaiThemeData', () {
     test('defaults: standby, the two colour sets, bundled type, default metrics and motion', () {
@@ -189,25 +227,77 @@ void main() {
       expect(seen.text!.color, KkColors.standby.ink);
     });
 
-    testChecked('a scope with the condition already in force adds nothing', (WidgetTester tester) async {
+    testChecked('a scope with the condition already in force hands the same theme down', (WidgetTester tester) async {
+      final _Seen seen = _Seen();
+      const KeikaiThemeData data = KeikaiThemeData(metrics: KkMetrics(rowUnit: 40));
       await tester.pumpWidget(
         _dir(
-          const KeikaiTheme(
-            data: KeikaiThemeData(),
-            child: KkConditionScope(condition: KkCondition.standby, child: SizedBox.shrink()),
+          KeikaiTheme(
+            data: data,
+            child: KkConditionScope(condition: KkCondition.standby, child: seen.probe()),
           ),
         ),
       );
-      expect(find.byType(KeikaiTheme), findsOneWidget);
-      await tester.pumpWidget(
-        _dir(
-          const KeikaiTheme(
-            data: KeikaiThemeData(),
-            child: KkConditionScope(condition: KkCondition.alert, child: SizedBox.shrink()),
+      expect(seen.theme, same(data));
+      expect(seen.text!.color, KkColors.standby.ink);
+    });
+
+    testChecked('switching the condition keeps the State of the region', (WidgetTester tester) async {
+      final _Life life = _Life();
+      Widget tree(KkCondition condition) => _dir(
+        KeikaiTheme(
+          data: const KeikaiThemeData(),
+          child: KkConditionScope(condition: condition, child: _Kept(life)),
+        ),
+      );
+      await tester.pumpWidget(tree(KkCondition.standby));
+      final State<StatefulWidget> state = tester.state(find.byType(_Kept));
+      for (final KkCondition condition in <KkCondition>[KkCondition.alert, KkCondition.standby, KkCondition.alert]) {
+        await tester.pumpWidget(tree(condition));
+        expect(tester.state(find.byType(_Kept)), same(state), reason: 'turning to $condition');
+        // The region did follow the switch.
+        expect(life.condition, condition);
+      }
+      expect(life.inits, 1);
+      expect(life.disposals, 0);
+    });
+
+    testChecked('a pinned region keeps its State when the theme around it switches', (WidgetTester tester) async {
+      final _Life life = _Life();
+      Widget tree(KkCondition around) => _dir(
+        KeikaiTheme(
+          data: KeikaiThemeData(condition: around),
+          child: KkConditionScope(condition: KkCondition.standby, child: _Kept(life)),
+        ),
+      );
+      await tester.pumpWidget(tree(KkCondition.standby));
+      final State<StatefulWidget> state = tester.state(find.byType(_Kept));
+      for (final KkCondition around in <KkCondition>[KkCondition.alert, KkCondition.standby]) {
+        await tester.pumpWidget(tree(around));
+        expect(tester.state(find.byType(_Kept)), same(state), reason: 'the theme around turning to $around');
+        expect(life.condition, KkCondition.standby);
+      }
+      expect(life.inits, 1);
+      expect(life.disposals, 0);
+    });
+
+    testChecked('a scroll position in the region survives the turn to alert', (WidgetTester tester) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      Widget tree(KkCondition condition) => _dir(
+        KeikaiTheme(
+          data: const KeikaiThemeData(),
+          child: KkConditionScope(
+            condition: condition,
+            child: KkScroll(controller: controller, child: const SizedBox(height: 4000)),
           ),
         ),
       );
-      expect(find.byType(KeikaiTheme), findsNWidgets(2));
+      await tester.pumpWidget(tree(KkCondition.standby));
+      controller.jumpTo(400);
+      await tester.pump();
+      await tester.pumpWidget(tree(KkCondition.alert));
+      expect(controller.offset, 400);
     });
 
     testChecked('works without a theme above it', (WidgetTester tester) async {

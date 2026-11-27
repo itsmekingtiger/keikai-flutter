@@ -125,6 +125,9 @@ class _KeikaiThemeScope extends InheritedWidget {
 }
 
 /// Switches the condition for a region: `alert` turns just this subtree red.
+///
+/// The region keeps its State when [condition], or the condition around it,
+/// switches.
 class KkConditionScope extends StatelessWidget {
   const KkConditionScope({super.key, required this.condition, required this.child});
 
@@ -133,9 +136,9 @@ class KkConditionScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final KeikaiThemeData data = KeikaiTheme.of(context);
-    if (data.condition == condition) return child;
-    return KeikaiTheme(data: data.withCondition(condition), child: child);
+    // The same wrapper whether or not the condition is already in force: a
+    // different widget in this place would rebuild the region from nothing.
+    return KeikaiTheme(data: KeikaiTheme.of(context).withCondition(condition), child: child);
   }
 }
 
