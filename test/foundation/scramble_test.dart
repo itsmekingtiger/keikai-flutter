@@ -242,6 +242,30 @@ void main() {
       }
     });
 
+    testChecked('the end shows the value even when it has the number of a noise step already shown', (
+      WidgetTester tester,
+    ) async {
+      // With a step count that stays the same the end always has a number of its own (the count), so only a count
+      // that changes on the way can give the end the number of the noise step on screen.
+      const Duration second = Duration(seconds: 1);
+      for (final (int from, int to, int ms) in <(int, int, int)>[(20, 10, 500), (10, 5, 500), (12, 9, 750)]) {
+        final Key key = ValueKey<String>('$from to $to');
+        await pumpKk(tester, KkScramble('31337', key: key, steps: from, duration: second), motion: true);
+        // Noise step `to` of `from` is on screen when the count drops to `to`, which is the number of the end too.
+        await tester.pump(Duration(milliseconds: ms));
+        expect(kkStepAt(ms / 1000, from), to);
+        expect(text(tester), isNot('31337'), reason: '$from steps, ${ms}ms');
+        await tester.pumpWidget(kkHarness(KkScramble('31337', key: key, steps: to, duration: second), motion: true));
+        expect(text(tester), isNot('31337'), reason: '$from to $to steps, ${ms}ms');
+        // The very next frame is past the end: no tick in between has given the step a number of the new count.
+        await tester.pump(second);
+        expect(text(tester), '31337', reason: '$from to $to steps');
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(text(tester), '31337', reason: '$from to $to steps');
+        expect(tester.binding.hasScheduledFrame, isFalse, reason: 'the scramble is over');
+      }
+    });
+
     testChecked('scrambles again when the value changes', (WidgetTester tester) async {
       await pumpKk(tester, const KkScramble('100'), motion: true);
       await tester.pump(const Duration(milliseconds: 500));
