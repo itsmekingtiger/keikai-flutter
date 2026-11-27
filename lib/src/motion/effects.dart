@@ -52,12 +52,17 @@ class KkHazard extends StatelessWidget {
     final double p = pitch ?? theme.metrics.pitchHazard;
     Widget paint(ValueListenable<Duration>? time) => CustomPaint(
       size: Size(width ?? p * 4, height ?? p * 2),
+      // The loop clock already runs at the theme's time scale.
       painter: _HazardPainter(a: a, b: b, pitch: p, time: time, period: KkMotion.hazard),
     );
     final Widget child = running
         ? KkLoop(builder: (BuildContext context, ValueListenable<Duration> time) => paint(time))
         : paint(null);
-    return SizedBox(width: width, height: height, child: ExcludeSemantics(child: child));
+    return SizedBox(
+      width: width,
+      height: height,
+      child: ExcludeSemantics(child: child),
+    );
   }
 }
 
@@ -96,6 +101,10 @@ class _HazardPainter extends CustomPainter {
 
 /// Text that scrolls sideways in an endless loop: the bands of a full-screen
 /// alarm.
+///
+/// The band takes all the width it is given. Where the width is free (in a
+/// row, in a sideways scroll view) it is one repetition wide: the text and the
+/// [gap] after it.
 class KkMarquee extends StatelessWidget {
   const KkMarquee(
     this.text, {
@@ -111,7 +120,7 @@ class KkMarquee extends StatelessWidget {
   /// Defaults to 13px semibold mono in ink.
   final TextStyle? style;
 
-  /// Time for the text to travel its own length.
+  /// Time for the text to travel the length of one repetition.
   final Duration period;
   final bool reverse;
 
@@ -121,21 +130,27 @@ class KkMarquee extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final KeikaiThemeData theme = KeikaiTheme.of(context);
-    final TextStyle s =
-        style ?? theme.type.mono(13, weight: FontWeight.w600, spacingEm: 0.08, color: theme.colors.ink);
+    final TextStyle s = style ?? theme.type.mono(13, weight: FontWeight.w600, spacingEm: 0.08, color: theme.colors.ink);
+    // The painter fills the band up to its right edge, so the band needs one:
+    // where no width is given, it is one repetition wide.
+    final double unit = kkMeasureText(text, s) + gap;
     return Semantics(
       label: text,
       child: ExcludeSemantics(
-        child: KkLoop(
-          builder: (BuildContext context, ValueListenable<Duration> time) => CustomPaint(
-            size: Size(double.infinity, (s.fontSize ?? 13) * (s.height ?? 1.0)),
-            painter: _MarqueePainter(
-              text: text,
-              style: s,
-              time: time,
-              period: period,
-              reverse: reverse,
-              gap: gap,
+        child: LimitedBox(
+          maxWidth: unit > 0 && unit.isFinite ? unit : 0,
+          child: KkLoop(
+            builder: (BuildContext context, ValueListenable<Duration> time) => CustomPaint(
+              size: Size(double.infinity, (s.fontSize ?? 13) * (s.height ?? 1.0)),
+              painter: _MarqueePainter(
+                text: text,
+                style: s,
+                time: time,
+                // The loop clock already runs at the theme's time scale.
+                period: period,
+                reverse: reverse,
+                gap: gap,
+              ),
             ),
           ),
         ),
@@ -163,7 +178,8 @@ class _MarqueePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (text.isEmpty || size.width <= 0) return;
+    // A band without a right edge could never be filled.
+    if (text.isEmpty || size.width <= 0 || !size.width.isFinite) return;
     final TextPainter tp = kkLayoutText(text, style);
     final double unit = tp.width + gap;
     if (unit <= 0) {
@@ -195,14 +211,11 @@ class _MarqueePainter extends CustomPainter {
 /// sweeps down every 5s, and flickering noise at 9% opacity.
 ///
 /// The language keeps these for large display panels and for "no signal".
+///
+/// The child keeps its place in the tree whatever is switched on, so a
+/// texture can come and go without the child losing its state.
 class KkCrt extends StatelessWidget {
-  const KkCrt({
-    super.key,
-    this.scanlines = true,
-    this.sweep = false,
-    this.noise = false,
-    required this.child,
-  });
+  const KkCrt({super.key, this.scanlines = true, this.sweep = false, this.noise = false, required this.child});
 
   final bool scanlines;
   final bool sweep;
@@ -212,18 +225,24 @@ class KkCrt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final KkColors c = KeikaiTheme.of(context).colors;
-    if (!scanlines && !sweep && !noise) return child;
-    Widget paint(ValueListenable<Duration>? time) => CustomPaint(
-      foregroundPainter: _CrtPainter(
-        scanColor: scanlines ? kkFade(c.bg000, 0.5) : null,
-        sweepColor: sweep ? c.signal : null,
-        noise: noise,
-        time: time,
+    final bool moving = sweep || noise;
+    // The same widgets for every set of textures: a child that moved to
+    // another depth would be built anew. A loop that is not enabled starts no
+    // ticker, and a CustomPaint without a painter draws nothing.
+    return KkLoop(
+      enabled: moving,
+      builder: (BuildContext context, ValueListenable<Duration> time) => CustomPaint(
+        foregroundPainter: scanlines || moving
+            ? _CrtPainter(
+                scanColor: scanlines ? kkFade(c.bg000, 0.5) : null,
+                sweepColor: sweep ? c.signal : null,
+                noise: noise,
+                time: moving ? time : null,
+              )
+            : null,
+        child: child,
       ),
-      child: child,
     );
-    if (!sweep && !noise) return paint(null);
-    return KkLoop(builder: (BuildContext context, ValueListenable<Duration> time) => paint(time));
   }
 }
 
@@ -237,12 +256,7 @@ class _CrtPainter extends CustomPainter {
   final ValueListenable<Duration>? time;
 
   static ui.Image? _noiseTile;
-  static const List<Offset> _noiseOffsets = <Offset>[
-    Offset.zero,
-    Offset(-37, 21),
-    Offset(19, -43),
-    Offset(-11, 33),
-  ];
+  static const List<Offset> _noiseOffsets = <Offset>[Offset.zero, Offset(-37, 21), Offset(19, -43), Offset(-11, 33)];
 
   static ui.Image _tile() {
     final ui.Image? cached = _noiseTile;
@@ -360,8 +374,7 @@ class _KkGlitchBox extends SingleChildRenderObjectWidget {
   final Color? flashColor;
 
   @override
-  RenderKkGlitch createRenderObject(BuildContext context) =>
-      RenderKkGlitch(progress: progress, flashColor: flashColor);
+  RenderKkGlitch createRenderObject(BuildContext context) => RenderKkGlitch(progress: progress, flashColor: flashColor);
 
   @override
   void updateRenderObject(BuildContext context, RenderKkGlitch renderObject) {
@@ -418,6 +431,25 @@ class RenderKkGlitch extends RenderProxyBox {
   static const List<double> _skewStops = <double>[0, 0.2, 0.4, 1];
   static const List<double> _skew = <double>[0, -5, 0, 0];
 
+  // clip-path: none at 0%, inset(12% 0 52% 0) at 40%, inset(58% 0 9% 0) at
+  // 60%, none from 80% on. The keyframe at 20% does not name it.
+  static const List<double> _sliceStops = <double>[0.4, 0.6];
+  static const List<double> _sliceTop = <double>[0.12, 0.58];
+  static const List<double> _sliceBottom = <double>[0.52, 0.09];
+
+  /// Whether a slice is cut out of the child at [g] (0 to 1) of the glitch.
+  ///
+  /// From the keyframe of the first slice to that of the second there always
+  /// is one. `none` and a slice cannot be blended, so in the five steps from
+  /// one to the other the first of the two stays until the steps are half
+  /// way: the first slice comes at 24%, three steps into the stretch from 0%
+  /// to 40%, and the last one goes at 72%.
+  static bool _sliced(double g) {
+    if (g < 0.4) return kkStepDown(g / 0.4, 5) >= 0.5;
+    if (g < 0.6) return true;
+    return g < 0.8 && kkStepDown((g - 0.6) / 0.2, 5) < 0.5;
+  }
+
   final LayerHandle<TransformLayer> _transformLayer = LayerHandle<TransformLayer>();
   final LayerHandle<ClipRectLayer> _clipLayer = LayerHandle<ClipRectLayer>();
 
@@ -435,17 +467,34 @@ class RenderKkGlitch extends RenderProxyBox {
     final double g = (p * 7 / 5).clamp(0.0, 1.0);
     final double dx = kkKeyframes(g, _stops, _shift, steps: 5);
     final double skew = kkKeyframes(g, _skewStops, _skew, steps: 5) * math.pi / 180;
-    Rect clip = Offset.zero & size;
-    if (g >= 0.3 && g < 0.5) {
-      clip = Rect.fromLTRB(0, size.height * 0.12, size.width, size.height * (1 - 0.52));
-    } else if (g >= 0.5 && g < 0.7) {
-      clip = Rect.fromLTRB(0, size.height * 0.58, size.width, size.height * (1 - 0.09));
-    }
+    // The slice that is cut out of the child: what lies between an inset from
+    // its top and one from its bottom. Like the transform it goes from one
+    // keyframe to the next in five steps, so the first slice moves down to
+    // the second. Where there is no slice nothing is clipped (clip-path:
+    // none), so a glow or a bracket that the child paints beyond its box
+    // stays in sight.
+    final Rect? clip = _sliced(g)
+        ? Rect.fromLTRB(
+            0,
+            size.height * kkKeyframes(g, _sliceStops, _sliceTop, steps: 5),
+            size.width,
+            size.height * (1 - kkKeyframes(g, _sliceStops, _sliceBottom, steps: 5)),
+          )
+        : null;
+    // The skew is about the centre of the box, where CSS has its transform
+    // origin: the middle row only shifts, the rows above and below it lean to
+    // opposite sides.
+    final double lean = math.tan(skew);
     final Matrix4 m = Matrix4.identity()
-      ..setEntry(0, 1, math.tan(skew))
-      ..setEntry(0, 3, dx);
+      ..setEntry(0, 1, lean)
+      ..setEntry(0, 3, dx - lean * size.height / 2);
     _transformLayer.layer = context.pushTransform(needsCompositing, offset, m, (PaintingContext c, Offset o) {
-      _clipLayer.layer = c.pushClipRect(needsCompositing, o, clip, super.paint, oldLayer: _clipLayer.layer);
+      if (clip == null) {
+        _clipLayer.layer = null;
+        super.paint(c, o);
+      } else {
+        _clipLayer.layer = c.pushClipRect(needsCompositing, o, clip, super.paint, oldLayer: _clipLayer.layer);
+      }
     }, oldLayer: _transformLayer.layer);
 
     final Color? flash = _flashColor;

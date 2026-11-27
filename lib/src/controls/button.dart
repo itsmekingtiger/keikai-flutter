@@ -64,6 +64,7 @@ class KkButton extends StatelessWidget {
     this.size = KkButtonSize.md,
     this.enabled = true,
     this.loading = false,
+    this.loadingLabel = 'Loading',
     this.expand = false,
     this.style,
     this.iconSize = 16,
@@ -97,9 +98,14 @@ class KkButton extends StatelessWidget {
   final KkButtonSize size;
   final bool enabled;
 
-  /// Busy: a bar scans along the bottom edge and presses are ignored, but
-  /// the button keeps its look.
+  /// Busy: a bar scans along the bottom edge and presses are ignored. The
+  /// button keeps its look, its keyboard focus and its place in the Tab order;
+  /// hovering over it or pressing it shows nothing until it is done.
   final bool loading;
+
+  /// What screen readers say with the button's name while it is [loading].
+  /// An empty string says nothing.
+  final String loadingLabel;
 
   /// Fill the available width, with the content centred.
   final bool expand;
@@ -114,6 +120,9 @@ class KkButton extends StatelessWidget {
   final String? semanticLabel;
 
   bool get _live => enabled && (onPressed != null || onLongPress != null);
+
+  /// Stands in for the callbacks of a busy button.
+  static void _swallow() {}
 
   ({Color edge, Color fill, Color ink, KkGlow? glow}) _look(KkColors c, KkStates s) {
     if (!_live) return (edge: c.offline, fill: c.bg100, ink: c.inkFaint, glow: null);
@@ -168,16 +177,22 @@ class KkButton extends StatelessWidget {
     };
     final bool busy = loading && _live;
     return KkPressable(
-      onPressed: busy ? null : onPressed,
-      onLongPress: busy ? null : onLongPress,
+      // A busy button is still a control. Without callbacks it would be a
+      // disabled one, which cannot hold the keyboard focus: the focus would
+      // fall to the page and never come back. So the press is swallowed
+      // instead.
+      onPressed: busy && onPressed != null ? _swallow : onPressed,
+      onLongPress: busy && onLongPress != null ? _swallow : onLongPress,
       enabled: enabled,
       focusNode: focusNode,
       autofocus: autofocus,
       cursor: busy ? SystemMouseCursors.progress : null,
       semanticLabel: semanticLabel,
-      excludeSemantics: semanticLabel != null,
       builder: (BuildContext context, KkStates raw) {
-        final KkStates s = KkStateOverride.resolve(context, raw);
+        final KkStates live = KkStateOverride.resolve(context, raw);
+        // There is nothing to press while busy, so the pointer shows nothing.
+        // The focus does.
+        final KkStates s = busy ? KkStates(focused: live.focused) : live;
         final ({Color edge, Color fill, Color ink, KkGlow? glow}) look = _look(c, s);
         final Color ink = look.ink;
         final KkIconData? lead = icon;
@@ -187,71 +202,89 @@ class KkButton extends StatelessWidget {
         final String? text = label;
         final bool iconOnly =
             custom == null && trail == null && (cjkWord == null || cjkWord.isEmpty) && (text == null || text.isEmpty);
-        Widget box = KkBox(
+        final Widget content = KkBox(
           height: height,
           // A leading icon sits 4px closer to the edge than text does (but an
           // icon on its own stays centred).
           padding: EdgeInsets.only(left: lead != null && !iconOnly ? pad - m.space1 : pad, right: pad),
           alignment: expand ? Alignment.center : null,
-          child: KkRow(
-            shrinkWrap: true,
-            main: KkMainAlign.center,
-            gap: m.space2,
-            clip: Clip.hardEdge,
-            children: <Widget>[
-              if (lead != null) KkIcon(lead, size: iconSize, color: ink),
-              if (custom != null)
-                KkFlexible(
-                  child: DefaultTextStyle(
-                    style: theme.type.label(type, spacingEm: 0.08, color: ink),
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.ellipsis,
-                    child: custom,
-                  ),
-                )
-              else ...<Widget>[
-                if (cjkWord != null && cjkWord.isNotEmpty) KkText.cjk(cjkWord, size: cjkType, color: ink, squeeze: 0.8),
-                if (text != null && text.isNotEmpty)
-                  KkFlexible(
-                    child: KkText.en(text, size: type, spacing: 0.08, color: ink, overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-              if (trail != null) KkIcon(trail, size: iconSize, color: ink),
-            ],
+          child: KkTextScaleLimit(
+            // Inside the outline of the plate.
+            height: height - 2 * m.stroke1,
+            fontSize: type > cjkType ? type : cjkType,
+            child: KkWholeWidth(
+              child: KkRow(
+                shrinkWrap: true,
+                main: KkMainAlign.center,
+                gap: m.space2,
+                clip: Clip.hardEdge,
+                children: <Widget>[
+                  if (lead != null) KkIcon(lead, size: iconSize, color: ink),
+                  if (custom != null)
+                    KkFlexible(
+                      child: DefaultTextStyle(
+                        style: theme.type.label(type, spacingEm: 0.08, color: ink),
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        child: custom,
+                      ),
+                    )
+                  else ...<Widget>[
+                    if (cjkWord != null && cjkWord.isNotEmpty)
+                      KkText.cjk(cjkWord, size: cjkType, color: ink, squeeze: 0.8),
+                    if (text != null && text.isNotEmpty)
+                      KkFlexible(
+                        child: KkText.en(text, size: type, spacing: 0.08, color: ink, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  if (trail != null) KkIcon(trail, size: iconSize, color: ink),
+                ],
+              ),
+            ),
           ),
         );
-        if (busy) {
-          final bool motion = KeikaiTheme.motionOf(context);
-          box = KkPhaseBuilder(
-            period: const Duration(milliseconds: 1200),
-            phases: 12,
-            child: box,
-            builder: (BuildContext context, int phase, Widget? child) => CustomPaint(
-              foregroundPainter: _BusyPainter(
-                color: ink,
-                start: motion ? kkScanOffset(phase, 12) : 0.375,
-                inset: m.stroke1,
-                thickness: m.stroke2,
+        // The scan stays in the tree and runs only while the button is busy.
+        // Put around the content for that time alone, it would move the
+        // content one level down and up again, and a custom child would lose
+        // its State at both ends of every busy period.
+        final Widget box = KkPhaseBuilder(
+          period: const Duration(milliseconds: 1200),
+          phases: 12,
+          enabled: busy,
+          child: content,
+          builder: (BuildContext context, int phase, Widget? child) => CustomPaint(
+            foregroundPainter: busy
+                ? _BusyPainter(
+                    color: ink,
+                    start: KeikaiTheme.motionOf(context) ? kkScanOffset(phase, 12) : 0.375,
+                    inset: m.stroke1,
+                    thickness: m.stroke2,
+                  )
+                : null,
+            child: child,
+          ),
+        );
+        return Semantics(
+          // Said with the name of the button, whether that is its visible
+          // text or the semantic label that replaces it.
+          value: busy && loadingLabel.isNotEmpty ? loadingLabel : null,
+          excludeSemantics: semanticLabel != null,
+          child: Transform.translate(
+            offset: Offset(0, s.pressed ? 1 : 0),
+            child: KkFocusRing(
+              visible: s.focused,
+              offset: 2,
+              width: m.stroke2,
+              child: KkPlate(
+                shape: KkShape.plate(m.chamferMd),
+                edge: look.edge,
+                fill: look.fill,
+                edgeWidth: m.stroke1,
+                glow: look.glow,
+                clip: busy,
+                child: box,
               ),
-              child: child,
-            ),
-          );
-        }
-        return Transform.translate(
-          offset: Offset(0, s.pressed ? 1 : 0),
-          child: KkFocusRing(
-            visible: s.focused,
-            offset: 2,
-            width: m.stroke2,
-            child: KkPlate(
-              shape: KkShape.plate(m.chamferMd),
-              edge: look.edge,
-              fill: look.fill,
-              edgeWidth: m.stroke1,
-              glow: look.glow,
-              clip: busy,
-              child: box,
             ),
           ),
         );

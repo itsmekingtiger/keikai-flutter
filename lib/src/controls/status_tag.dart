@@ -11,6 +11,7 @@ import '../painting/decoration.dart';
 import '../painting/shapes.dart';
 import '../widgets/icon.dart';
 import '../widgets/text.dart';
+import 'control_style.dart';
 
 /// How a [KkStatusTag] is filled.
 enum KkStatusTagVariant {
@@ -108,29 +109,36 @@ class KkStatusTag extends StatelessWidget {
     final Color lv = color ?? c.level(level);
     final Color ink = solid ? (onColor ?? c.onFill) : lv;
     final double type = lg ? 15 : 12;
+    final double height = lg ? 28 : 22;
     final String word = text ?? level?.word ?? 'INFO';
     final String? cjkWord = _status ? (showCjk ? level?.cjk : null) : cjk;
     final bool showGlyph = glyph ?? (_status || level != null);
     final KkIconData? custom = icon;
     return KkBox(
-      height: lg ? 28 : 22,
+      height: height,
       padding: EdgeInsets.symmetric(horizontal: lg ? m.space3 : m.space2),
       decoration: KkDecoration(
         fill: solid ? lv : null,
         edges: KkEdges.line(lv, width: m.stroke1),
       ),
-      child: KkRow(
-        shrinkWrap: true,
-        gap: lg ? m.space2 : 6,
-        clip: Clip.hardEdge,
-        children: <Widget>[
-          if (custom != null)
-            KkIcon(custom, size: lg ? 14 : 12, color: ink)
-          else if (showGlyph)
-            KkGlyph(level: level, size: lg ? 14 : 12, color: ink),
-          if (word.isNotEmpty) KkText.en(word, size: type, spacing: 0.12, color: ink),
-          if (cjkWord != null && cjkWord.isNotEmpty) KkText.cjk(cjkWord, size: type, color: ink, squeeze: 0.8),
-        ],
+      child: KkTextScaleLimit(
+        height: height - 2 * m.stroke1,
+        fontSize: type,
+        child: KkWholeWidth(
+          child: KkRow(
+            shrinkWrap: true,
+            gap: lg ? m.space2 : 6,
+            clip: Clip.hardEdge,
+            children: <Widget>[
+              if (custom != null)
+                KkIcon(custom, size: lg ? 14 : 12, color: ink)
+              else if (showGlyph)
+                KkGlyph(level: level, size: lg ? 14 : 12, color: ink),
+              if (word.isNotEmpty) KkText.en(word, size: type, spacing: 0.12, color: ink),
+              if (cjkWord != null && cjkWord.isNotEmpty) KkText.cjk(cjkWord, size: type, color: ink, squeeze: 0.8),
+            ],
+          ),
+        ),
       ),
     );
   }

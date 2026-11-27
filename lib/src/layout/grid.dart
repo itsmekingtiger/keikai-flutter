@@ -30,6 +30,11 @@ class KkGridParentData extends ContainerBoxParentData<RenderBox> {
 /// (48px) high and the gutter is a fixed 8px at every size. Cells are packed
 /// densely: a later, smaller cell moves up into a hole left by an earlier one.
 ///
+/// The columns share the width in whole logical pixels: where it does not
+/// divide evenly, some columns are a pixel wider than their neighbours. A cell
+/// then starts and ends on a pixel, where its 1px lines stay one pixel wide,
+/// as long as the grid itself does. The gutters are the same everywhere.
+///
 /// Wrap children in [KkCell] to give them a column span and a row count. Each
 /// cell is told its index, so panels wipe in one after another, 60ms apart.
 ///
@@ -93,8 +98,23 @@ class KkGrid extends StatelessWidget {
         child: KkStagger(index: index, child: child.child),
       );
     }
-    return KkStagger(index: index, child: child);
+    // Any other child sits inside its stagger scope, where the grid cannot
+    // see its key. The scope carries a key made from it, or the scopes would
+    // be matched by position and a keyed child that moved would be thrown away
+    // and built again.
+    final Key? key = child.key;
+    return KkStagger(key: key == null ? null : _StaggerKey(key), index: index, child: child);
   }
+}
+
+/// The key of the stagger scope around a keyed child of [KkGrid] that is not a
+/// [KkCell].
+///
+/// It is made from the child's key and is not that key a second time: the
+/// child's own key still finds the child alone, and a global key is used only
+/// once.
+class _StaggerKey extends ValueKey<Key> {
+  const _StaggerKey(super.value);
 }
 
 /// Places a child of [KkGrid]: [span] columns wide (never more than the grid
@@ -321,7 +341,16 @@ class RenderKkGrid extends RenderBox
     // A grid narrower than its own gutters closes them up instead of letting
     // the cells spill out.
     final double gutterX = cols > 1 ? math.min(_gutter, width / (cols - 1)) : 0;
-    final double colWidth = math.max(0, (width - gutterX * (cols - 1)) / cols);
+    // The columns share what the gutters leave, in whole pixels. An exact
+    // share is rarely a whole number, and a cell on a fraction of a pixel has
+    // its 1px lines painted across two. So the room the columns before each
+    // one take is rounded: some columns are a pixel wider than others, none
+    // starts more than half a pixel from its exact place, and the last one
+    // ends on the grid's own edge.
+    final double shared = math.max(0, width - gutterX * (cols - 1));
+    // Where column [k] starts, not counting the gutters before it. Rounding
+    // may not pass the end, which is a fraction when the width is one.
+    double start(int k) => k >= cols ? shared : math.min((shared * k / cols).roundToDouble(), shared);
     int i = 0;
     for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
       final ({int column, int row, int span, int rows}) cell = placed.cells[i];
@@ -330,10 +359,11 @@ class RenderKkGrid extends RenderBox
         ..column = cell.column
         ..row = cell.row
         ..placedSpan = cell.span;
-      final double w = colWidth * cell.span + gutterX * (cell.span - 1);
+      final double x = start(cell.column);
+      final double w = start(cell.column + cell.span) - x + gutterX * (cell.span - 1);
       final double h = _heightFor(cell.rows);
       child.layout(BoxConstraints.tightFor(width: w, height: h));
-      pd.offset = Offset(cell.column * (colWidth + gutterX), cell.row * (_rowUnit + _gutter));
+      pd.offset = Offset(x + gutterX * cell.column, cell.row * (_rowUnit + _gutter));
     }
     size = constraints.constrain(Size(width, _heightFor(placed.rowCount)));
   }

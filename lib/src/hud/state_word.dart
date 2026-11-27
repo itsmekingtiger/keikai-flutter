@@ -63,11 +63,15 @@ class KkStateWord extends StatelessWidget {
 /// is `078`.
 ///
 /// The integer part is zero-padded to [integers] places and never truncated;
-/// a negative value keeps its sign in front.
+/// a negative value keeps its sign in front, unless it is written as zero:
+/// `kkFixedDigits(-0.04)` is `000.0`, as wide as any other reading. There are
+/// 20 [decimals] at most.
 String kkFixedDigits(num value, {int integers = 3, int decimals = 1}) {
-  if (value.isNaN || value.isInfinite) return '-' * (integers + (decimals > 0 ? decimals + 1 : 0));
-  final bool negative = value < 0;
-  final String raw = value.abs().toStringAsFixed(decimals < 0 ? 0 : decimals);
+  final int places = decimals.clamp(0, 20);
+  if (value.isNaN || value.isInfinite) return '-' * (integers + (places > 0 ? places + 1 : 0));
+  final String raw = value.abs().toStringAsFixed(places);
+  // The sign of what is written, not of the value: -0.04 rounds to zero.
+  final bool negative = value < 0 && raw.contains(RegExp('[1-9]'));
   final int dot = raw.indexOf('.');
   final String whole = dot < 0 ? raw : raw.substring(0, dot);
   final String rest = dot < 0 ? '' : raw.substring(dot);

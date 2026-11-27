@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui show Image;
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/gestures.dart';
@@ -33,6 +35,70 @@ void main() {
       await _pump(tester, KkSplit(ratio: 0.25, first: box('a'), second: box('b')));
       expect(rectOf(tester, 'a').width, 98);
       expect(rectOf(tester, 'b').left, 106);
+    });
+
+    testChecked('the divider sits on a whole pixel', (WidgetTester tester) async {
+      // Half of the 393px to share is 196.5.
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')), size: const Size(401, 200));
+      expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 197, 200));
+      expect(tester.getRect(_handle), const Rect.fromLTWH(197, 0, 8, 200));
+      expect(rectOf(tester, 'b'), const Rect.fromLTWH(205, 0, 196, 200));
+      final RenderKkSplit r = tester.renderObject<RenderKkSplit>(find.byType(KkSplit));
+      expect(r.firstExtent, 197);
+      expect(r.clampFirst(120.4), 120);
+      expect(r.clampFirst(120.5), 121);
+      // Three tenths of 712 is 213.6.
+      await _pump(tester, KkSplit(ratio: 0.3, first: box('a'), second: box('b')), size: const Size(720, 200));
+      expect(rectOf(tester, 'a').width, 214);
+      expect(rectOf(tester, 'b'), const Rect.fromLTWH(222, 0, 498, 200));
+      // A vertical split: six tenths of 152 is 91.2.
+      await _pump(
+        tester,
+        KkSplit(axis: Axis.vertical, ratio: 0.6, first: box('a'), second: box('b')),
+        size: const Size(300, 160),
+      );
+      expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 300, 91));
+      expect(rectOf(tester, 'b'), const Rect.fromLTWH(0, 99, 300, 61));
+      // Rounding never takes a pane below its minimum.
+      await _pump(
+        tester,
+        KkSplit(ratio: 0, minFirst: 48.5, first: box('a'), second: box('b')),
+        size: const Size(401, 200),
+      );
+      expect(rectOf(tester, 'a').width, 48.5);
+      // The cross intrinsic asks the panes at the same whole extents.
+      await _pump(tester, KkSplit(ratio: 0.5, first: const KkAspect(ratio: 1), second: box('b', 50, 60)));
+      expect(tester.renderObject<RenderKkSplit>(find.byType(KkSplit)).getMinIntrinsicHeight(401), 197);
+    });
+
+    testChecked('at an odd width the 1px line of the handle is still one pixel wide', (WidgetTester tester) async {
+      const Color line = Color(0xFF643412);
+      const Color panel = Color(0xFF0C0C0E);
+      const Widget pane = KkBox(fill: panel, edges: KkEdges(left: KkSide(line), right: KkSide(line)));
+      await pumpRaw(
+        tester,
+        const RepaintBoundary(
+          child: SizedBox(width: 401, height: 100, child: KkSplit(enabled: false, first: pane, second: pane)),
+        ),
+      );
+      // One row of the picture at one pixel for one logical pixel.
+      late ui.Image image;
+      late ByteData bytes;
+      await tester.runAsync(() async {
+        image = await tester.renderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary)).toImage();
+        bytes = (await image.toByteData())!;
+      });
+      addTearDown(image.dispose);
+      int rgb(int x) => bytes.getUint32((10 * image.width + x) * 4) >> 8;
+      const int lineRgb = 0x643412;
+      const int panelRgb = 0x0C0C0E;
+      // The first pane ends at 197 with its line; the handle's line is its
+      // fourth pixel; the second pane starts at 205 with its line.
+      expect(<int>[for (int x = 195; x < 207; x++) rgb(x)], <int>[
+        panelRgb, lineRgb, // 195, 196
+        0, 0, 0, KkColors.standby.line.toARGB32() & 0xFFFFFF, 0, 0, 0, 0, // 197 to 204: the handle
+        lineRgb, panelRgb, // 205, 206
+      ]);
     });
 
     testChecked('keeps both panes at their minimum', (WidgetTester tester) async {
@@ -111,6 +177,82 @@ void main() {
       expect(rectOf(tester, 's').size, const Size(100, 208));
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(0, 0, 100, 100));
       expect(rectOf(tester, 'b'), const Rect.fromLTWH(0, 108, 100, 100));
+    });
+
+    testChecked('without a cross-axis limit the split grows with a pane that had been stretched', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<double> extent = ValueNotifier<double>(100);
+      addTearDown(extent.dispose);
+      for (final Axis axis in Axis.values) {
+        final bool h = axis == Axis.horizontal;
+        double cross(Finder finder) => h ? tester.getSize(finder).height : tester.getSize(finder).width;
+        // A pane whose cross extent is what [extent] says, next to one of 300.
+        final Widget growing = ValueListenableBuilder<double>(
+          valueListenable: extent,
+          builder: (BuildContext context, double value, Widget? child) =>
+              h ? box('growing', null, value) : box('growing', value, null),
+        );
+        final Widget fixed = h ? box('fixed', null, 300) : box('fixed', 300, null);
+        for (final bool first in <bool>[true, false]) {
+          final String reason = '$axis, ${first ? 'first' : 'second'} pane';
+          extent.value = 100;
+          await pumpRaw(
+            tester,
+            SingleChildScrollView(
+              scrollDirection: h ? Axis.vertical : Axis.horizontal,
+              child: KkSplit(axis: axis, first: first ? growing : fixed, second: first ? fixed : growing),
+            ),
+            size: const Size(800, 600),
+            loose: false,
+          );
+          // The shorter pane is stretched to the other one.
+          expect(cross(find.byType(KkSplit)), 300, reason: reason);
+          expect(cross(byId('growing')), 300, reason: reason);
+          // It outgrows it: the split, the other pane and the handle follow.
+          extent.value = 500;
+          await tester.pump();
+          expect(tester.takeException(), isNull, reason: reason);
+          expect(cross(byId('growing')), 500, reason: reason);
+          expect(cross(find.byType(KkSplit)), 500, reason: reason);
+          expect(cross(byId('fixed')), 500, reason: reason);
+          expect(cross(_handle), 500, reason: reason);
+          // And back.
+          extent.value = 100;
+          await tester.pump();
+          expect(cross(find.byType(KkSplit)), 300, reason: reason);
+        }
+      }
+    });
+
+    testChecked('without any limit the split follows a stretched pane that grows along the main axis', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<double> width = ValueNotifier<double>(100);
+      addTearDown(width.dispose);
+      await pumpRaw(
+        tester,
+        UnconstrainedBox(
+          alignment: Alignment.topLeft,
+          child: KkSplit(
+            key: const ValueKey<String>('s'),
+            // 40 high next to 60: this pane is the one that is stretched.
+            first: ValueListenableBuilder<double>(
+              valueListenable: width,
+              builder: (BuildContext context, double value, Widget? child) => box('a', value, 40),
+            ),
+            second: box('b', 50, 60),
+          ),
+        ),
+      );
+      expect(rectOf(tester, 's').size, const Size(158, 60));
+      expect(rectOf(tester, 'a').size, const Size(100, 60));
+      width.value = 300;
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(rectOf(tester, 'a').size, const Size(300, 60));
+      expect(rectOf(tester, 's').size, const Size(358, 60));
+      expect(rectOf(tester, 'b').left, 308);
     });
 
     testChecked('a split shorter than its handle shows what fits of it', (WidgetTester tester) async {
@@ -212,6 +354,35 @@ void main() {
       await _settle(tester);
     });
 
+    testChecked('a drag leaves the divider on a whole pixel and reports the share of that pixel', (
+      WidgetTester tester,
+    ) async {
+      final List<double> log = <double>[];
+      // 400 to share: the handle starts at 200.
+      await _pump(
+        tester,
+        KkSplit(onChanged: log.add, first: box('a'), second: box('b')),
+        size: const Size(408, 200),
+      );
+      final TestGesture gesture = await tester.startGesture(tester.getCenter(_handle));
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      // The share of 230 in 400, times 400, is 229.99999999999997.
+      expect(rectOf(tester, 'a').width, 230);
+      expect(log.last, 230 / 400);
+      await gesture.moveBy(const Offset(0.4, 0));
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, 230);
+      expect(log.last, 230 / 400);
+      // 30.8 from where it started.
+      await gesture.moveBy(const Offset(0.4, 0));
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, 231);
+      expect(log.last, 231 / 400);
+      await gesture.up();
+      await _settle(tester);
+    });
+
     testChecked('a vertical split drags vertically', (WidgetTester tester) async {
       await _pump(tester, KkSplit(axis: Axis.vertical, first: box('a'), second: box('b')));
       await tester.drag(_handle, const Offset(0, 30));
@@ -304,6 +475,34 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testChecked('turning the split while its handle is held lets go of the handle', (WidgetTester tester) async {
+      await _pump(tester, KkSplit(first: box('a'), second: box('b')));
+      expect(_lineColor(tester), KkColors.standby.line);
+      final TestGesture gesture = await tester.startGesture(tester.getCenter(_handle));
+      await gesture.moveBy(const Offset(40, 0));
+      await tester.pump();
+      expect(_lineColor(tester), KkColors.standby.signal);
+      // The layout turns the split with the finger still down (a breakpoint,
+      // a rotation): the drag along the old axis is over.
+      await _pump(tester, KkSplit(axis: Axis.vertical, first: box('a'), second: box('b')));
+      expect(_lineColor(tester), KkColors.standby.line);
+      await gesture.up();
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(_lineColor(tester), KkColors.standby.line);
+      expect(_gripColor(tester), KkColors.standby.inkFaint);
+      // The next drag is along the new axis, and lights the handle while it lasts.
+      final double before = rectOf(tester, 'a').height;
+      final TestGesture next = await tester.startGesture(tester.getCenter(_handle));
+      await next.moveBy(const Offset(0, 20));
+      await tester.pump();
+      expect(rectOf(tester, 'a').height, before + 20);
+      expect(_lineColor(tester), KkColors.standby.signal);
+      await next.up();
+      await _settle(tester);
+      expect(_lineColor(tester), KkColors.standby.line);
+    });
+
     testChecked('the grip is a row of dashes on the line', (WidgetTester tester) async {
       await _pump(tester, KkSplit(first: box('a'), second: box('b')));
       final RenderBox paint = tester.renderObject<RenderBox>(_handlePaint);
@@ -365,6 +564,76 @@ void main() {
       expect(rectOf(tester, 'a').width, 344);
     });
 
+    testChecked('a key, a step or a drag that cannot move the divider changes nothing', (WidgetTester tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      final List<double> log = <double>[];
+      KkSplit split(double initialRatio) => KkSplit(
+        focusNode: node,
+        onChanged: log.add,
+        initialRatio: initialRatio,
+        first: box('a'),
+        second: box('b'),
+      );
+      Future<void> tryEverything() async {
+        for (final LogicalKeyboardKey key in <LogicalKeyboardKey>[
+          LogicalKeyboardKey.arrowLeft,
+          LogicalKeyboardKey.arrowRight,
+          LogicalKeyboardKey.home,
+          LogicalKeyboardKey.end,
+        ]) {
+          await tester.sendKeyEvent(key);
+        }
+        tester.semantics.increase(find.semantics.byLabel('Split'));
+        tester.semantics.decrease(find.semantics.byLabel('Split'));
+        await tester.drag(_handle, const Offset(30, 0));
+        await tester.drag(_handle, const Offset(-30, 0));
+        await tester.pump();
+        await _settle(tester);
+      }
+
+      await _pump(tester, split(0.3), size: const Size(408, 100));
+      expect(rectOf(tester, 'a').width, 120);
+      // 92 to share and the two minimums need 96: there is one place to be.
+      await _pump(tester, split(0.3), size: const Size(100, 100));
+      expect(rectOf(tester, 'a').width, 48);
+      node.requestFocus();
+      await tester.pump();
+      await tryEverything();
+      expect(rectOf(tester, 'a').width, 48);
+      expect(log, isEmpty);
+      // With room again the divider is back where it had been put.
+      await _pump(tester, split(0.3), size: const Size(408, 100));
+      expect(rectOf(tester, 'a').width, 120);
+      semantics.dispose();
+    });
+
+    testChecked('at a minimum the divider only moves away from it', (WidgetTester tester) async {
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+      final List<double> log = <double>[];
+      // Parked at the first pane's minimum: 48 of 392, though the share is 0.
+      await _pump(
+        tester,
+        KkSplit(focusNode: node, onChanged: log.add, initialRatio: 0, first: box('a'), second: box('b')),
+      );
+      expect(rectOf(tester, 'a').width, 48);
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.drag(_handle, const Offset(-20, 0));
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, 48);
+      expect(log, isEmpty);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, 52);
+      expect(log, <double>[52 / 392]);
+      await _settle(tester);
+    });
+
     testChecked('a vertical split uses up and down', (WidgetTester tester) async {
       final FocusNode node = FocusNode();
       addTearDown(node.dispose);
@@ -393,21 +662,74 @@ void main() {
       // The slider itself is the focusable node.
       expect(data.flagsCollection.isSlider, isTrue);
       expect(data.flagsCollection.isFocused, Tristate.isFalse);
-      // A step is five percent of the space, as announced.
+      // A step is five percent of the space, as announced: 19.6px, which the
+      // divider takes on whole pixels.
       tester.semantics.increase(find.semantics.byLabel('Log width'));
       await tester.pump();
-      expect(rectOf(tester, 'a').width, closeTo(0.30 * 392, 1e-6));
+      expect(rectOf(tester, 'a').width, 118);
       expect(tester.getSemantics(find.bySemanticsLabel('Log width')).value, '30%');
       tester.semantics.decrease(find.semantics.byLabel('Log width'));
       tester.semantics.decrease(find.semantics.byLabel('Log width'));
       await tester.pump();
-      expect(rectOf(tester, 'a').width, closeTo(0.20 * 392, 1e-6));
+      expect(rectOf(tester, 'a').width, 78);
       // Steps stop at the minimums.
       for (int i = 0; i < 6; i++) {
         tester.semantics.decrease(find.semantics.byLabel('Log width'));
       }
       await tester.pump();
       expect(rectOf(tester, 'a').width, 48);
+      semantics.dispose();
+    });
+
+    testChecked('the slider announces where the divider is, not the share it was asked for', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      SemanticsNode node() => tester.getSemantics(find.bySemanticsLabel('Split'));
+      // A fifth of the 150px to share would be 30px; the first pane keeps its
+      // 48, which is 32 percent.
+      await _pump(tester, KkSplit(initialRatio: 0.2, first: box('a'), second: box('b')), size: const Size(158, 100));
+      expect(rectOf(tester, 'a').width, 48);
+      expect(node().value, '32%');
+      // Five percent more is 7.5px more, on a whole pixel; less cannot be had.
+      expect(node().increasedValue, '37%');
+      expect(node().decreasedValue, '32%');
+      // A step that cannot move the divider changes nothing.
+      tester.semantics.decrease(find.semantics.byLabel('Split'));
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, 48);
+      expect(node().value, '32%');
+      // One that can moves it at once, from where it is.
+      tester.semantics.increase(find.semantics.byLabel('Split'));
+      await tester.pump();
+      expect(rectOf(tester, 'a').width, 56);
+      expect(node().value, '37%');
+      // Back from there by 7.5px is 49 on a whole pixel, a third of the space.
+      expect(node().decreasedValue, '33%');
+      semantics.dispose();
+    });
+
+    testChecked('the slider follows the divider when only the space changes', (WidgetTester tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      SemanticsNode node() => tester.getSemantics(find.bySemanticsLabel('Split'));
+      // The same widget every time: nothing rebuilds the split, it is only
+      // laid out again.
+      final KkSplit split = KkSplit(initialRatio: 1, first: box('a'), second: box('b'));
+      await _pump(tester, split);
+      // The second pane keeps 48 of the 392: the first has 88 percent.
+      expect(rectOf(tester, 'a').width, 344);
+      expect(node().value, '88%');
+      expect(node().increasedValue, '88%');
+      expect(node().decreasedValue, '83%');
+      await _pump(tester, split, size: const Size(208, 200));
+      expect(rectOf(tester, 'a').width, 152);
+      expect(node().value, '76%');
+      expect(node().increasedValue, '76%');
+      expect(node().decreasedValue, '71%');
+      // Nothing to share out: the share that was asked for.
+      await _pump(tester, split, size: const Size(8, 200));
+      expect(tester.takeException(), isNull);
+      expect(node().value, '100%');
       semantics.dispose();
     });
 

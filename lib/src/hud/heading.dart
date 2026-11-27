@@ -51,7 +51,8 @@ class KkHeading extends StatelessWidget {
   final double stemSize;
   final double enSize;
 
-  /// Drop the stem and stack the lines.
+  /// Drop the stem and stack the lines. Screen readers do not read the
+  /// stem then either.
   final bool stacked;
 
   /// Horizontal compression of [main]; 1.0 turns it off.
@@ -73,10 +74,14 @@ class KkHeading extends StatelessWidget {
     final String? id = code;
     final String? latin = en;
     final bool hasTop = id != null || latin != null;
+    // The stem is set at a line height of 1.02: a column that wide, for the
+    // glyphs as large as the text scale of the device makes them.
+    final double stemColumn = MediaQuery.textScalerOf(context).scale(stemSize * theme.type.scale) * 1.02;
 
     return Semantics(
       header: true,
-      label: <String>[?stem, ?id, ?latin, main].join(' '),
+      // What is shown: a stem that the stacked form drops is not read either.
+      label: <String>[?vertical, ?id, ?latin, main].join(' '),
       child: ExcludeSemantics(
         child: _HeadingLayout(
           hasStem: vertical != null,
@@ -89,7 +94,7 @@ class KkHeading extends StatelessWidget {
                 padding: EdgeInsets.only(right: m.space2),
                 edges: KkEdges(right: KkSide(mark, width: m.stroke2)),
                 alignment: Alignment.topLeft,
-                child: KkTate(vertical, size: stemSize, color: mark, columnWidth: stemSize * theme.type.scale * 1.02),
+                child: KkTate(vertical, size: stemSize, color: mark, columnWidth: stemColumn),
               ),
             if (hasTop)
               KkRow(

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../support/harness.dart';
 import 'layout_util.dart';
 
 /// A screen with every region, each a keyed box of a known size.
@@ -165,6 +166,139 @@ void main() {
       expect(rectOf(tester, 'nav').top, 48 - 100);
       await _pump(tester, _screen(), const Size(1000, 600));
       expect(rectOf(tester, 'nav').height, 520);
+    });
+  });
+
+  group('nav and side that deal with their own height', () {
+    setUpAll(loadKkFonts);
+
+    // A sheet with [content] px of content and one action in its foot row.
+    KkSheet sheet(double content) => KkSheet(
+      cjk: '詳細',
+      en: 'detail',
+      actions: <Widget>[KkButton(key: const ValueKey<String>('ok'), label: 'ok', onPressed: () {})],
+      child: box('content', null, content),
+    );
+
+    Widget withSheet(double content) => KkScreen(
+      commandBar: box('cmd', null, 48),
+      footer: box('foot', null, 32),
+      body: box('body', null, 100),
+      side: sheet(content),
+      scrollSide: false,
+    );
+
+    testChecked('scrollSide off: a sheet beside the body keeps head and foot in place and scrolls its body', (
+      WidgetTester tester,
+    ) async {
+      for (final double content in <double>[100, 2000]) {
+        await pumpKk(tester, withSheet(content), size: const Size(1200, 700), alignment: null);
+        expect(tester.takeException(), isNull, reason: '$content');
+        // The sheet is exactly the region; its foot row ends 12px above the edge.
+        expect(tester.getRect(find.byType(KkSheet)), const Rect.fromLTRB(800, 48, 1200, 668), reason: '$content');
+        expect(rectOf(tester, 'ok').bottom, 668 - 12, reason: '$content');
+      }
+      // The tall content scrolls inside the sheet; nothing around the sheet does.
+      final Finder inside = find.descendant(of: find.byType(KkSheet), matching: find.byType(Scrollable));
+      final ScrollableState scrollable = tester.state<ScrollableState>(inside);
+      expect(scrollable.position.maxScrollExtent, greaterThan(1000));
+      expect(find.ancestor(of: find.byType(KkSheet), matching: find.byType(Scrollable)), findsNothing);
+      final double title = tester.getTopLeft(find.text('詳細')).dy;
+      scrollable.position.jumpTo(300);
+      await tester.pump();
+      expect(rectOf(tester, 'content').top, lessThan(48));
+      expect(tester.getTopLeft(find.text('詳細')).dy, title);
+      expect(rectOf(tester, 'ok').bottom, 668 - 12);
+    });
+
+    testChecked('scrollSide off, under the body: a sheet takes its own height, up to all there is', (
+      WidgetTester tester,
+    ) async {
+      for (final double width in <double>[700, 400]) {
+        // 44 of head, the content in 16 of padding, 61 of foot row.
+        await pumpKk(tester, withSheet(100), size: Size(width, 700), alignment: null);
+        expect(tester.takeException(), isNull, reason: '$width');
+        expect(tester.getRect(find.byType(KkSheet)), Rect.fromLTRB(0, 668 - 237, width, 668), reason: '$width');
+        expect(rectOf(tester, 'ok').bottom, 668 - 12, reason: '$width');
+        // Too much for the space: the sheet stops at the command bar, the foot
+        // row stays and the body scrolls.
+        await pumpKk(tester, withSheet(2000), size: Size(width, 700), alignment: null);
+        expect(tester.takeException(), isNull, reason: '$width');
+        expect(tester.getRect(find.byType(KkSheet)), Rect.fromLTRB(0, 48, width, 668), reason: '$width');
+        expect(rectOf(tester, 'ok').bottom, 668 - 12, reason: '$width');
+      }
+    });
+
+    testChecked('scrollSide off: a list that builds its rows as they come into view has the height it needs', (
+      WidgetTester tester,
+    ) async {
+      await _pump(
+        tester,
+        KkScreen(
+          commandBar: box('cmd', null, 48),
+          body: box('body', null, 100),
+          side: KkBox(
+            width: 300,
+            child: KkListView(
+              itemCount: 500,
+              itemBuilder: (BuildContext context, int index) => box('row $index', null, 40),
+            ),
+          ),
+          scrollSide: false,
+        ),
+        const Size(1000, 600),
+      );
+      expect(tester.takeException(), isNull);
+      expect(tester.getRect(find.byType(KkListView)), const Rect.fromLTRB(700, 48, 1000, 600));
+      expect(byId('row 0'), findsOneWidget);
+      expect(byId('row 499'), findsNothing);
+    });
+
+    testChecked('scrollNav off: the nav is given exactly the height of its region', (WidgetTester tester) async {
+      Widget screen({required bool scrollNav}) => KkScreen(
+        commandBar: box('cmd', null, 48),
+        footer: box('foot', null, 32),
+        nav: KkBox(
+          width: 72,
+          child: KkColumn(children: <Widget>[box('top', null, 56), const KkSpacer(), box('bottom', null, 56)]),
+        ),
+        body: box('body', null, 100),
+        scrollNav: scrollNav,
+      );
+      // 840 and wider, and 600 to 839: the spacer has the height to push with.
+      for (final double width in <double>[1000, 700]) {
+        await _pump(tester, screen(scrollNav: false), Size(width, 600));
+        expect(tester.takeException(), isNull, reason: '$width');
+        expect(rectOf(tester, 'top'), const Rect.fromLTWH(0, 48, 72, 56), reason: '$width');
+        expect(rectOf(tester, 'bottom'), const Rect.fromLTWH(0, 568 - 56, 72, 56), reason: '$width');
+        expect(find.ancestor(of: byId('top'), matching: find.byType(KkScroll)), findsNothing, reason: '$width');
+      }
+      // Left on, the nav scrolls and so has no height to share out.
+      await _pump(tester, screen(scrollNav: true), const Size(1000, 600));
+      expect(find.ancestor(of: byId('top'), matching: find.byType(KkScroll)), findsOneWidget);
+      expect(rectOf(tester, 'bottom').top, 48 + 56);
+    });
+
+    testChecked('turning the scrolling of nav and side on and off keeps their state', (WidgetTester tester) async {
+      Widget build({required bool scroll}) => KkScreen(
+        nav: const _Counter(id: 'nav'),
+        side: const _Counter(id: 'side'),
+        body: box('body', null, 100),
+        scrollNav: scroll,
+        scrollSide: scroll,
+      );
+      for (final Size size in const <Size>[Size(1000, 600), Size(700, 600)]) {
+        await _pump(tester, build(scroll: true), size);
+        expect(find.byType(KkScroll), findsNWidgets(3), reason: '$size');
+        await tester.tap(byId('nav'));
+        await tester.tap(byId('side'));
+        await tester.pump();
+        final String count = size.width == 1000 ? '1' : '2';
+        await _pump(tester, build(scroll: false), size);
+        expect(find.byType(KkScroll), findsOneWidget, reason: '$size');
+        expect(find.text('nav $count'), findsOneWidget, reason: '$size');
+        expect(find.text('side $count'), findsOneWidget, reason: '$size');
+      }
     });
   });
 
@@ -342,6 +476,188 @@ void main() {
       expect(tester.getSize(find.byType(KkScreen)).height, 48 + 332 + 32);
     });
 
+    testChecked('without a height limit the screen grows with a region that had been stretched', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<double> height = ValueNotifier<double>(100);
+      addTearDown(height.dispose);
+      // A box that is as tall as [height] says.
+      Widget growing(String id, double? width) => ValueListenableBuilder<double>(
+        valueListenable: height,
+        builder: (BuildContext context, double value, Widget? child) => box(id, width, value),
+      );
+      // The regions that are not the tallest are stretched to the one that is.
+      // [id] starts as one of those and then outgrows the others.
+      Future<void> check(String id, Size size, {Widget? nav, Widget? side, required Widget body}) async {
+        height.value = 100;
+        await pumpRaw(
+          tester,
+          SingleChildScrollView(
+            child: KkScreen(
+              padding: EdgeInsets.zero,
+              commandBar: box('cmd', null, 48),
+              nav: nav,
+              body: body,
+              side: side,
+              footer: box('foot', null, 32),
+            ),
+          ),
+          size: size,
+          loose: false,
+        );
+        expect(tester.getSize(find.byType(KkScreen)).height, 48 + 500 + 32, reason: '$id at $size');
+        expect(rectOf(tester, id).height, 500, reason: '$id at $size');
+        height.value = 800;
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: '$id at $size');
+        expect(rectOf(tester, id).height, 800, reason: '$id at $size');
+        expect(tester.getSize(find.byType(KkScreen)).height, 48 + 800 + 32, reason: '$id at $size');
+        expect(rectOf(tester, 'foot').bottom, 48 + 800 + 32, reason: '$id at $size');
+      }
+
+      const Size expanded = Size(1000, 600);
+      await check('body', expanded, nav: box('nav', 72, 500), body: growing('body', null));
+      await check('nav', expanded, nav: growing('nav', 72), body: box('body', null, 500));
+      await check('side', expanded, side: growing('side', 200), body: box('body', null, 500));
+      // 600 to 839: only the nav is stretched, to the body.
+      await check('nav', const Size(700, 600), nav: growing('nav', 72), body: box('body', null, 500));
+    });
+
+    testChecked('nav and side stay where they are in the tree while a screen without a height limit is laid out', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<double> height = ValueNotifier<double>(300);
+      addTearDown(height.dispose);
+      final List<String> log = <String>[];
+      for (final Size size in const <Size>[Size(1000, 600), Size(700, 600)]) {
+        await pumpRaw(
+          tester,
+          SingleChildScrollView(
+            child: KkScreen(
+              nav: _Witness(id: 'nav', log: log),
+              side: _Witness(id: 'side', log: log),
+              body: ValueListenableBuilder<double>(
+                valueListenable: height,
+                builder: (BuildContext context, double value, Widget? child) => box('body', null, value),
+              ),
+            ),
+          ),
+          size: size,
+          loose: false,
+        );
+        log.clear();
+        // Every frame lays the screen out again, with the nav and the side
+        // stretched to the body.
+        for (int i = 0; i < 3; i++) {
+          height.value += 10;
+          await tester.pump();
+        }
+        expect(tester.takeException(), isNull, reason: '$size');
+        expect(log, isEmpty, reason: '$size');
+      }
+    });
+
+    testChecked('with a least height and no limit the regions fill the height the screen takes', (
+      WidgetTester tester,
+    ) async {
+      // A page that is at least as tall as the window and scrolls when its
+      // content is taller.
+      Widget page(Widget screen) => LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints window) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: window.maxHeight),
+            child: screen,
+          ),
+        ),
+      );
+      Future<void> pump(Size size, {double bodyHeight = 100}) => pumpRaw(
+        tester,
+        page(_screen(padding: EdgeInsets.zero, bodyHeight: bodyHeight)),
+        size: size,
+        loose: false,
+      );
+
+      // 840 and wider: nav, body and side all reach the footer.
+      await pump(const Size(1000, 600));
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(KkScreen)), const Size(1000, 600));
+      expect(rectOf(tester, 'foot'), const Rect.fromLTWH(0, 568, 1000, 32));
+      expect(rectOf(tester, 'nav'), const Rect.fromLTWH(0, 48, 72, 520));
+      expect(rectOf(tester, 'body'), const Rect.fromLTWH(72, 48, 728, 520));
+      expect(rectOf(tester, 'side'), const Rect.fromLTWH(800, 48, 200, 520));
+
+      // 600 to 839: the nav reaches the footer, the body takes what the side leaves.
+      await pump(const Size(700, 600));
+      expect(tester.getSize(find.byType(KkScreen)), const Size(700, 600));
+      expect(rectOf(tester, 'foot'), const Rect.fromLTWH(0, 568, 700, 32));
+      expect(rectOf(tester, 'nav'), const Rect.fromLTWH(0, 48, 72, 520));
+      expect(rectOf(tester, 'body'), const Rect.fromLTWH(72, 48, 628, 420));
+      expect(rectOf(tester, 'side'), const Rect.fromLTWH(72, 468, 628, 100));
+
+      // Below 600: the body takes the extra; side and nav bar sit on the footer.
+      await pump(const Size(400, 600));
+      expect(tester.getSize(find.byType(KkScreen)), const Size(400, 600));
+      expect(rectOf(tester, 'foot'), const Rect.fromLTWH(0, 568, 400, 32));
+      expect(rectOf(tester, 'body'), const Rect.fromLTWH(0, 48, 400, 356));
+      expect(rectOf(tester, 'side'), const Rect.fromLTWH(0, 404, 400, 100));
+      expect(rectOf(tester, 'nav'), const Rect.fromLTWH(0, 504, 400, 64));
+
+      // Content taller than the least height: the screen is as tall as that.
+      for (final (Size size, double height) in const <(Size, double)>[
+        (Size(1000, 600), 48 + 900 + 32),
+        (Size(700, 600), 48 + 900 + 100 + 32),
+        (Size(400, 600), 48 + 900 + 100 + 64 + 32),
+      ]) {
+        await pump(size, bodyHeight: 900);
+        expect(tester.takeException(), isNull, reason: '$size');
+        expect(tester.getSize(find.byType(KkScreen)).height, height, reason: '$size');
+        expect(rectOf(tester, 'body').height, 900, reason: '$size');
+        expect(rectOf(tester, 'foot').bottom, height, reason: '$size');
+      }
+    });
+
+    testChecked('without a height limit a nav taller than body and side gives the body the rest', (
+      WidgetTester tester,
+    ) async {
+      // 600 to 839, nav 500 tall: the side sits on the footer, and the body
+      // fills what is above it.
+      await pumpRaw(
+        tester,
+        SingleChildScrollView(child: _screen(padding: EdgeInsets.zero, navHeight: 500)),
+        size: const Size(700, 600),
+        loose: false,
+      );
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(KkScreen)).height, 48 + 500 + 32);
+      expect(rectOf(tester, 'nav'), const Rect.fromLTWH(0, 48, 72, 500));
+      expect(rectOf(tester, 'side'), const Rect.fromLTWH(72, 448, 628, 100));
+      expect(rectOf(tester, 'body'), const Rect.fromLTWH(72, 48, 628, 400));
+    });
+
+    testChecked('without a height limit a body that needs no stretching is laid out once', (WidgetTester tester) async {
+      // The body is as tall as the screen less the side: 0.1 + 0.2 - 0.2, which
+      // in floating point is a little more than 0.1. That must not count as
+      // room to stretch into.
+      final List<BoxConstraints> seen = <BoxConstraints>[];
+      Widget screen() => KkScreen(
+        padding: EdgeInsets.zero,
+        body: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            seen.add(constraints);
+            return const SizedBox(height: 0.1);
+          },
+        ),
+        side: const SizedBox(height: 0.2),
+      );
+      for (final Size size in const <Size>[Size(700, 600), Size(400, 600)]) {
+        seen.clear();
+        await pumpRaw(tester, SingleChildScrollView(child: screen()), size: size, loose: false);
+        expect(tester.takeException(), isNull, reason: '$size');
+        expect(seen, <BoxConstraints>[BoxConstraints(minWidth: size.width, maxWidth: size.width)], reason: '$size');
+        expect(tester.getSize(find.byType(KkScreen)).height, 0.1 + 0.2, reason: '$size');
+      }
+    });
+
     testChecked('safeArea keeps clear of system intrusions and the keyboard', (WidgetTester tester) async {
       Widget build({required bool safeArea}) => MediaQuery(
         data: const MediaQueryData(
@@ -463,6 +779,39 @@ void main() {
       expect(r.toStringDeep(), contains('mode: expanded'));
     });
 
+    testChecked('with a height limit the screen is exactly that tall, whatever its bars add up to', (
+      WidgetTester tester,
+    ) async {
+      // In floating point 43.4 + (height - 43.4 - 18.6) + 18.6 comes out just
+      // below this height.
+      const double height = 1084.3333333333333;
+      for (final KkScreenMode mode in KkScreenMode.values) {
+        await pumpRaw(
+          tester,
+          Align(
+            alignment: Alignment.topLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900, maxHeight: height),
+              child: _RawScreen(
+                mode: mode,
+                children: <Widget>[
+                  _Region(slot: KkScreenSlot.body, child: box('body')),
+                  _Region(slot: KkScreenSlot.footer, child: box('foot', null, 18.6)),
+                  _Region(slot: KkScreenSlot.commandBar, child: box('cmd', null, 43.4)),
+                ],
+              ),
+            ),
+          ),
+          size: const Size(1000, 1200),
+          loose: false,
+        );
+        expect(tester.takeException(), isNull, reason: '$mode');
+        final RenderKkScreen r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+        expect(r.size, const Size(900, height), reason: '$mode');
+        expect(r.getDryLayout(r.constraints), r.size, reason: '$mode');
+      }
+    });
+
     testChecked('dry layout without a height limit is the height of the regions, in every mode', (
       WidgetTester tester,
     ) async {
@@ -504,6 +853,130 @@ void main() {
       expect(rectOf(tester, 'nav'), const Rect.fromLTWH(0, 48, 72, 300));
       expect(rectOf(tester, 'side'), const Rect.fromLTWH(800, 48, 200, 300));
       expect(rectOf(tester, 'body'), const Rect.fromLTWH(72, 48, 728, 300));
+    });
+
+    testChecked('intrinsic heights are the height of the regions at a width, by the rules of the layout', (
+      WidgetTester tester,
+    ) async {
+      Widget raw(KkScreenMode mode) => _RawScreen(
+        mode: mode,
+        children: <Widget>[
+          _Region(slot: KkScreenSlot.body, child: box('body', null, 300)),
+          _Region(slot: KkScreenSlot.side, child: box('side', 200, 120)),
+          _Region(slot: KkScreenSlot.nav, child: box('nav', 72, 64)),
+          _Region(slot: KkScreenSlot.footer, child: box('foot', null, 32)),
+          _Region(slot: KkScreenSlot.commandBar, child: box('cmd', null, 48)),
+        ],
+      );
+      const Map<KkScreenMode, double> heights = <KkScreenMode, double>{
+        KkScreenMode.expanded: 380,
+        KkScreenMode.medium: 500,
+        KkScreenMode.compact: 564,
+      };
+      for (final MapEntry<KkScreenMode, double> e in heights.entries) {
+        await pumpRaw(tester, raw(e.key), size: const Size(1000, 600), loose: false);
+        final RenderKkScreen r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+        expect(r.getMinIntrinsicHeight(1000), e.value, reason: '${e.key}');
+        expect(r.getMaxIntrinsicHeight(1000), e.value, reason: '${e.key}');
+        expect(r.getMaxIntrinsicHeight(double.infinity), e.value, reason: '${e.key}');
+        // A parent that sizes its child by them gets the height of the layout.
+        await pumpRaw(
+          tester,
+          SingleChildScrollView(child: IntrinsicHeight(child: raw(e.key))),
+          size: const Size(1000, 600),
+          loose: false,
+        );
+        expect(tester.takeException(), isNull, reason: '${e.key}');
+        expect(tester.getSize(find.byType(_RawScreen)), Size(1000, e.value), reason: '${e.key}');
+        expect(rectOf(tester, 'foot').bottom, e.value, reason: '${e.key}');
+      }
+    });
+
+    testChecked('intrinsic heights ask each region at the width it would get', (WidgetTester tester) async {
+      // Fourteen 10px glyphs that wrap at the spaces, beside a 72px nav.
+      Widget raw(KkScreenMode mode, {double fallbackWidth = 0}) => _RawScreen(
+        mode: mode,
+        fallbackWidth: fallbackWidth,
+        children: <Widget>[
+          _Region(
+            slot: KkScreenSlot.body,
+            child: Text('aaaa bbbb cccc', style: testStyle(10)),
+          ),
+          _Region(slot: KkScreenSlot.nav, child: box('nav', 72, 10)),
+        ],
+      );
+      await pumpRaw(tester, raw(KkScreenMode.expanded), size: const Size(1000, 600), loose: false);
+      RenderKkScreen r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+      // 100px for the body: two lines. 50px: three.
+      expect(r.getMinIntrinsicHeight(172), 20);
+      expect(r.getMaxIntrinsicHeight(172), 20);
+      expect(r.getMinIntrinsicHeight(122), 30);
+      // No width to go by: everything on one line.
+      expect(r.getMinIntrinsicHeight(double.infinity), 10);
+      // Below 600 the nav is under the body, and both have the whole width.
+      await pumpRaw(tester, raw(KkScreenMode.compact), size: const Size(1000, 600), loose: false);
+      r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+      expect(r.getMinIntrinsicHeight(100), 20 + 10);
+      // With a fallback width that is the width when there is none to go by.
+      await pumpRaw(
+        tester,
+        raw(KkScreenMode.expanded, fallbackWidth: 122),
+        size: const Size(1000, 600),
+        loose: false,
+      );
+      r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+      expect(r.getMinIntrinsicHeight(double.infinity), 30);
+      expect(r.getDryLayout(const BoxConstraints()), const Size(122, 30));
+    });
+
+    testChecked('intrinsic widths are the room the regions need beside and above each other', (
+      WidgetTester tester,
+    ) async {
+      Widget raw(KkScreenMode mode) => _RawScreen(
+        mode: mode,
+        children: <Widget>[
+          _Region(slot: KkScreenSlot.body, child: box('body', 400, 300)),
+          _Region(slot: KkScreenSlot.side, child: box('side', 200, 120)),
+          _Region(slot: KkScreenSlot.nav, child: box('nav', 72, 64)),
+          _Region(slot: KkScreenSlot.footer, child: box('foot', 100, 32)),
+          _Region(slot: KkScreenSlot.commandBar, child: box('cmd', 450, 48)),
+        ],
+      );
+      const Map<KkScreenMode, double> widths = <KkScreenMode, double>{
+        // Nav, body and side in a row.
+        KkScreenMode.expanded: 72 + 400 + 200,
+        // The nav beside the wider of body and side.
+        KkScreenMode.medium: 72 + 400,
+        // One column: the widest of them all is the command bar.
+        KkScreenMode.compact: 450,
+      };
+      for (final MapEntry<KkScreenMode, double> e in widths.entries) {
+        await pumpRaw(tester, raw(e.key), size: const Size(1000, 600), loose: false);
+        final RenderKkScreen r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+        expect(r.getMinIntrinsicWidth(double.infinity), e.value, reason: '${e.key}');
+        expect(r.getMaxIntrinsicWidth(double.infinity), e.value, reason: '${e.key}');
+        expect(r.getMaxIntrinsicWidth(600), e.value, reason: '${e.key}');
+        await pumpRaw(tester, IntrinsicWidth(child: raw(e.key)), size: const Size(1000, 600));
+        expect(tester.takeException(), isNull, reason: '${e.key}');
+        expect(tester.getSize(find.byType(_RawScreen)).width, e.value, reason: '${e.key}');
+      }
+      // A region that is as wide as it is tall, between a 48px and a 32px bar.
+      await pumpRaw(
+        tester,
+        _RawScreen(
+          mode: KkScreenMode.expanded,
+          children: <Widget>[
+            const _Region(slot: KkScreenSlot.body, child: KkAspect(ratio: 1)),
+            _Region(slot: KkScreenSlot.nav, child: box('nav', 72, 64)),
+            _Region(slot: KkScreenSlot.footer, child: box('foot', null, 32)),
+            _Region(slot: KkScreenSlot.commandBar, child: box('cmd', null, 48)),
+          ],
+        ),
+        size: const Size(1000, 600),
+        loose: false,
+      );
+      final RenderKkScreen r = tester.renderObject<RenderKkScreen>(find.byType(_RawScreen));
+      expect(r.getMinIntrinsicWidth(600), 72 + 520);
     });
 
     testChecked('the render object alone: no width limit means the fallback width', (WidgetTester tester) async {
@@ -571,6 +1044,38 @@ class _Region extends ParentDataWidget<KkScreenParentData> {
 
   @override
   Type get debugTypicalAncestorWidgetClass => _RawScreen;
+}
+
+/// A 100 by 40 box that writes to [log] when it is built, taken out of the
+/// tree or put back into it.
+class _Witness extends StatefulWidget {
+  const _Witness({required this.id, required this.log});
+
+  final String id;
+  final List<String> log;
+
+  @override
+  State<_Witness> createState() => _WitnessState();
+}
+
+class _WitnessState extends State<_Witness> {
+  @override
+  void deactivate() {
+    widget.log.add('${widget.id} deactivate');
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    widget.log.add('${widget.id} activate');
+    super.activate();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    widget.log.add('${widget.id} build');
+    return const SizedBox(width: 100, height: 40);
+  }
 }
 
 class _Counter extends StatefulWidget {

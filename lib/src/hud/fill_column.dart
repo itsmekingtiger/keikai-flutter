@@ -12,6 +12,11 @@ class _FillColumnParentData extends ContainerBoxParentData<RenderBox> {}
 /// child keeps its natural height and the column is as tall as their sum.
 /// Children are always as wide as the column.
 ///
+/// Where the width is not limited (in a row, a horizontal scroller) the
+/// column is as wide as its widest child. The body is measured for that at
+/// the height it is given, so a body whose width follows from its height
+/// works in a column of fixed height.
+///
 /// HUD instruments are built on this so the same panel can fill a grid cell
 /// or sit in a scrolling page without a flag.
 class KkFillColumn extends MultiChildRenderObjectWidget {
@@ -55,11 +60,22 @@ class RenderKkFillColumn extends RenderBox
     if (child.parentData is! _FillColumnParentData) child.parentData = _FillColumnParentData();
   }
 
-  double _maxWidth(double Function(RenderBox child) of) {
+  /// The width of the widest child when the column has [height]. As in the
+  /// layout, the body is asked at the height the others leave it.
+  double _maxWidth(double height, double Function(RenderBox child, double height) of) {
     double w = 0;
-    for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
-      w = math.max(w, of(child));
+    double taken = 0;
+    RenderBox? body;
+    int i = 0;
+    for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
+      if (i == _bodyIndex) {
+        body = child;
+        continue;
+      }
+      w = math.max(w, of(child, double.infinity));
+      if (height.isFinite) taken += child.getMaxIntrinsicHeight(double.infinity);
     }
+    if (body != null) w = math.max(w, of(body, math.max(0.0, height - taken)));
     return w;
   }
 
@@ -73,17 +89,30 @@ class RenderKkFillColumn extends RenderBox
 
   @override
   double computeMinIntrinsicWidth(double height) =>
-      _maxWidth((RenderBox c) => c.getMinIntrinsicWidth(double.infinity));
+      _maxWidth(height, (RenderBox c, double h) => c.getMinIntrinsicWidth(h));
 
   @override
   double computeMaxIntrinsicWidth(double height) =>
-      _maxWidth((RenderBox c) => c.getMaxIntrinsicWidth(double.infinity));
+      _maxWidth(height, (RenderBox c, double h) => c.getMaxIntrinsicWidth(h));
 
   @override
   double computeMinIntrinsicHeight(double width) => _sumHeight((RenderBox c) => c.getMinIntrinsicHeight(width));
 
   @override
   double computeMaxIntrinsicHeight(double width) => _sumHeight((RenderBox c) => c.getMaxIntrinsicHeight(width));
+
+  /// What the body is given when the other children take [used] of the
+  /// height: all that is left when the height is fixed, no more than that
+  /// when it is not. Without a [width] the width is left free, to measure it.
+  BoxConstraints _forBody(BoxConstraints constraints, double used, {double? width}) {
+    final double left = constraints.maxHeight.isFinite ? math.max(0.0, constraints.maxHeight - used) : double.infinity;
+    return BoxConstraints(
+      minWidth: width ?? 0,
+      maxWidth: width ?? double.infinity,
+      minHeight: constraints.hasTightHeight ? left : 0,
+      maxHeight: left,
+    );
+  }
 
   ({Size size, List<Size> sizes, List<BoxConstraints> given}) _compute(
     BoxConstraints constraints,
@@ -95,13 +124,24 @@ class RenderKkFillColumn extends RenderBox
     if (constraints.hasBoundedWidth) {
       width = constraints.maxWidth;
     } else {
-      // No width to fill: the column is as wide as its widest child.
+      // No width to fill: the column is as wide as its widest child. The body
+      // is measured last, at the height the others leave it: its width may
+      // follow from that height, and it may have no size at all without one.
       width = constraints.minWidth;
-      for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
-        width = math.max(width, layoutChild(child, const BoxConstraints()).width);
+      double taken = 0;
+      RenderBox? body;
+      int i = 0;
+      for (RenderBox? child = firstChild; child != null; child = childAfter(child), i++) {
+        if (i == _bodyIndex) {
+          body = child;
+          continue;
+        }
+        final Size natural = layoutChild(child, const BoxConstraints());
+        width = math.max(width, natural.width);
+        taken += natural.height;
       }
+      if (body != null) width = math.max(width, layoutChild(body, _forBody(constraints, taken)).width);
     }
-    final bool fill = constraints.hasTightHeight && _bodyIndex >= 0;
     final BoxConstraints row = BoxConstraints(minWidth: width, maxWidth: width);
     final List<BoxConstraints> given = List<BoxConstraints>.filled(count, row);
     double used = 0;
@@ -116,10 +156,7 @@ class RenderKkFillColumn extends RenderBox
       used += sizes[i].height;
     }
     if (body != null) {
-      final double left = constraints.maxHeight.isFinite ? math.max(0.0, constraints.maxHeight - used) : double.infinity;
-      final BoxConstraints bc = fill
-          ? BoxConstraints.tightFor(width: width, height: left)
-          : BoxConstraints(minWidth: width, maxWidth: width, maxHeight: left);
+      final BoxConstraints bc = _forBody(constraints, used, width: width);
       given[_bodyIndex] = bc;
       sizes[_bodyIndex] = layoutChild(body, bc);
       used += sizes[_bodyIndex].height;

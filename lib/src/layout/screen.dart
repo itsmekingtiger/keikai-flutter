@@ -89,7 +89,9 @@ class KkScreenScope extends InheritedWidget {
 ///
 /// The body is padded by the grid margin for the width (8 compact, 16, 32 on
 /// a wall display) and scrolls. Nav and side scroll when they are taller than
-/// the space they get. The ground is the screen colour with the 24px grid.
+/// the space they get; content that deals with its height itself goes with
+/// [scrollNav] or [scrollSide] turned off. The ground is the screen colour
+/// with the 24px grid.
 ///
 /// Descendants read the arrangement with [KkScreenScope].
 class KkScreen extends StatefulWidget {
@@ -102,6 +104,8 @@ class KkScreen extends StatefulWidget {
     this.footer,
     this.padding,
     this.scrollBody = true,
+    this.scrollNav = true,
+    this.scrollSide = true,
     this.bodyController,
     this.backdrop = KkBackdropKind.grid,
     this.safeArea = true,
@@ -119,6 +123,7 @@ class KkScreen extends StatefulWidget {
   final Widget body;
 
   /// A region beside the body (a sheet, an inspector). It takes its own width.
+  /// A `KkSheet` goes with [scrollSide] turned off.
   final Widget? side;
 
   /// The bar across the bottom.
@@ -130,6 +135,21 @@ class KkScreen extends StatefulWidget {
   /// Let the body scroll vertically. Turn it off for a body that fills the
   /// height by itself (a map, a diagram, its own scroll view).
   final bool scrollBody;
+
+  /// Let the nav scroll when it is taller than its region; a shorter one is
+  /// stretched to fill it. Turn it off for a nav that deals with the height
+  /// itself (a column with a spacer, its own scroll view): it is then given
+  /// exactly the height of the region. Below 600px the nav is a bar of its own
+  /// height either way.
+  final bool scrollNav;
+
+  /// Let the side region scroll when its content is taller. Turn it off for
+  /// content that deals with the height itself: a `KkSheet` then keeps its
+  /// head and foot in place and scrolls its body, and a list that builds its
+  /// rows as they come into view gets the height it needs for that. Beside the
+  /// body (840px and wider) such content is given exactly the height of the
+  /// region; under the body it takes its own height, up to all there is.
+  final bool scrollSide;
 
   /// Controls the body's scroll position (with [scrollBody]).
   final ScrollController? bodyController;
@@ -194,15 +214,19 @@ class _KkScreenState extends State<KkScreen> {
                     _KkScreenRegion(
                       key: const ValueKey<KkScreenSlot>(KkScreenSlot.side),
                       slot: KkScreenSlot.side,
-                      child: mode == KkScreenMode.expanded
-                          ? _KkFillScroll(child: sideRegion)
-                          : (bounded ? KkScroll(child: sideRegion) : sideRegion),
+                      child: !widget.scrollSide
+                          ? sideRegion
+                          : (mode == KkScreenMode.expanded
+                                ? _KkFillScroll(child: sideRegion)
+                                : (bounded ? KkScroll(child: sideRegion) : sideRegion)),
                     ),
                   if (navigation != null)
                     _KkScreenRegion(
                       key: const ValueKey<KkScreenSlot>(KkScreenSlot.nav),
                       slot: KkScreenSlot.nav,
-                      child: mode == KkScreenMode.compact ? navigation : _KkFillScroll(child: navigation),
+                      child: mode == KkScreenMode.compact || !widget.scrollNav
+                          ? navigation
+                          : _KkFillScroll(child: navigation),
                     ),
                   if (foot != null)
                     _KkScreenRegion(
@@ -350,6 +374,74 @@ class RenderKkScreen extends RenderBox
   double _widthFor(BoxConstraints c) =>
       c.hasBoundedWidth ? c.maxWidth : math.max(c.minWidth, _fallbackWidth.isFinite ? _fallbackWidth : 0);
 
+  // ── intrinsics ──────────────────────────────────────────────────────────
+  //
+  // The screen takes the width it is given and, with a height limit, that
+  // height. What it can say about itself is the room its regions need: the
+  // width at which none of them is squeezed, and the height they come to
+  // without a height limit.
+
+  /// The width the regions need beside and above each other in this [mode].
+  /// [of] asks a region for its width at a height.
+  double _intrinsicWidth(double height, double Function(RenderBox child, double height) of) {
+    final RenderBox? cmd = _region(KkScreenSlot.commandBar);
+    final RenderBox? nav = _region(KkScreenSlot.nav);
+    final RenderBox? body = _region(KkScreenSlot.body);
+    final RenderBox? side = _region(KkScreenSlot.side);
+    final RenderBox? foot = _region(KkScreenSlot.footer);
+    double at(RenderBox? child, double h) => child == null ? 0 : of(child, h);
+    // A region that fills the height between the bars is asked at that
+    // height. One in a stack has a height of its own, as the bars have.
+    const double own = double.infinity;
+    final double middle = math.max(
+      0,
+      height - (cmd?.getMinIntrinsicHeight(own) ?? 0) - (foot?.getMinIntrinsicHeight(own) ?? 0),
+    );
+    // Nav and side take their width first and the body gets what is left, so
+    // beside the body they count at their widest.
+    final double navW = nav?.getMaxIntrinsicWidth(middle) ?? 0;
+    final double regions = switch (_mode) {
+      KkScreenMode.expanded => navW + at(body, middle) + (side?.getMaxIntrinsicWidth(middle) ?? 0),
+      KkScreenMode.medium => navW + math.max(at(body, own), at(side, own)),
+      KkScreenMode.compact => math.max(at(body, own), math.max(at(side, own), at(nav, own))),
+    };
+    return math.max(regions, math.max(at(cmd, own), at(foot, own)));
+  }
+
+  /// The height the regions come to at [width] without a height limit.
+  /// [of] asks a region for its height at a width.
+  double _intrinsicHeight(double width, double Function(RenderBox child, double width) of) {
+    // The rules of the layout, with every region measured instead of laid out.
+    Size measure(RenderBox child, BoxConstraints c) {
+      // A region that is free to choose its width takes its widest.
+      final double w = c.hasTightWidth ? c.maxWidth : c.constrainWidth(child.getMaxIntrinsicWidth(double.infinity));
+      return Size(w, c.constrainHeight(of(child, w)));
+    }
+
+    // Without a width to go by the screen has its fallback width, as in the
+    // layout; with none of that either, every region has all the width it likes.
+    final double w = width.isFinite || !_fallbackWidth.isFinite || _fallbackWidth <= 0 ? width : _fallbackWidth;
+    return _arrange(BoxConstraints(minWidth: w, maxWidth: w), measure, place: false).height;
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      _intrinsicWidth(height, (RenderBox child, double h) => child.getMinIntrinsicWidth(h));
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      _intrinsicWidth(height, (RenderBox child, double h) => child.getMaxIntrinsicWidth(h));
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      _intrinsicHeight(width, (RenderBox child, double w) => child.getMinIntrinsicHeight(w));
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      _intrinsicHeight(width, (RenderBox child, double w) => child.getMaxIntrinsicHeight(w));
+
+  // ── layout ──────────────────────────────────────────────────────────────
+
   @override
   Size computeDryLayout(BoxConstraints constraints) {
     // With a height limit the screen takes all of it; no region has a say.
@@ -375,6 +467,14 @@ class RenderKkScreen extends RenderBox
       if (place && child != null) (child.parentData! as KkScreenParentData).offset = Offset(x, y);
     }
 
+    // Lays a region that came out shorter than [height] out again, as wide as
+    // it is and at least that tall. No upper limit goes with it: a region
+    // held to an exact size would be a relayout boundary, and the screen
+    // would not be laid out again when the region's content grows later.
+    Size stretch(RenderBox? child, Size s, double height) => child == null || s.height >= height
+        ? s
+        : lay(child, BoxConstraints(minWidth: s.width, maxWidth: s.width, minHeight: height));
+
     final double width = _widthFor(c);
     final bool bounded = c.hasBoundedHeight;
     final double height = bounded ? c.maxHeight : double.infinity;
@@ -392,6 +492,10 @@ class RenderKkScreen extends RenderBox
     ).height;
     // Height left between command bar and footer (infinite when unbounded).
     double middle = bounded ? math.max(0, height - hc - hf) : double.infinity;
+    // Without a height limit the regions are as tall as their content, and at
+    // least as tall as the bars leave of the least height the screen is to
+    // have (a page that fills the window and scrolls when it is taller).
+    final double least = math.max(0, c.minHeight - hc - hf);
 
     switch (_mode) {
       case KkScreenMode.expanded:
@@ -411,17 +515,10 @@ class RenderKkScreen extends RenderBox
           Size sideS = lay(side, BoxConstraints(maxWidth: math.max(0, width - navS.width)));
           final double bodyW = math.max(0, width - navS.width - sideS.width);
           final Size bodyS = lay(body, BoxConstraints(minWidth: bodyW, maxWidth: bodyW));
-          middle = math.max(bodyS.height, math.max(navS.height, sideS.height));
-          if (navS.height != middle) {
-            navS = lay(nav, BoxConstraints(minWidth: navS.width, maxWidth: navS.width, minHeight: middle, maxHeight: middle));
-          }
-          if (sideS.height != middle) {
-            sideS = lay(
-              side,
-              BoxConstraints(minWidth: sideS.width, maxWidth: sideS.width, minHeight: middle, maxHeight: middle),
-            );
-          }
-          if (bodyS.height != middle) lay(body, BoxConstraints.tightFor(width: bodyW, height: middle));
+          middle = math.max(least, math.max(bodyS.height, math.max(navS.height, sideS.height)));
+          navS = stretch(nav, navS, middle);
+          sideS = stretch(side, sideS, middle);
+          stretch(body, bodyS, middle);
           put(nav, 0, hc);
           put(body, navS.width, hc);
           put(side, width - sideS.width, hc);
@@ -440,10 +537,11 @@ class RenderKkScreen extends RenderBox
           final double rightW = math.max(0, width - navS.width);
           final Size bodyS = lay(body, BoxConstraints(minWidth: rightW, maxWidth: rightW));
           final Size sideS = lay(side, BoxConstraints(minWidth: rightW, maxWidth: rightW));
-          middle = math.max(navS.height, bodyS.height + sideS.height);
-          if (navS.height != middle) {
-            navS = lay(nav, BoxConstraints(minWidth: navS.width, maxWidth: navS.width, minHeight: middle, maxHeight: middle));
-          }
+          final double stacked = bodyS.height + sideS.height;
+          middle = math.max(least, math.max(navS.height, stacked));
+          navS = stretch(nav, navS, middle);
+          // The body takes what the side leaves, as it does with a limit.
+          stretch(body, bodyS, bodyS.height + (middle - stacked));
           put(nav, 0, hc);
           put(body, navS.width, hc);
           put(side, navS.width, hc + middle - sideS.height);
@@ -462,10 +560,13 @@ class RenderKkScreen extends RenderBox
           put(nav, 0, hc + hb + hs);
         } else {
           final BoxConstraints full = BoxConstraints(minWidth: width, maxWidth: width);
-          final double hb = lay(body, full).height;
+          final Size bodyS = lay(body, full);
           final double hs = lay(side, full).height;
           final double hn = lay(nav, full).height;
-          middle = hb + hs + hn;
+          final double stacked = bodyS.height + hs + hn;
+          middle = math.max(least, stacked);
+          // The body takes the extra, so that side and nav sit on the footer.
+          final double hb = stretch(body, bodyS, bodyS.height + (middle - stacked)).height;
           put(body, 0, hc);
           put(side, 0, hc + hb);
           put(nav, 0, hc + hb + hs);
@@ -473,7 +574,9 @@ class RenderKkScreen extends RenderBox
     }
     put(cmd, 0, 0);
     put(foot, 0, hc + middle);
-    return c.constrain(Size(width, hc + middle + hf));
+    // With a limit the height is the limit itself: added up again from the
+    // bars and what they leave, it can come out a rounding step short.
+    return c.constrain(Size(width, bounded ? height : hc + middle + hf));
   }
 
   @override

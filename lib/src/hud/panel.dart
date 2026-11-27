@@ -1,6 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../controls/status_tag.dart';
 import '../foundation/colors.dart';
 import '../foundation/icons.dart';
 import '../foundation/level.dart';
@@ -92,6 +93,14 @@ class KkPanel extends StatefulWidget {
 
   /// Widgets at the right of the head, after [meta]: tags, small buttons.
   /// Plain text and icons among them take the head's ink.
+  ///
+  /// So does a [KkStatusTag] in this list, whose level colour would vanish on
+  /// the filled band: an outline tag is written in the on-fill ink there, and
+  /// a solid one is a plate in the screen ground with text in the frame
+  /// colour. On the quiet band a tag keeps its level colour, and a solid one
+  /// is a ground plate too. A tag that was given a `color` or an `onColor`
+  /// keeps its own, and so does a tag inside another widget: give that one
+  /// its colours yourself.
   final List<Widget> trailing;
 
   /// Critical and offline change the frame; other levels do not.
@@ -109,9 +118,15 @@ class KkPanel extends StatefulWidget {
 
   /// Let the body scroll when the content is taller than the panel. Leave it
   /// off for content that should fill the body, such as a chart.
+  ///
+  /// Without it, content that is taller than a panel of fixed height is cut
+  /// off at the body: it is never painted over the frame or past it.
   final bool scrollBody;
 
   /// Show a toggle in the head that hides the body and the spine.
+  ///
+  /// A hidden body stays in the tree and keeps its State: what runs by itself
+  /// in it, such as a countdown, runs on.
   final bool collapsible;
 
   /// Whether the body is hidden. When null the panel keeps this state itself.
@@ -138,7 +153,11 @@ class KkPanel extends StatefulWidget {
   /// Horizontal compression of the CJK title; 1.0 turns it off.
   final double squeeze;
 
-  /// Read by screen readers instead of the title.
+  /// Read by screen readers instead of the code and the title.
+  ///
+  /// The head band is the heading of the panel: it says this, or [code],
+  /// [cjk] and [en] as one name. [meta], [trailing] and the body are read
+  /// after it, each for itself.
   final String? semanticLabel;
 
   /// The body.
@@ -200,14 +219,16 @@ class _KkPanelState extends State<KkPanel> {
     Widget? body;
     final Widget? child = widget.child;
     final bool collapsed = _isCollapsed;
-    if (child != null && !collapsed) {
+    if (child != null) {
       final String? spine = widget.spine;
       final EdgeInsets pad = widget.flush ? EdgeInsets.zero : (widget.padding ?? EdgeInsets.all(m.space4));
       Widget content = widget.scrollBody ? KkScroll(padding: pad, child: child) : KkBox(padding: pad, child: child);
       if (spine != null) content = KkBox(padding: EdgeInsets.only(left: m.space6), child: content);
-      if (offline) content = ColorFiltered(colorFilter: _greyscale, child: content);
+      // The same widgets at every level: one more around the content while it
+      // is offline would build the content again, and lose its State.
       body = _PanelBody(
         spineWidth: m.space6,
+        drained: offline,
         children: <Widget>[
           content,
           if (spine != null)
@@ -222,14 +243,20 @@ class _KkPanelState extends State<KkPanel> {
         ],
       );
       if (widget.boot) {
-        // After the first toggle the body comes back at once, without waiting
-        // for its place in the boot sequence.
+        // The body flickers on again each time it comes back. After the first
+        // toggle it does so at once, without waiting for its place in the
+        // boot sequence.
         body = KkFlicker(
           delay: _toggled ? Duration.zero : const Duration(milliseconds: 300),
           stagger: !_toggled,
+          trigger: collapsed,
           child: body,
         );
       }
+      // A collapsed body is hidden, not removed: it takes no room, is not
+      // painted, hit, read or focused and its animations rest, but its State
+      // is kept, so a countdown in it counts on and a list stays scrolled.
+      body = Visibility(visible: !collapsed, maintainState: true, child: body);
     }
 
     Widget panel = KkBox(
@@ -244,10 +271,10 @@ class _KkPanelState extends State<KkPanel> {
       child: KkFillColumn(leading: <Widget>[head], body: body),
     );
     if (widget.boot) panel = KkBoot(child: panel);
-    final String label =
-        widget.semanticLabel ??
-        <String>[?widget.code, ?widget.cjk, ?widget.en].join(' ');
-    return Semantics(container: true, label: label.isEmpty ? null : label, child: panel);
+    // The panel says nothing itself. It keeps its parts together, each in a
+    // node of its own: the head names it, and nothing of the body is merged
+    // into that name.
+    return Semantics(container: true, explicitChildNodes: true, child: panel);
   }
 
   Widget _head(KeikaiThemeData theme, Color frame, {required bool quiet, required bool critical}) {
@@ -260,27 +287,39 @@ class _KkPanelState extends State<KkPanel> {
     final String? en = widget.en;
     final String? meta = widget.meta;
     final bool hasMeta = meta != null || widget.trailing.isNotEmpty;
-    return KkBox(
+    // The band is the heading of the panel and says its code and title once,
+    // as one name, whatever room the title has. Meta, the widgets after it and
+    // the toggle are nodes of their own under it. A panel with no name has no
+    // heading.
+    final String name = widget.semanticLabel ?? <String>[?code, ?cjk, ?en].join(' ');
+    final bool named = name.isNotEmpty;
+    final Widget band = KkBox(
       height: m.space8,
       fill: quiet ? c.bg200 : frame,
       edges: quiet ? KkEdges(bottom: KkSide(c.line, width: m.stroke1)) : null,
       child: KkRow(
         cross: KkCrossAlign.stretch,
+        // Code, meta, toggle and hazard keep their widths. What a narrow panel
+        // has no room for is cut off at the band, not painted beside it.
+        clip: Clip.hardEdge,
         children: <Widget>[
           if (code != null)
-            KkSurface(
-              shape: KkShape.slant(m.chamferLg),
-              fill: quiet ? frame : c.bg000,
-              edgeWidth: 0,
-              child: KkBox(
-                padding: EdgeInsets.only(left: m.space3, right: m.space2 + m.chamferLg),
-                alignment: Alignment.center,
-                child: KkText.num(
-                  code,
-                  size: 11,
-                  weight: FontWeight.w600,
-                  spacing: 0.06,
-                  color: quiet ? c.onFill : frame,
+            ExcludeSemantics(
+              excluding: named,
+              child: KkSurface(
+                shape: KkShape.slant(m.chamferLg),
+                fill: quiet ? frame : c.bg000,
+                edgeWidth: 0,
+                child: KkBox(
+                  padding: EdgeInsets.only(left: m.space3, right: m.space2 + m.chamferLg),
+                  alignment: Alignment.center,
+                  child: KkText.num(
+                    code,
+                    size: 11,
+                    weight: FontWeight.w600,
+                    spacing: 0.06,
+                    color: quiet ? c.onFill : frame,
+                  ),
                 ),
               ),
             ),
@@ -289,8 +328,8 @@ class _KkPanelState extends State<KkPanel> {
               padding: EdgeInsets.only(left: m.space2, right: m.space3),
               alignment: Alignment.centerLeft,
               clip: true,
-              child: Semantics(
-                header: true,
+              child: ExcludeSemantics(
+                excluding: named,
                 child: KkRow(
                   shrinkWrap: true,
                   cross: KkCrossAlign.baseline,
@@ -316,7 +355,7 @@ class _KkPanelState extends State<KkPanel> {
                   gap: m.space2,
                   children: <Widget>[
                     if (meta != null) KkText.num(meta, size: 11, weight: FontWeight.w600, color: dim),
-                    ...widget.trailing,
+                    for (final Widget item in widget.trailing) _onBand(item, c, frame, quiet: quiet),
                   ],
                 ),
               ),
@@ -339,7 +378,58 @@ class _KkPanelState extends State<KkPanel> {
         ],
       ),
     );
+    return Semantics(
+      container: named,
+      explicitChildNodes: named,
+      header: named ? true : null,
+      label: named ? name : null,
+      child: band,
+    );
   }
+}
+
+/// [item] of [KkPanel.trailing] as it is shown in the head: a status tag in
+/// the ink of the band, anything else as it is.
+///
+/// `.kk-panel__head .kk-tag` of the stylesheet. On the band in the frame
+/// colour an outline tag is on-fill and a solid tag is a ground plate with
+/// frame-coloured text, whatever its level. On the quiet band an outline tag
+/// keeps its level colour, and a solid tag is a ground plate with its text in
+/// that colour.
+Widget _onBand(Widget item, KkColors c, Color frame, {required bool quiet}) {
+  if (item.runtimeType != KkStatusTag) return item;
+  final KkStatusTag tag = item as KkStatusTag;
+  // Colours that were chosen for this tag stay.
+  if (tag.color != null || tag.onColor != null) return tag;
+  final bool solid = tag.variant == KkStatusTagVariant.solid;
+  if (quiet && !solid) return tag;
+  final Color color = solid ? c.bg000 : c.onFill;
+  final Color? onColor = solid ? (quiet ? c.level(tag.level) : frame) : null;
+  final String? text = tag.text;
+  if (text == null) {
+    return KkStatusTag.status(
+      tag.level,
+      key: tag.key,
+      variant: tag.variant,
+      size: tag.size,
+      glyph: tag.glyph,
+      showCjk: tag.showCjk,
+      color: color,
+      onColor: onColor,
+    );
+  }
+  return KkStatusTag(
+    text,
+    key: tag.key,
+    cjk: tag.cjk,
+    level: tag.level,
+    variant: tag.variant,
+    size: tag.size,
+    glyph: tag.glyph,
+    icon: tag.icon,
+    color: color,
+    onColor: onColor,
+  );
 }
 
 class _PanelToggle extends StatelessWidget {
@@ -384,17 +474,24 @@ class _PanelBodyParentData extends ContainerBoxParentData<RenderBox> {}
 
 /// Lays the panel body out and pins the spine (the optional second child)
 /// over its left edge, as tall as the body.
+///
+/// With [drained] the content is painted without colour; the spine keeps its
+/// own. A body whose height is fixed from outside, as in a panel that fills a
+/// grid cell, cuts off what is painted outside it.
 class _PanelBody extends MultiChildRenderObjectWidget {
-  const _PanelBody({required this.spineWidth, super.children});
+  const _PanelBody({required this.spineWidth, required this.drained, super.children});
 
   final double spineWidth;
+  final bool drained;
 
   @override
-  _RenderPanelBody createRenderObject(BuildContext context) => _RenderPanelBody(spineWidth);
+  _RenderPanelBody createRenderObject(BuildContext context) => _RenderPanelBody(spineWidth, drained: drained);
 
   @override
   void updateRenderObject(BuildContext context, _RenderPanelBody renderObject) {
-    renderObject.spineWidth = spineWidth;
+    renderObject
+      ..spineWidth = spineWidth
+      ..drained = drained;
   }
 }
 
@@ -402,7 +499,7 @@ class _RenderPanelBody extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _PanelBodyParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, _PanelBodyParentData> {
-  _RenderPanelBody(this._spineWidth);
+  _RenderPanelBody(this._spineWidth, {required bool drained}) : _drained = drained;
 
   double _spineWidth;
   double get spineWidth => _spineWidth;
@@ -411,6 +508,20 @@ class _RenderPanelBody extends RenderBox
     _spineWidth = value;
     markNeedsLayout();
   }
+
+  bool _drained;
+  bool get drained => _drained;
+  set drained(bool value) {
+    if (value == _drained) return;
+    final bool composited = alwaysNeedsCompositing;
+    _drained = value;
+    if (composited != alwaysNeedsCompositing) markNeedsCompositingBitsUpdate();
+    markNeedsPaint();
+  }
+
+  /// The greyscale filter is a layer of its own.
+  @override
+  bool get alwaysNeedsCompositing => _drained && firstChild != null;
 
   @override
   void setupParentData(RenderBox child) {
@@ -459,6 +570,56 @@ class _RenderPanelBody extends RenderBox
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
       defaultHitTestChildren(result, position: position);
 
+  /// Whether the body is given its height. Content that is taller than a
+  /// panel in a grid cell is then cut off at the body, the way the stylesheet
+  /// clips the panels of a cell, and not painted over the frame and the
+  /// gutter. A body that is as tall as its content has nothing to cut off.
+  bool get _clips => constraints.hasTightHeight;
+
+  final LayerHandle<ClipRectLayer> _clipLayer = LayerHandle<ClipRectLayer>();
+  final LayerHandle<ColorFilterLayer> _drainLayer = LayerHandle<ColorFilterLayer>();
+
+  void _paintChildren(PaintingContext context, Offset offset) {
+    final RenderBox? content = firstChild;
+    if (content == null) {
+      _drainLayer.layer = null;
+      return;
+    }
+    void paintContent(PaintingContext context, Offset offset) =>
+        context.paintChild(content, offset + (content.parentData! as _PanelBodyParentData).offset);
+    if (_drained) {
+      _drainLayer.layer = context.pushColorFilter(offset, _greyscale, paintContent, oldLayer: _drainLayer.layer);
+    } else {
+      _drainLayer.layer = null;
+      paintContent(context, offset);
+    }
+    final RenderBox? spine = childAfter(content);
+    if (spine != null) context.paintChild(spine, offset + (spine.parentData! as _PanelBodyParentData).offset);
+  }
+
   @override
-  void paint(PaintingContext context, Offset offset) => defaultPaint(context, offset);
+  void paint(PaintingContext context, Offset offset) {
+    if (_clips && firstChild != null) {
+      _clipLayer.layer = context.pushClipRect(
+        needsCompositing,
+        offset,
+        Offset.zero & size,
+        _paintChildren,
+        oldLayer: _clipLayer.layer,
+      );
+    } else {
+      _clipLayer.layer = null;
+      _paintChildren(context, offset);
+    }
+  }
+
+  @override
+  Rect? describeApproximatePaintClip(RenderObject child) => _clips ? Offset.zero & size : null;
+
+  @override
+  void dispose() {
+    _clipLayer.layer = null;
+    _drainLayer.layer = null;
+    super.dispose();
+  }
 }

@@ -7,6 +7,7 @@ import '../layout/box.dart';
 import '../layout/flex.dart';
 import '../painting/shapes.dart';
 import '../widgets/text.dart';
+import 'control_style.dart';
 
 /// A key cap: the shortcut hint beside a menu item, a search bar or a toolbar
 /// action. 18px high, mono, with a heavier bottom edge.
@@ -38,12 +39,18 @@ class KkKbd extends StatelessWidget {
         right: thin,
         bottom: KkSide(edge, width: m.stroke2),
       ),
-      child: KkRow(
-        shrinkWrap: true,
-        clip: Clip.hardEdge,
-        children: <Widget>[
-          KkText.num(text, size: 10, weight: FontWeight.w600, spacing: 0.04, color: color ?? c.inkDim),
-        ],
+      child: KkTextScaleLimit(
+        height: 18 - m.stroke1 - m.stroke2,
+        fontSize: 10,
+        child: KkWholeWidth(
+          child: KkRow(
+            shrinkWrap: true,
+            clip: Clip.hardEdge,
+            children: <Widget>[
+              KkText.num(text, size: 10, weight: FontWeight.w600, spacing: 0.04, color: color ?? c.inkDim),
+            ],
+          ),
+        ),
       ),
     );
   }

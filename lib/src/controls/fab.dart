@@ -128,17 +128,23 @@ class KkFab extends StatelessWidget {
             child: KkBox(
               height: m.space12,
               padding: EdgeInsets.only(left: m.space4, right: m.space6),
-              child: KkRow(
-                shrinkWrap: true,
-                main: KkMainAlign.center,
-                gap: m.space2,
-                clip: Clip.hardEdge,
-                children: <Widget>[
-                  if (glyph != null) KkIcon(glyph, size: iconSize ?? 16, color: ink),
-                  KkFlexible(
-                    child: KkText.en(text, size: 16, spacing: 0.08, color: ink, overflow: TextOverflow.ellipsis),
+              child: KkTextScaleLimit(
+                height: m.space12,
+                fontSize: 16,
+                child: KkWholeWidth(
+                  child: KkRow(
+                    shrinkWrap: true,
+                    main: KkMainAlign.center,
+                    gap: m.space2,
+                    clip: Clip.hardEdge,
+                    children: <Widget>[
+                      if (glyph != null) KkIcon(glyph, size: iconSize ?? 16, color: ink),
+                      KkFlexible(
+                        child: KkText.en(text, size: 16, spacing: 0.08, color: ink, overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           );

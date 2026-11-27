@@ -1451,12 +1451,16 @@ void main() {
 
     testChecked('KkCrt draws over the child only when asked', (WidgetTester tester) async {
       const Widget child = SizedBox(key: ValueKey<String>('c'), width: 120, height: 80);
-      await pumpKk(tester, const KkCrt(scanlines: false, child: child), motion: true);
-      expect(
-        find.ancestor(of: find.byKey(const ValueKey<String>('c')), matching: find.byType(CustomPaint)),
-        findsNothing,
+      final Finder texture = find.ancestor(
+        of: find.byKey(const ValueKey<String>('c')),
+        matching: find.byType(CustomPaint),
       );
+      await pumpKk(tester, const KkCrt(scanlines: false, child: child), motion: true);
+      // The CustomPaint stays, so that the child keeps its place in the tree. It has nothing to paint with.
+      expect(tester.widget<CustomPaint>(texture).painter, isNull);
+      expect(tester.widget<CustomPaint>(texture).foregroundPainter, isNull);
       await pumpKk(tester, const KkCrt(child: child), motion: true);
+      expect(tester.widget<CustomPaint>(texture).foregroundPainter, isNotNull);
       await _settleRoute(tester);
       expect(tester.binding.hasScheduledFrame, isFalse, reason: 'scan lines alone are static');
       await pumpKk(tester, const KkCrt(sweep: true, noise: true, child: child), motion: true);

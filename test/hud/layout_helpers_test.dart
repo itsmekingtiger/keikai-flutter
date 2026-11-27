@@ -79,6 +79,85 @@ void main() {
       expect(tester.getSize(find.byKey(_a)).width, 140, reason: 'every child is as wide as the column');
     });
 
+    testWidgets('free width, fixed height: the body is measured at the height it gets', (WidgetTester tester) async {
+      // An aspect-ratio box has no size of its own: it needs one bounded side.
+      await pumpKk(
+        tester,
+        KkRow(
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            KkBox(
+              height: 212,
+              child: KkFillColumn(
+                leading: const <Widget>[KkBox(key: _a, width: 100, height: 32)],
+                body: const AspectRatio(aspectRatio: 2, child: KkBox(key: _b)),
+                trailing: const <Widget>[KkBox(key: _c, width: 40, height: 20)],
+              ),
+            ),
+          ],
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      // 212 - 32 - 20 is left for the body, which is twice as wide as it is tall.
+      expect(tester.getRect(find.byKey(_b)), const Rect.fromLTWH(0, 32, 320, 160));
+      expect(tester.getSize(find.byType(KkFillColumn)), const Size(320, 212));
+      expect(tester.getRect(find.byKey(_a)), const Rect.fromLTWH(0, 0, 320, 32));
+      expect(tester.getRect(find.byKey(_c)), const Rect.fromLTWH(0, 192, 320, 20));
+    });
+
+    testWidgets('free width, limited height: the body is measured within what is left', (WidgetTester tester) async {
+      await pumpKk(
+        tester,
+        KkRow(
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            KkBox(
+              maxHeight: 132,
+              child: KkFillColumn(
+                leading: const <Widget>[KkBox(key: _a, width: 100, height: 32)],
+                body: const AspectRatio(aspectRatio: 2, child: KkBox(key: _b)),
+              ),
+            ),
+          ],
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(tester.getRect(find.byKey(_b)), const Rect.fromLTWH(0, 32, 200, 100));
+      expect(tester.getSize(find.byType(KkFillColumn)), const Size(200, 132));
+    });
+
+    testWidgets('a body is never built for a height it does not get', (WidgetTester tester) async {
+      final List<BoxConstraints> seen = <BoxConstraints>[];
+      await pumpKk(
+        tester,
+        KkRow(
+          cross: KkCrossAlign.start,
+          children: <Widget>[
+            KkBox(
+              height: 212,
+              child: KkFillColumn(
+                leading: const <Widget>[KkBox(key: _a, width: 100, height: 32)],
+                body: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    seen.add(constraints);
+                    return const KkBox(key: _b, width: 140);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(seen, isNotEmpty);
+      for (final BoxConstraints constraints in seen) {
+        expect(constraints.minHeight, 180, reason: '$constraints');
+        expect(constraints.maxHeight, 180, reason: '$constraints');
+      }
+      expect(seen.last, const BoxConstraints.tightFor(width: 140, height: 180));
+      expect(tester.getSize(find.byKey(_b)), const Size(140, 180));
+    });
+
     testWidgets('no body, no children, too little room: nothing throws', (WidgetTester tester) async {
       await pumpKk(tester, KkBox(width: 100, height: 50, child: KkFillColumn()));
       expect(tester.getSize(find.byType(KkFillColumn)), const Size(100, 50));
@@ -140,6 +219,28 @@ void main() {
       expect(tester.getSize(find.byType(KkHugWidth)).width, 400);
       await pumpKk(tester, const KkHugWidth());
       expect(tester.getSize(find.byType(KkHugWidth)), Size.zero);
+    });
+  });
+
+  group('kkFixedDigits', () {
+    test('writes no sign in front of a value it prints as zero', () {
+      expect(kkFixedDigits(-0.04), '000.0');
+      expect(kkFixedDigits(-0.0), '000.0');
+      expect(kkFixedDigits(-0.4, decimals: 0), '000');
+      expect(kkFixedDigits(-0.004, integers: 1, decimals: 2), '0.00');
+      // A value that is written with a digit keeps its sign.
+      expect(kkFixedDigits(-0.06), '-000.1');
+      expect(kkFixedDigits(-0.6, decimals: 0), '-001');
+      expect(kkFixedDigits(-3.25, integers: 2, decimals: 2), '-03.25');
+      // A reading that hovers around zero keeps its width.
+      expect(<double>[-0.04, -0.01, 0, 0.01, 0.04].map((double v) => kkFixedDigits(v).length).toSet(), <int>{5});
+    });
+
+    test('writes 20 decimals at most, as a number can be written with', () {
+      expect(kkFixedDigits(0.5, decimals: 21), '000.5${'0' * 19}');
+      expect(kkFixedDigits(-2, integers: 1, decimals: 400), '-2.${'0' * 20}');
+      expect(kkFixedDigits(double.nan, decimals: 400), '-' * 24);
+      expect(kkFixedDigits(7, decimals: -3), '007');
     });
   });
 

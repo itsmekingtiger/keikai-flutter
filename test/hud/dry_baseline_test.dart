@@ -163,6 +163,38 @@ void main() {
       expect(baselineOf(column), closeTo(baselineOf(_box(tester, find.byKey(const ValueKey<String>('lead'))))!, 1e-6));
     });
 
+    testChecked('free width, fixed height: measured dry as it is laid out, the body at the height it gets', (
+      WidgetTester tester,
+    ) async {
+      // The body has no size of its own: twice as wide as the height it is given.
+      await pumpKk(
+        tester,
+        _baselineRow(
+          KkBox(
+            height: 212,
+            child: KkFillColumn(
+              leading: const <Widget>[KkText('見出し', key: ValueKey<String>('lead'))],
+              body: const AspectRatio(aspectRatio: 2, child: KkBox(key: ValueKey<String>('body'))),
+              trailing: const <Widget>[KkBox(width: 40, height: 20)],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      _expectDryRow(tester);
+      final RenderBox column = _box(tester, find.byType(KkFillColumn));
+      final RenderBox lead = _box(tester, find.byKey(const ValueKey<String>('lead')));
+      final Size body = tester.getSize(find.byKey(const ValueKey<String>('body')));
+      expect(body.height, 212 - lead.size.height - 20);
+      expect(body.width, body.height * 2);
+      expect(column.size, Size(body.width, 212));
+      expect(column.getDryLayout(column.constraints), column.size);
+      expect(baselineOf(column), closeTo(baselineOf(lead)!, 1e-6));
+      // Asked how wide it is at that height, the column gives the same answer.
+      expect(column.getMaxIntrinsicWidth(212), body.width);
+      expect(column.getMinIntrinsicWidth(212), lessThanOrEqualTo(body.width));
+    });
+
     testChecked('no child with a baseline, no baseline', (WidgetTester tester) async {
       await pumpKk(
         tester,

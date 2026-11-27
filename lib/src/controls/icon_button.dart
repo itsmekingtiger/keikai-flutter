@@ -8,11 +8,11 @@ import '../foundation/motion.dart';
 import '../foundation/theme.dart';
 import '../foundation/tokens.dart';
 import '../layout/box.dart';
-import '../layout/layers.dart';
 import '../motion/loops.dart';
 import '../painting/shapes.dart';
 import '../widgets/icon.dart';
 import '../widgets/pressable.dart';
+import 'badge.dart';
 import 'control_style.dart';
 
 /// The look of a [KkIconButton].
@@ -101,7 +101,9 @@ class KkIconButton extends StatelessWidget {
     if (!_live) {
       // Disabled keeps the variant's outline (a pressed toggle keeps signal)
       // and loses its fill, so the plate becomes an empty frame; only the
-      // outline variant swaps to the offline colour on the panel fill.
+      // outline variant swaps to the offline colour on the panel fill. The
+      // colours are those of `.kk-iconbtn:disabled`. A browser shows them as
+      // a solid plate in the edge colour: [KkPlate] says why this does not.
       final Color edge = switch (variant) {
         KkIconButtonVariant.outline => c.offline,
         _ when on => c.signal,
@@ -193,13 +195,9 @@ class KkIconButton extends StatelessWidget {
             ),
           ),
         );
-        if (pinned == null) return plate;
-        return KkLayers(
-          children: <Widget>[
-            plate,
-            KkPositioned(top: -5, right: -7, child: IgnorePointer(child: pinned)),
-          ],
-        );
+        // The same tree with and without a badge: the plate, and the turn of
+        // its icon, stay where they are when a badge comes or goes.
+        return KkBadgeAnchor(top: -5, right: -7, badge: pinned, child: plate);
       },
     );
   }

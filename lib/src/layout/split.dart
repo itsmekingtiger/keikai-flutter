@@ -13,12 +13,13 @@ import '../widgets/pressable.dart';
 ///
 /// [ratio] is the share of the space (without the handle) that the first pane
 /// takes. Give [ratio] and [onChanged] to control it, or leave [ratio] null
-/// and the split keeps its own, starting at [initialRatio].
+/// and the split keeps its own, starting at [initialRatio]. The divider sits
+/// on a whole pixel, so the pane can be up to half a pixel off its share.
 ///
 /// The handle is 8px: a 1px line with a dashed grip. Drag it, or focus it and
 /// use the arrow keys (4px, 24px with Shift), Home and End; a double tap puts
-/// it back at [initialRatio]. Assistive technology sees a slider that moves in
-/// steps of five percent.
+/// it back at [initialRatio]. Assistive technology sees a slider that says
+/// where the divider is and moves in steps of five percent.
 ///
 /// Both panes fill the cross axis. The split needs a limit along [axis] to
 /// have something to share out; without one each pane takes its own size and
@@ -109,6 +110,9 @@ class _KkSplitState extends State<KkSplit> {
       _focused = false;
       _dragging = false;
     }
+    // A drag is followed along one axis. When the split is turned, what was
+    // following it is thrown away without a word, so the drag ends here.
+    if (widget.axis != oldWidget.axis) _dragging = false;
   }
 
   RenderKkSplit? get _render => _layoutKey.currentContext?.findRenderObject() as RenderKkSplit?;
@@ -123,7 +127,11 @@ class _KkSplitState extends State<KkSplit> {
   void _setExtent(double extent) {
     final RenderKkSplit? r = _render;
     if (r == null || r.available <= 0) return;
-    _setRatio(r.clampFirst(extent) / r.available);
+    final double next = r.clampFirst(extent);
+    // Where the divider cannot follow, nothing has changed: the share stays
+    // what it was, for the day there is room again, and no one is told.
+    if (next == _extentNow(r)) return;
+    _setRatio(next / r.available);
   }
 
   /// The first pane's extent for the current ratio. This reads the ratio, not
@@ -138,12 +146,12 @@ class _KkSplitState extends State<KkSplit> {
 
   void _limit(bool end) => _setExtent(end ? double.infinity : 0);
 
-  /// Moves the divider by [points] of ratio (0.05 is five percent of the
-  /// space), as the slider semantics announce it.
+  /// Moves the divider by [points] of the space (0.05 is five percent) from
+  /// where it is, as the slider semantics announce it.
   void _step(double points) {
     final RenderKkSplit? r = _render;
     if (r == null) return;
-    _setExtent((_ratio + points) * r.available);
+    _setExtent(_extentNow(r) + points * r.available);
   }
 
   late final Map<Type, Action<Intent>> _actions = <Type, Action<Intent>>{
@@ -185,7 +193,6 @@ class _KkSplitState extends State<KkSplit> {
     final KkColors c = KeikaiTheme.of(context).colors;
     final bool h = widget.axis == Axis.horizontal;
     final bool active = widget.enabled && (_hovered || _dragging || _focused);
-    final int percent = (_ratio * 100).round();
 
     Widget handle = CustomPaint(
       painter: _KkSplitHandlePainter(
@@ -196,42 +203,57 @@ class _KkSplitState extends State<KkSplit> {
       ),
     );
     if (widget.enabled) {
-      // The semantics node is outside the focus node, so that "focusable" and
-      // "focused" land on the slider itself.
-      handle = Semantics(
-        container: true,
-        slider: true,
-        label: widget.semanticLabel ?? 'Split',
-        value: '$percent%',
-        increasedValue: '${math.min(100, percent + 5)}%',
-        decreasedValue: '${math.max(0, percent - 5)}%',
-        onIncrease: () => _step(0.05),
-        onDecrease: () => _step(-0.05),
-        child: FocusableActionDetector(
-          focusNode: widget.focusNode,
-          mouseCursor: h ? SystemMouseCursors.resizeColumn : SystemMouseCursors.resizeRow,
-          shortcuts: _shortcuts,
-          actions: _actions,
-          onShowHoverHighlight: (bool value) => setState(() => _hovered = value),
-          onShowFocusHighlight: (bool value) => setState(() => _focused = value),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            excludeFromSemantics: true,
-            // Track the pointer from where it went down, so the divider does
-            // not trail it by the drag slop.
-            dragStartBehavior: DragStartBehavior.down,
-            onHorizontalDragStart: h ? _onDragStart : null,
-            onHorizontalDragUpdate: h ? _onDragUpdate : null,
-            onHorizontalDragEnd: h ? _onDragEnd : null,
-            onHorizontalDragCancel: h ? _onDragEnd : null,
-            onVerticalDragStart: h ? null : _onDragStart,
-            onVerticalDragUpdate: h ? null : _onDragUpdate,
-            onVerticalDragEnd: h ? null : _onDragEnd,
-            onVerticalDragCancel: h ? null : _onDragEnd,
-            onDoubleTap: () => _setRatio(widget.initialRatio),
-            child: KkFocusRing(visible: _focused, offset: 0, child: handle),
-          ),
+      final Widget control = FocusableActionDetector(
+        focusNode: widget.focusNode,
+        mouseCursor: h ? SystemMouseCursors.resizeColumn : SystemMouseCursors.resizeRow,
+        shortcuts: _shortcuts,
+        actions: _actions,
+        onShowHoverHighlight: (bool value) => setState(() => _hovered = value),
+        onShowFocusHighlight: (bool value) => setState(() => _focused = value),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          // Track the pointer from where it went down, so the divider does
+          // not trail it by the drag slop.
+          dragStartBehavior: DragStartBehavior.down,
+          onHorizontalDragStart: h ? _onDragStart : null,
+          onHorizontalDragUpdate: h ? _onDragUpdate : null,
+          onHorizontalDragEnd: h ? _onDragEnd : null,
+          onHorizontalDragCancel: h ? _onDragEnd : null,
+          onVerticalDragStart: h ? null : _onDragStart,
+          onVerticalDragUpdate: h ? null : _onDragUpdate,
+          onVerticalDragEnd: h ? null : _onDragEnd,
+          onVerticalDragCancel: h ? null : _onDragEnd,
+          onDoubleTap: () => _setRatio(widget.initialRatio),
+          child: KkFocusRing(visible: _focused, offset: 0, child: handle),
         ),
+      );
+      // The slider announces where the divider is. The minimums can keep it
+      // away from the share it was asked for, and by how much is only known
+      // once the split is laid out: the split hands the handle that position
+      // with its constraints, and the handle is built from them.
+      handle = LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final _KkSplitHandleConstraints at = constraints as _KkSplitHandleConstraints;
+          final RenderKkSplit? r = _render;
+          // With nothing to share out there is no position to speak of.
+          String percent(double extent) => '${((at.available > 0 ? extent / at.available : _ratio) * 100).round()}%';
+          // Five percent of the space from here, as far as the divider can go.
+          double step(double points) => r == null ? at.first : r.clampFirst(at.first + points * at.available);
+          // The semantics node is outside the focus node, so that "focusable"
+          // and "focused" land on the slider itself.
+          return Semantics(
+            container: true,
+            slider: true,
+            label: widget.semanticLabel ?? 'Split',
+            value: percent(at.first),
+            increasedValue: percent(step(0.05)),
+            decreasedValue: percent(step(-0.05)),
+            onIncrease: () => _step(0.05),
+            onDecrease: () => _step(-0.05),
+            child: control,
+          );
+        },
       );
     }
 
@@ -294,6 +316,34 @@ class _KkSplitHandlePainter extends CustomPainter {
 }
 
 class KkSplitParentData extends ContainerBoxParentData<RenderBox> {}
+
+/// What a [RenderKkSplit] lays its handle out with: the exact size of the
+/// handle, and where the divider is.
+///
+/// A handle that says where the divider is (the slider semantics) is built
+/// from these with a `LayoutBuilder`. They differ when the position does, so
+/// that handle is built again whenever the divider has moved.
+class _KkSplitHandleConstraints extends BoxConstraints {
+  const _KkSplitHandleConstraints({
+    required double width,
+    required double height,
+    required this.first,
+    required this.available,
+  }) : super.tightFor(width: width, height: height);
+
+  /// Main-axis extent of the first pane.
+  final double first;
+
+  /// Main-axis space the two panes share.
+  final double available;
+
+  @override
+  bool operator ==(Object other) =>
+      super == other && other is _KkSplitHandleConstraints && other.first == first && other.available == available;
+
+  @override
+  int get hashCode => Object.hash(super.hashCode, first, available);
+}
 
 class _KkSplitLayout extends MultiChildRenderObjectWidget {
   const _KkSplitLayout({
@@ -394,13 +444,16 @@ class RenderKkSplit extends RenderBox
   double get firstExtent => _firstExtent;
   double _firstExtent = 0;
 
-  /// [extent] limited so that both panes keep their minimum.
+  /// The extent the first pane takes when it is asked to be [extent] long: on
+  /// a whole pixel, and limited so that both panes keep their minimum.
   double clampFirst(double extent) => _clampFirst(extent, _available);
 
   double _clampFirst(double extent, double available) {
     final double lo = math.min(_minFirst, available);
     final double hi = math.max(lo, available - _minSecond);
-    return extent.clamp(lo, hi);
+    // The divider is a 1px line, and so are the edges of the panes next to
+    // it: between two pixels each of them would be painted across both.
+    return extent.roundToDouble().clamp(lo, hi);
   }
 
   bool get _horizontal => _axis == Axis.horizontal;
@@ -495,9 +548,12 @@ class RenderKkSplit extends RenderBox
     double cross = maxCross;
     if (!crossBounded) {
       cross = math.max(minCross, math.max(crossOf(sa), crossOf(sb)));
-      // Stretch the shorter pane to the taller one, at the extent it has.
-      if (a != null && crossOf(sa) != cross) sa = layoutChild(a, _pane(mainOf(sa), cross, cross));
-      if (b != null && crossOf(sb) != cross) sb = layoutChild(b, _pane(mainOf(sb), cross, cross));
+      // Stretch the shorter pane to the taller one, at the extent it has. It
+      // is told to be at least that large and no more: a pane held to an exact
+      // size would be a relayout boundary, and the split would not be laid out
+      // again when the pane's content grows later.
+      if (a != null && crossOf(sa) < cross) sa = layoutChild(a, _pane(mainOf(sa), cross, double.infinity));
+      if (b != null && crossOf(sb) < cross) sb = layoutChild(b, _pane(mainOf(sb), cross, double.infinity));
     }
     final double main = available + handle;
     final Size size = constraints.constrain(_horizontal ? Size(main, cross) : Size(cross, main));
@@ -526,9 +582,12 @@ class RenderKkSplit extends RenderBox
     if (a != null) (a.parentData! as KkSplitParentData).offset = Offset.zero;
     if (handle != null) {
       handle.layout(
-        _horizontal
-            ? BoxConstraints.tightFor(width: r.handle, height: r.cross)
-            : BoxConstraints.tightFor(width: r.cross, height: r.handle),
+        _KkSplitHandleConstraints(
+          width: _horizontal ? r.handle : r.cross,
+          height: _horizontal ? r.cross : r.handle,
+          first: r.first,
+          available: r.available,
+        ),
       );
       (handle.parentData! as KkSplitParentData).offset = _horizontal ? Offset(r.first, 0) : Offset(0, r.first);
     }

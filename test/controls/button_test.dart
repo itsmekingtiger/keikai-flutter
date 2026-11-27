@@ -103,7 +103,10 @@ void main() {
         find.descendant(of: find.byKey(const ValueKey<String>('md')), matching: find.text('ACK')),
       );
       expect(mdText.left - md.left, 16);
-      expect(md.right - mdText.right, 16);
+      // The plate is rounded up to a whole pixel, and the room that adds is
+      // at the right.
+      expect(md.right - mdText.right, allOf(greaterThanOrEqualTo(16), lessThan(17)));
+      expect(md.width, md.width.roundToDouble());
 
       final Rect withIcon = tester.getRect(find.byKey(const ValueKey<String>('icon')));
       final Rect icon = tester.getRect(
@@ -602,7 +605,10 @@ void main() {
         find.descendant(of: find.byKey(const ValueKey<String>('ext')), matching: find.byType(KkIcon)),
       );
       expect(icon.left - ext.left, 16);
-      expect(ext.right - tester.getRect(find.text('NEW REPORT')).right, 24);
+      // The plate is rounded up to a whole pixel, and the room that adds is
+      // at the right.
+      expect(ext.right - tester.getRect(find.text('NEW REPORT')).right, allOf(greaterThanOrEqualTo(24), lessThan(25)));
+      expect(ext.width, ext.width.roundToDouble());
       await tester.tap(find.byKey(const ValueKey<String>('md')));
       expect(presses, 1);
     });

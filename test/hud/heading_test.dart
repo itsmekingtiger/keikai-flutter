@@ -37,6 +37,27 @@ void main() {
     expect(tester.widget<Text>(find.text('警戒')).style!.color, KkColors.standby.ink);
   });
 
+  testWidgets('the stem column grows with the text scale, as its glyphs do', (WidgetTester tester) async {
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    for (final double scale in <double>[1, 1.3, 2]) {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      await pumpKk(
+        tester,
+        const KkHeading(stem: '設計言語', code: 'KK-00', en: 'keikai', main: '警戒'),
+        padding: const EdgeInsets.all(60),
+      );
+      final Rect heading = tester.getRect(find.byType(KkHeading));
+      final Rect stem = tester.getRect(find.byType(KkTate));
+      final double em = 22 * scale;
+      // Four glyphs of one em each, centred in a column of 1.02em: none of
+      // them reaches out of the heading or into the rule beside it.
+      expect(stem.left, heading.left, reason: 'scale $scale');
+      expect(stem.height, closeTo(4 * em, 1e-6), reason: 'scale $scale');
+      expect(stem.width, closeTo(em * 1.02, 1e-6), reason: 'scale $scale');
+      expect(tester.getRect(find.text('警戒')).left - heading.left, closeTo(em * 1.02 + 8 + 2 + 12, 1e-6));
+    }
+  });
+
   testWidgets('a stem taller than the lines shares the extra height between the two rows', (
     WidgetTester tester,
   ) async {
@@ -108,5 +129,18 @@ void main() {
       const KkHeading(stem: '設計言語', code: 'KK-00', en: 'keikai for flutter', main: '警戒'),
     );
     expect(find.bySemanticsLabel('設計言語 KK-00 keikai for flutter 警戒'), findsOneWidget);
+  });
+
+  testWidgets('a stacked heading does not read the stem it does not show', (WidgetTester tester) async {
+    await pumpKk(
+      tester,
+      const KkHeading(stem: '設計言語', code: 'KK-00', en: 'keikai for flutter', main: '警戒', stacked: true),
+    );
+    expect(find.byType(KkTate), findsNothing);
+    expect(
+      tester.getSemantics(find.byType(KkHeading)),
+      isSemantics(label: 'KK-00 keikai for flutter 警戒', isHeader: true),
+    );
+    expect(find.bySemanticsLabel(RegExp('設計言語')), findsNothing);
   });
 }
