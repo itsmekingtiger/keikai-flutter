@@ -78,6 +78,10 @@ class KkPressable extends StatefulWidget {
   final bool enabled;
   final FocusNode? focusNode;
   final bool autofocus;
+
+  /// False keeps the control out of the keyboard focus: it is not a Tab stop,
+  /// it cannot be given the focus and it shows no ring. It still answers to
+  /// the pointer, and controls inside it take the focus as before.
   final bool canRequestFocus;
 
   /// Defaults to a hand when enabled and a forbidden sign when disabled.
@@ -191,6 +195,9 @@ class _KkPressableState extends State<KkPressable> {
     );
     Widget child = widget.builder(context, states);
     if (widget.excludeSemantics) child = ExcludeSemantics(child: child);
+    // With a directional pad a disabled control can be reached as well, so
+    // that it can be found.
+    final bool reachable = interactive || MediaQuery.maybeNavigationModeOf(context) == NavigationMode.directional;
     // The semantics node is outside the focus node, so that "focusable" and
     // "focused" merge into the same node as the role, label and tap action.
     return Semantics(
@@ -204,11 +211,16 @@ class _KkPressableState extends State<KkPressable> {
       toggled: widget.toggled,
       onTap: interactive && widget.onPressed != null ? widget.onPressed : null,
       onLongPress: interactive && widget.onLongPress != null ? widget.onLongPress : null,
+      // The detector gives the cursor, the hover state, the keys and their
+      // action. Its own focus node takes the focus whenever the detector is
+      // enabled, and it cannot be told otherwise, so that node is kept out of
+      // the way (no Tab stop, no semantics) and only passes the focus on to
+      // the control's node below it, which does as [KkPressable.canRequestFocus]
+      // says.
       child: FocusableActionDetector(
         enabled: interactive,
-        focusNode: _node,
-        autofocus: widget.autofocus,
-        descendantsAreFocusable: true,
+        skipTraversal: true,
+        includeFocusSemantics: false,
         mouseCursor: widget.cursor ?? (interactive ? SystemMouseCursors.click : SystemMouseCursors.forbidden),
         shortcuts: _shortcuts,
         actions: _actions,
@@ -218,15 +230,22 @@ class _KkPressableState extends State<KkPressable> {
           widget.onHoverChanged?.call(value);
         },
         onFocusChange: widget.onFocusChanged,
-        child: GestureDetector(
-          behavior: widget.behavior,
-          excludeFromSemantics: true,
-          onTapDown: interactive ? (TapDownDetails details) => _setPressed(true) : null,
-          onTapUp: interactive ? (TapUpDetails details) => _setPressed(false) : null,
-          onTapCancel: interactive ? () => _setPressed(false) : null,
-          onTap: interactive && widget.onPressed != null ? widget.onPressed : null,
-          onLongPress: interactive && widget.onLongPress != null ? widget.onLongPress : null,
-          child: child,
+        child: Focus(
+          focusNode: _node,
+          autofocus: widget.autofocus,
+          canRequestFocus: widget.canRequestFocus && reachable,
+          descendantsAreFocusable: true,
+          descendantsAreTraversable: true,
+          child: GestureDetector(
+            behavior: widget.behavior,
+            excludeFromSemantics: true,
+            onTapDown: interactive ? (TapDownDetails details) => _setPressed(true) : null,
+            onTapUp: interactive ? (TapUpDetails details) => _setPressed(false) : null,
+            onTapCancel: interactive ? () => _setPressed(false) : null,
+            onTap: interactive && widget.onPressed != null ? widget.onPressed : null,
+            onLongPress: interactive && widget.onLongPress != null ? widget.onLongPress : null,
+            child: child,
+          ),
         ),
       ),
     );

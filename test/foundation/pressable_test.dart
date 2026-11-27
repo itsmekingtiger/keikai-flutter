@@ -1,5 +1,8 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
@@ -544,6 +547,275 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(ring(), isTrue);
+    });
+  });
+
+  group('KkPressable canRequestFocus', () {
+    Widget box(
+      FocusNode node, {
+      bool canRequestFocus = true,
+      bool autofocus = false,
+      VoidCallback? onPressed,
+      ValueChanged<KkStates>? onStates,
+      Widget child = const SizedBox(width: 40, height: 40),
+    }) => KkPressable(
+      focusNode: node,
+      canRequestFocus: canRequestFocus,
+      autofocus: autofocus,
+      onPressed: onPressed ?? () {},
+      semanticLabel: node.debugLabel,
+      builder: (BuildContext context, KkStates states) {
+        onStates?.call(states);
+        return child;
+      },
+    );
+
+    testChecked('false keeps the control out of the keyboard focus, and it still answers to the pointer', (
+      WidgetTester tester,
+    ) async {
+      FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() => FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final FocusNode first = FocusNode(debugLabel: 'first');
+      final FocusNode skipped = FocusNode(debugLabel: 'skipped');
+      final FocusNode last = FocusNode(debugLabel: 'last');
+      addTearDown(first.dispose);
+      addTearDown(skipped.dispose);
+      addTearDown(last.dispose);
+      int presses = 0;
+      KkStates? states;
+      await pumpKk(
+        tester,
+        KkRow(
+          shrinkWrap: true,
+          children: <Widget>[
+            box(first),
+            box(
+              skipped,
+              canRequestFocus: false,
+              autofocus: true,
+              onPressed: () => presses++,
+              onStates: (KkStates s) => states = s,
+            ),
+            box(last),
+          ],
+        ),
+      );
+      await tester.pump();
+      expect(skipped.hasFocus, isFalse, reason: 'autofocus is a request for the focus as well');
+      expect(skipped.canRequestFocus, isFalse);
+
+      // Not a Tab stop, in either direction.
+      first.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(skipped.hasFocus, isFalse);
+      expect(last.hasPrimaryFocus, isTrue);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(first.hasPrimaryFocus, isTrue);
+
+      // Not to be focused by the program either, and so it never shows a ring.
+      skipped.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(skipped.hasFocus, isFalse);
+      expect(first.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isFalse);
+
+      // Assistive technology is told the same: one control is not focusable.
+      SemanticsData data(String label) => tester.getSemantics(find.bySemanticsLabel(label)).getSemanticsData();
+      expect(data('first').flagsCollection.isFocused, Tristate.isTrue);
+      expect(data('last').flagsCollection.isFocused, Tristate.isFalse);
+      expect(data('skipped').flagsCollection.isFocused, Tristate.none);
+      expect(data('skipped').hasAction(SemanticsAction.focus), isFalse);
+      expect(data('skipped').hasAction(SemanticsAction.tap), isTrue);
+
+      // The pointer works as on any control: press, hover, cursor.
+      await tester.tapAt(const Offset(60, 20));
+      expect(presses, 1);
+      expect(states!.enabled, isTrue);
+      final TestGesture mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(400, 400));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(60, 20));
+      await tester.pump();
+      expect(states!.hovered, isTrue);
+      // A mouse of the test framework is device 1.
+      expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.click);
+      handle.dispose();
+    });
+
+    testChecked('a control inside one that cannot take the focus still can', (WidgetTester tester) async {
+      final FocusNode outer = FocusNode(debugLabel: 'outer');
+      final FocusNode inner = FocusNode(debugLabel: 'inner');
+      addTearDown(outer.dispose);
+      addTearDown(inner.dispose);
+      int outerPresses = 0;
+      int innerPresses = 0;
+      KkStates? outerStates;
+      KkStates? innerStates;
+      await pumpKk(
+        tester,
+        box(
+          outer,
+          canRequestFocus: false,
+          onPressed: () => outerPresses++,
+          onStates: (KkStates s) => outerStates = s,
+          child: KkBox(
+            width: 300,
+            height: 48,
+            alignment: Alignment.centerRight,
+            child: box(inner, onPressed: () => innerPresses++, onStates: (KkStates s) => innerStates = s),
+          ),
+        ),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(inner.hasPrimaryFocus, isTrue);
+      expect(outer.hasPrimaryFocus, isFalse);
+      expect(innerStates!.focused, isTrue);
+      expect(outerStates!.focused, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(innerPresses, 1);
+      expect(outerPresses, 0);
+
+      // The row around it is pressed with the pointer.
+      await tester.tapAt(const Offset(20, 24));
+      expect(outerPresses, 1);
+      expect(innerPresses, 1);
+    });
+
+    testChecked('a focused control that is told it cannot have the focus gives it up', (WidgetTester tester) async {
+      final FocusNode node = FocusNode(debugLabel: 'node');
+      final FocusNode other = FocusNode(debugLabel: 'other');
+      addTearDown(node.dispose);
+      addTearDown(other.dispose);
+      KkStates? states;
+      Widget row({required bool canRequestFocus}) => KkRow(
+        shrinkWrap: true,
+        children: <Widget>[
+          box(other),
+          box(node, canRequestFocus: canRequestFocus, onStates: (KkStates s) => states = s),
+        ],
+      );
+      await pumpKk(tester, row(canRequestFocus: true));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isTrue);
+
+      await pumpKk(tester, row(canRequestFocus: false));
+      await tester.pump();
+      expect(node.hasFocus, isFalse);
+      expect(states!.focused, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasFocus, isFalse);
+      expect(other.hasPrimaryFocus, isTrue);
+
+      // And takes it again when it may.
+      await pumpKk(tester, row(canRequestFocus: true));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(states!.focused, isTrue);
+    });
+
+    testChecked('a node that is told to stay out of the Tab order stays out of it', (WidgetTester tester) async {
+      // Radio groups and segmented controls keep one Tab stop this way.
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b', skipTraversal: true);
+      final FocusNode c = FocusNode(debugLabel: 'c');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      addTearDown(c.dispose);
+      await pumpKk(tester, KkRow(shrinkWrap: true, children: <Widget>[box(a), box(b), box(c)]));
+      a.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(c.hasPrimaryFocus, isTrue);
+      expect(b.skipTraversal, isTrue);
+      // It can still be given the focus.
+      b.requestFocus();
+      await tester.pump();
+      expect(b.hasPrimaryFocus, isTrue);
+    });
+
+    testChecked('with a directional pad a disabled control can be reached, one that must not be focused cannot', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode live = FocusNode(debugLabel: 'live');
+      final FocusNode disabled = FocusNode(debugLabel: 'disabled');
+      final FocusNode barred = FocusNode(debugLabel: 'barred');
+      addTearDown(live.dispose);
+      addTearDown(disabled.dispose);
+      addTearDown(barred.dispose);
+      KkStates? states;
+      Widget controls() => KkRow(
+        shrinkWrap: true,
+        children: <Widget>[
+          box(live),
+          KkPressable(
+            focusNode: disabled,
+            builder: (BuildContext context, KkStates s) {
+              states = s;
+              return const SizedBox(width: 40, height: 40);
+            },
+          ),
+          KkPressable(
+            focusNode: barred,
+            canRequestFocus: false,
+            builder: (BuildContext context, KkStates s) => const SizedBox(width: 40, height: 40),
+          ),
+        ],
+      );
+      await pumpKk(
+        tester,
+        Builder(
+          builder: (BuildContext context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(navigationMode: NavigationMode.directional),
+            child: controls(),
+          ),
+        ),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(disabled.hasPrimaryFocus, isTrue, reason: 'it must be possible to find a disabled control');
+      expect(states!.focused, isFalse);
+      expect(states!.enabled, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(barred.hasFocus, isFalse);
+      expect(live.hasPrimaryFocus, isTrue);
+
+      // With keys and a mouse a disabled control is passed over.
+      await pumpKk(tester, controls());
+      disabled.requestFocus();
+      await tester.pump();
+      expect(disabled.hasFocus, isFalse);
+    });
+
+    testChecked('Tab stops at each control once', (WidgetTester tester) async {
+      final List<FocusNode> nodes = <FocusNode>[for (int i = 0; i < 3; i++) FocusNode(debugLabel: 'n$i')];
+      for (final FocusNode node in nodes) {
+        addTearDown(node.dispose);
+      }
+      await pumpKk(tester, KkRow(shrinkWrap: true, children: <Widget>[for (final FocusNode node in nodes) box(node)]));
+      final List<String?> visited = <String?>[];
+      for (int i = 0; i < 4; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        visited.add(FocusManager.instance.primaryFocus?.debugLabel);
+      }
+      expect(visited, <String>['n0', 'n1', 'n2', 'n0']);
     });
   });
 }
