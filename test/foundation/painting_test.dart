@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -40,6 +41,50 @@ Rect _tight(Path path) {
 
 Matcher _near(double l, double t, double r, double b, [double tolerance = 0.05]) =>
     within<Rect>(distance: tolerance, from: Rect.fromLTRB(l, t, r, b));
+
+/// What [draw] left on a [width] × [height] canvas.
+class _Pixels {
+  _Pixels(this._bytes, this.width, this.height);
+
+  final ByteData _bytes;
+  final int width;
+  final int height;
+
+  /// The alpha of the pixel at ([x], [y]), 0 to 255.
+  int alpha(int x, int y) => _bytes.getUint8((y * width + x) * 4 + 3);
+
+  /// One row of pixels as text: `#` is opaque, `.` is clear and `+` is anything between.
+  String row(int y) => String.fromCharCodes(<int>[for (int x = 0; x < width; x++) _mark(alpha(x, y))]);
+
+  /// One column of pixels, read downwards, in the notation of [row].
+  String column(int x) => String.fromCharCodes(<int>[for (int y = 0; y < height; y++) _mark(alpha(x, y))]);
+
+  List<String> get rows => <String>[for (int y = 0; y < height; y++) row(y)];
+
+  static int _mark(int alpha) => switch (alpha) {
+    0 => 0x2E,
+    255 => 0x23,
+    _ => 0x2B,
+  };
+}
+
+/// Runs [draw] on a real canvas and reads back the pixels it painted.
+Future<_Pixels> _render(WidgetTester tester, int width, int height, void Function(Canvas canvas) draw) async {
+  final ui.PictureRecorder recorder = ui.PictureRecorder();
+  draw(Canvas(recorder));
+  final ui.Picture picture = recorder.endRecording();
+  late ByteData bytes;
+  await tester.runAsync(() async {
+    final ui.Image image = await picture.toImage(width, height);
+    bytes = (await image.toByteData())!;
+    image.dispose();
+  });
+  picture.dispose();
+  return _Pixels(bytes, width, height);
+}
+
+/// The lengths of the runs of equal marks in a [_Pixels.row] or column: `###..#` is 3, 2, 1.
+List<int> _runs(String marks) => <int>[for (final Match m in RegExp(r'#+|\.+|\++').allMatches(marks)) m.end - m.start];
 
 void main() {
   group('kkParseSvgPath', () {
@@ -514,6 +559,151 @@ void main() {
       expect(g.blur, 18);
       expect(g.alpha, 0.3);
       expect(g == const KkGlow(color: _red, blur: 22), isFalse);
+    });
+  });
+
+  group('dashed edges', () {
+    testChecked('every side starts and ends on a dash, so a small box is the same from all four corners', (
+      WidgetTester tester,
+    ) async {
+      // The mark of a skipped step: 16×16 with a 2px dashed border.
+      final _Pixels p = await _render(
+        tester,
+        16,
+        16,
+        (Canvas canvas) => KkEdges.line(_red, width: 2, dashed: true).paint(canvas, const Rect.fromLTWH(0, 0, 16, 16)),
+      );
+      expect(p.rows, <String>[
+        '######....######',
+        '######....######',
+        '##............##',
+        '##............##',
+        '##............##',
+        '##............##',
+        '................',
+        '................',
+        '................',
+        '................',
+        '##............##',
+        '##............##',
+        '##............##',
+        '##............##',
+        '######....######',
+        '######....######',
+      ]);
+    });
+
+    testChecked('a long side: 3px dashes on whole pixels, spread evenly from a solid corner to a solid corner', (
+      WidgetTester tester,
+    ) async {
+      for (final Size size in const <Size>[Size(100, 40), Size(99, 41), Size(64, 23), Size(37, 12), Size(250, 7)]) {
+        final int w = size.width.toInt();
+        final int h = size.height.toInt();
+        final _Pixels p = await _render(
+          tester,
+          w,
+          h,
+          (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, Offset.zero & size),
+        );
+        for (final String side in <String>[p.row(0), p.row(h - 1), p.column(0), p.column(w - 1)]) {
+          final String reason = '$size: $side';
+          expect(side, isNot(contains('+')), reason: reason);
+          expect(side, startsWith('###.'), reason: reason);
+          expect(side, endsWith('.###'), reason: reason);
+          final List<int> runs = _runs(side);
+          for (int i = 0; i < runs.length; i++) {
+            // Dashes are 3px; the gaps are as close to 3px as the length allows.
+            expect(runs[i], i.isEven ? 3 : inInclusiveRange(1, 5), reason: reason);
+          }
+          final List<int> gaps = <int>[for (int i = 1; i < runs.length; i += 2) runs[i]];
+          expect(gaps.reduce(math.max) - gaps.reduce(math.min), lessThanOrEqualTo(1), reason: reason);
+          // Both ends of a side look the same. The middle dash of an odd
+          // number cannot always be centred on whole pixels, so the two gaps
+          // beside it may differ by a pixel.
+          final int middle = runs.length ~/ 2;
+          for (int i = 0; i < middle; i++) {
+            final int slack = i == middle - 1 && middle.isEven ? 1 : 0;
+            expect((runs[i] - runs[runs.length - 1 - i]).abs(), lessThanOrEqualTo(slack), reason: reason);
+          }
+        }
+        // Nothing is painted inside the border.
+        for (int y = 1; y < h - 1; y++) {
+          expect(p.row(y).substring(1, w - 1), '.' * (w - 2), reason: '$size row $y');
+        }
+      }
+    });
+
+    testChecked('a translucent colour is painted once where two dashed sides share a corner', (
+      WidgetTester tester,
+    ) async {
+      const Color glass = Color(0x80FF0000);
+      final _Pixels p = await _render(
+        tester,
+        40,
+        40,
+        (Canvas canvas) => KkEdges.line(glass, width: 2, dashed: true).paint(canvas, const Rect.fromLTWH(0, 0, 40, 40)),
+      );
+      final int once = p.alpha(4, 0);
+      expect(once, inInclusiveRange(127, 129));
+      // The 2×2 squares where a 2px top or bottom dash crosses a left or right one.
+      for (final int x in <int>[0, 1, 38, 39]) {
+        for (final int y in <int>[0, 1, 38, 39]) {
+          expect(p.alpha(x, y), once, reason: 'corner pixel ($x, $y)');
+        }
+      }
+    });
+
+    testChecked('a side too short for two dashes and a gap is solid', (WidgetTester tester) async {
+      final _Pixels p = await _render(
+        tester,
+        6,
+        30,
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTWH(0, 0, 6, 30)),
+      );
+      expect(p.row(0), '######');
+      expect(p.row(29), '######');
+      expect(p.column(0), startsWith('###.'));
+      expect(p.column(0), endsWith('.###'));
+      // One pixel more and there is room for a gap.
+      final _Pixels q = await _render(
+        tester,
+        7,
+        30,
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTWH(0, 0, 7, 30)),
+      );
+      expect(q.row(0), '###.###');
+    });
+
+    testChecked('one dashed side alone; a dashed side stays out of a solid one', (WidgetTester tester) async {
+      // The underline of an editable cell.
+      final _Pixels line = await _render(
+        tester,
+        51,
+        10,
+        (Canvas canvas) =>
+            const KkEdges(bottom: KkSide(_red, dashed: true)).paint(canvas, const Rect.fromLTWH(0, 0, 51, 10)),
+      );
+      expect(line.row(9), '###...###...###...###...###...###...###...###...###');
+      for (int y = 0; y < 9; y++) {
+        expect(line.row(y), '.' * 51);
+      }
+      // A 4px solid top over a 1px dashed left: the corner belongs to the solid
+      // side, and the dashed one still ends on a dash at the bottom corner.
+      final _Pixels mixed = await _render(
+        tester,
+        30,
+        40,
+        (Canvas canvas) => const KkEdges(
+          top: KkSide(Color(0x80FF0000), width: 4),
+          left: KkSide(Color(0x80FF0000), dashed: true),
+        ).paint(canvas, const Rect.fromLTWH(0, 0, 30, 40)),
+      );
+      final int once = mixed.alpha(15, 2);
+      for (int y = 0; y < 4; y++) {
+        expect(mixed.alpha(0, y), once, reason: 'the solid band at y=$y is not painted over');
+      }
+      expect(mixed.column(0), endsWith('.+++'));
+      expect(mixed.column(1).substring(4), '.' * 36);
     });
   });
 

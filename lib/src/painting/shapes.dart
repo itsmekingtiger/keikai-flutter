@@ -242,33 +242,73 @@ class KkEdges {
       KkEdges(top: top ?? this.top, right: right ?? this.right, bottom: bottom ?? this.bottom, left: left ?? this.left);
 
   /// Paints the border just inside [r].
+  ///
+  /// A dashed side is fitted to its edge the way browsers fit a dashed CSS
+  /// border: it starts and ends on a whole dash, so every corner is solid and
+  /// both ends of a side look the same, and the dashes between are spread
+  /// evenly on whole pixels. A dash is three times as long as the side is wide
+  /// (3px at least) and the gaps are as close to that as the length allows. A
+  /// side with no room for two dashes and a gap is solid.
   void paint(Canvas canvas, Rect r) {
     if (isNone || r.isEmpty) return;
     final Paint paint = Paint();
+    // The dashes of all sides in one colour go into one path that is painted
+    // once, so a translucent colour is not blended twice in a shared corner.
+    Map<Color, Path>? dashes;
+
+    // [band] is the part of [r] the side may paint.
     void side(KkSide s, Rect band, bool horizontal) {
       if (s.width <= 0 || s.color.a <= 0) return;
-      paint.color = s.color;
       if (!s.dashed) {
+        paint.color = s.color;
         canvas.drawRect(band, paint);
         return;
       }
-      final double dash = math.max(3, s.width * 3);
-      final double gap = dash;
-      if (horizontal) {
-        for (double x = band.left; x < band.right; x += dash + gap) {
-          canvas.drawRect(Rect.fromLTRB(x, band.top, math.min(x + dash, band.right), band.bottom), paint);
+      // The run is laid out along the whole edge of [r], corner to corner,
+      // and cut to the band.
+      final Path path = (dashes ??= <Color, Path>{})[s.color] ??= Path();
+      final double start = horizontal ? r.left : r.top;
+      final double length = horizontal ? r.width : r.height;
+      void dash(double from, double to) {
+        if (horizontal) {
+          path.addRect(Rect.fromLTRB(start + from, band.top, start + to, band.bottom));
+          return;
         }
-      } else {
-        for (double y = band.top; y < band.bottom; y += dash + gap) {
-          canvas.drawRect(Rect.fromLTRB(band.left, y, band.right, math.min(y + dash, band.bottom)), paint);
-        }
+        final double y0 = math.max(start + from, band.top);
+        final double y1 = math.min(start + to, band.bottom);
+        if (y1 > y0) path.addRect(Rect.fromLTRB(band.left, y0, band.right, y1));
+      }
+
+      final double on = math.max(3, s.width * 3);
+      if (length <= on * 2) {
+        dash(0, length);
+        return;
+      }
+      final int count = math.max(2, ((length + on) / (on * 2)).round());
+      final double step = (length - on) / (count - 1);
+      for (int i = 0; i < count; i++) {
+        // The second half mirrors the first, whichever way a step rounds.
+        final int mirror = count - 1 - i;
+        final double at = i <= mirror ? (i * step).roundToDouble() : length - on - (mirror * step).roundToDouble();
+        dash(at, at + on);
       }
     }
 
+    // A solid left or right side stops at the top and bottom sides, which own
+    // the corners. A dashed one runs into every corner it shares with another
+    // dashed side, so both of them end there on a dash.
+    Rect upright(KkSide s, double x0, double x1) => Rect.fromLTRB(
+      x0,
+      r.top + (s.dashed && top.dashed ? 0 : top.width),
+      x1,
+      r.bottom - (s.dashed && bottom.dashed ? 0 : bottom.width),
+    );
+
     side(top, Rect.fromLTRB(r.left, r.top, r.right, r.top + top.width), true);
     side(bottom, Rect.fromLTRB(r.left, r.bottom - bottom.width, r.right, r.bottom), true);
-    side(left, Rect.fromLTRB(r.left, r.top + top.width, r.left + left.width, r.bottom - bottom.width), false);
-    side(right, Rect.fromLTRB(r.right - right.width, r.top + top.width, r.right, r.bottom - bottom.width), false);
+    side(left, upright(left, r.left, r.left + left.width), false);
+    side(right, upright(right, r.right - right.width, r.right), false);
+    dashes?.forEach((Color color, Path path) => canvas.drawPath(path, paint..color = color));
   }
 
   @override
