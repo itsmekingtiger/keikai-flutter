@@ -43,6 +43,35 @@ class _OwnsControllerState extends State<_OwnsController> {
   );
 }
 
+/// Counts down to [deadline] on [clock], as an app does with `deadline.difference(DateTime.now())`, and rebuilds
+/// itself when the countdown reports that it has run out.
+class _Deadline extends StatefulWidget {
+  const _Deadline({required this.deadline, required this.clock, required this.onDone, this.controller});
+
+  final Duration deadline;
+  final Duration Function() clock;
+  final VoidCallback onDone;
+  final KkTimerController? controller;
+
+  @override
+  State<_Deadline> createState() => _DeadlineState();
+}
+
+class _DeadlineState extends State<_Deadline> {
+  bool _expired = false;
+
+  @override
+  Widget build(BuildContext context) => KkTimer.countdown(
+    from: widget.deadline - widget.clock(),
+    controller: widget.controller,
+    mode: _expired ? 'EXPIRED' : 'T-MINUS',
+    onDone: () {
+      widget.onDone();
+      setState(() => _expired = true);
+    },
+  );
+}
+
 void main() {
   setUpAll(loadKkFonts);
 
@@ -302,9 +331,19 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     expect(done, 1, reason: 'once');
 
-    // A deadline that has passed already, given to the same timer.
+    // Given another duration with nothing in it, it is still the countdown that has run out.
     await pumpKk(tester, KkTimer.countdown(from: const Duration(seconds: -5), onDone: () => done++));
     expect(_digits(tester), '00:00.00');
+    expect(done, 1);
+    await tester.pump(const Duration(seconds: 2));
+    expect(done, 1);
+
+    // Given time to count, it counts and reports again.
+    await pumpKk(tester, KkTimer.countdown(from: const Duration(seconds: 2), onDone: () => done++));
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(_digits(tester), '00:00.50');
+    expect(done, 1);
+    await tester.pump(const Duration(seconds: 1));
     expect(done, 2);
 
     // A running countdown that is given nothing to count.
@@ -315,6 +354,91 @@ void main() {
     expect(done, 3);
     await tester.pump(const Duration(seconds: 6));
     expect(done, 3);
+  });
+
+  testWidgets('a countdown to a deadline reports once when the deadline passes, however its parent rebuilds', (
+    WidgetTester tester,
+  ) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    int done = 0;
+    int notified = 0;
+    Duration now = Duration.zero;
+    await pumpKk(
+      tester,
+      _Deadline(deadline: const Duration(seconds: 1), clock: () => now, onDone: () => done++, controller: controller),
+    );
+    controller.addListener(() => notified++);
+    for (int frame = 0; frame < 60; frame++) {
+      now += const Duration(milliseconds: 16);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(_digits(tester), '00:00.04');
+    expect(done, 0);
+
+    // The deadline passes. Reporting it rebuilds the parent, which hands the timer the time since the deadline:
+    // a duration below zero, and another one with every build from here on.
+    for (int frame = 0; frame < 60; frame++) {
+      now += const Duration(milliseconds: 16);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(_digits(tester), '00:00.00');
+    expect(find.text('EXPIRED'), findsOneWidget);
+    expect(done, 1);
+    expect(tester.binding.hasScheduledFrame, isFalse, reason: 'nothing is left to do');
+    // Told that it ran out, and that the time counted is that of the new duration: nothing.
+    expect(notified, 2);
+    expect(controller.elapsed, Duration.zero);
+
+    // Rebuilt for other reasons later, each time with another duration below zero.
+    for (int i = 0; i < 5; i++) {
+      now += const Duration(seconds: 1);
+      tester.element(find.byType(_Deadline)).markNeedsBuild();
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(done, 1);
+    expect(notified, 2);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    // Started again by hand it has run out already. Reset first, it runs out anew.
+    controller.start();
+    expect(done, 1);
+    controller.reset();
+    controller.start();
+    expect(done, 2);
+    await tester.pump();
+    await tester.pump();
+    expect(done, 2);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+  });
+
+  testWidgets('a countdown to a deadline that had passed when it was built reports once', (WidgetTester tester) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    int done = 0;
+    int notified = 0;
+    controller.addListener(() => notified++);
+    // A clock that has moved on at every look, as DateTime.now() has.
+    Duration now = const Duration(seconds: 5);
+    await pumpKk(
+      tester,
+      _Deadline(
+        deadline: Duration.zero,
+        clock: () => now += const Duration(milliseconds: 1),
+        onDone: () => done++,
+        controller: controller,
+      ),
+    );
+    expect(_digits(tester), '00:00.00');
+    expect(find.text('EXPIRED'), findsOneWidget);
+    expect(done, 1);
+    expect(notified, 1);
+    expect(tester.binding.hasScheduledFrame, isFalse, reason: 'the rebuild that onDone asked for reports nothing new');
+    for (int frame = 0; frame < 60; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(done, 1);
+    expect(notified, 1);
   });
 
   testWidgets('a controller starts a countdown with nothing left into done, once until it is reset', (

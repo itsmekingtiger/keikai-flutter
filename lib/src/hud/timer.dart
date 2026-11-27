@@ -234,6 +234,11 @@ class KkTimer extends StatefulWidget {
 
   /// Called once when a countdown reaches zero. A countdown that starts by
   /// itself with nothing left calls it at the end of its first frame.
+  ///
+  /// A countdown that has run out stays so when it is given another duration
+  /// of zero or less, and does not call again: [from] may be worked out from a
+  /// deadline with every build. It calls again when it has been given time to
+  /// count, or has been reset, and runs out once more.
   final VoidCallback? onDone;
 
   final String? cjk;
@@ -284,6 +289,9 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     return left.isNegative ? Duration.zero : left;
   }
 
+  /// Whether the timer is a countdown with no time left to count.
+  bool get _spent => widget._kind == _TimerKind.countdown && _left <= Duration.zero;
+
   @override
   void initState() {
     super.initState();
@@ -317,7 +325,12 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     if (oldWidget._kind != widget._kind || oldWidget.from != widget.from) {
       _stop(notify: false);
       _banked = Duration.zero;
-      _doneFired = false;
+      // A countdown that has run out and is given nothing to count again has
+      // not run out a second time. A duration worked out from a deadline is
+      // another one with every build once the deadline has passed: reporting
+      // each of them would call onDone without end when that rebuilds the
+      // parent.
+      _doneFired = _doneFired && _spent;
       if (_live && widget.autostart) _start(notify: false);
     }
     if (oldBefore != null) old?._changedSince(oldBefore);
@@ -355,7 +368,7 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   /// being built, and nobody is called before the frame is over.
   void _start({bool notify = true}) {
     if (!_live || _running) return;
-    if (widget._kind == _TimerKind.countdown && _left <= Duration.zero) {
+    if (_spent) {
       // Nothing is left to count, so the countdown has run out as it starts.
       if (_doneFired) return;
       _doneFired = true;
@@ -416,7 +429,7 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
   /// frame or from the beat. Only a frame repaints the digits.
   void _count(Duration run, {bool repaint = true}) {
     _run = run;
-    if (widget._kind == _TimerKind.countdown && _left <= Duration.zero) {
+    if (_spent) {
       _ticker?.stop();
       _beat?.cancel();
       _beat = null;
