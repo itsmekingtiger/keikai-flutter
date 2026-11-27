@@ -1033,6 +1033,162 @@ void main() {
       }
       expect(phases.length, builds);
     });
+
+    /// A two-phase loop of 100ms and a gliding loop, with tickers on or off around them.
+    Widget pausable(List<int> phases, List<Duration> painted, {required bool paused}) => TickerMode(
+      enabled: !paused,
+      child: KkRow(
+        children: <Widget>[
+          KkPhaseBuilder(
+            period: _ms(100),
+            builder: (BuildContext context, int phase, Widget? child) {
+              phases.add(phase);
+              return const SizedBox(width: 10, height: 10);
+            },
+          ),
+          KkLoop(
+            builder: (BuildContext context, ValueListenable<Duration> time) =>
+                CustomPaint(size: const Size(10, 10), painter: _TimeLog(time, painted)),
+          ),
+        ],
+      ),
+    );
+
+    testChecked('a paused loop stands still while its parent rebuilds', (WidgetTester tester) async {
+      final List<int> phases = <int>[];
+      final List<Duration> painted = <Duration>[];
+      Widget build({required bool paused}) => kkHarness(pausable(phases, painted, paused: paused), motion: true);
+      await pumpKk(tester, pausable(phases, painted, paused: false), motion: true);
+      await tester.pump(_ms(70));
+      expect(phases.last, 1);
+      expect(painted.last, _ms(70));
+      // Paused in the second half of a period. Time goes on, and every frame rebuilds the parent.
+      await tester.pumpWidget(build(paused: true));
+      phases.clear();
+      painted.clear();
+      for (int frame = 0; frame < 23; frame++) {
+        await tester.pump(_ms10);
+        await tester.pumpWidget(build(paused: true));
+      }
+      expect(kkFrameTime(), _ms(300));
+      expect(phases, hasLength(23));
+      expect(phases.toSet(), <int>{1}, reason: 'the phase it was paused in');
+      expect(painted, isEmpty, reason: 'the gliding loop has not moved, so nothing was painted again');
+      // Tickers are back: both loops are on the shared clock in that very frame, and stay on it.
+      await tester.pumpWidget(build(paused: false));
+      expect(phases.last, 0);
+      expect(painted, <Duration>[_ms(300)]);
+      await tester.pump(_ms(60));
+      expect(phases.last, 1);
+      expect(painted.last, _ms(360));
+    });
+
+    testChecked('a loop that is mounted paused rests until tickers come back', (WidgetTester tester) async {
+      final List<int> phases = <int>[];
+      final List<Duration> painted = <Duration>[];
+      await pumpKk(tester, const SizedBox(width: 10, height: 10), motion: true);
+      await tester.pump(_ms(1270));
+      // 70ms into a period a running loop is in its second phase. This one has never run.
+      final Widget paused = pausable(phases, painted, paused: true);
+      await tester.pumpWidget(kkHarness(paused, motion: true));
+      expect(phases, <int>[0]);
+      expect(painted, <Duration>[Duration.zero]);
+      for (int frame = 0; frame < 10; frame++) {
+        await tester.pump(_ms10);
+        await tester.pumpWidget(kkHarness(pausable(phases, painted, paused: true), motion: true));
+      }
+      expect(phases.toSet(), <int>{0});
+      expect(painted, <Duration>[Duration.zero]);
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'a paused loop asks for no frames');
+      // Tickers come back above loops that are not rebuilt: the next frame puts them on the clock.
+      final Widget loops = (pausable(phases, painted, paused: false) as TickerMode).child;
+      await tester.pumpWidget(kkHarness(TickerMode(enabled: false, child: loops), motion: true));
+      await tester.pump(_ms(100));
+      phases.clear();
+      painted.clear();
+      await tester.pumpWidget(kkHarness(TickerMode(enabled: true, child: loops), motion: true));
+      expect(phases, isEmpty, reason: 'nothing rebuilt the loops');
+      await tester.pump(_ms10);
+      expect(kkFrameTime(), _ms(1480));
+      expect(phases, <int>[1]);
+      expect(painted, <Duration>[_ms(1480)]);
+    });
+
+    testChecked('a paused KkPhaseBuilder takes a new count and period at the instant it was paused', (
+      WidgetTester tester,
+    ) async {
+      final List<String> calls = <String>[];
+      Widget build({int period = 400, int phases = 4, bool paused = true}) => kkHarness(
+        TickerMode(
+          enabled: !paused,
+          child: KkPhaseBuilder(
+            period: _ms(period),
+            phases: phases,
+            builder: (BuildContext context, int phase, Widget? child) {
+              calls.add('$phase/$phases');
+              return const SizedBox(width: 10, height: 10);
+            },
+          ),
+        ),
+        motion: true,
+      );
+      await tester.pumpWidget(build(paused: false));
+      await tester.pump(_ms(350));
+      expect(calls.last, '3/4');
+      await tester.pumpWidget(build());
+      await tester.pump(_ms(100));
+      // The clock is at 450ms, where a running loop is back in its first phase. This one stands at 350ms.
+      await tester.pumpWidget(build());
+      expect(calls.last, '3/4');
+      // Fewer phases: the index stays inside the new range, and it is the one of 350ms.
+      await tester.pumpWidget(build(phases: 2));
+      expect(calls.last, '1/2');
+      await tester.pumpWidget(build(period: 1200, phases: 2));
+      expect(calls.last, '0/2');
+      await tester.pumpWidget(build(period: 500, phases: 5));
+      expect(calls.last, '3/5');
+      // Running again, it is where the clock is.
+      await tester.pumpWidget(build(period: 500, phases: 5, paused: false));
+      expect(calls.last, '4/5');
+    });
+
+    testChecked('a paused KkLoop takes a new time scale at the instant it was paused', (WidgetTester tester) async {
+      final List<Duration> painted = <Duration>[];
+      Widget build({double timeScale = 1, bool paused = true, bool enabled = true}) => kkHarness(
+        TickerMode(
+          enabled: !paused,
+          child: KkLoop(
+            enabled: enabled,
+            builder: (BuildContext context, ValueListenable<Duration> time) =>
+                CustomPaint(size: const Size(10, 10), painter: _TimeLog(time, painted)),
+          ),
+        ),
+        motion: true,
+        theme: KeikaiThemeData(motion: KkMotion(timeScale: timeScale)),
+      );
+      await tester.pumpWidget(build(paused: false));
+      await tester.pump(_ms(600));
+      expect(painted.last, _ms(600));
+      await tester.pumpWidget(build());
+      await tester.pump(_ms(400));
+      painted.clear();
+      // The clock is at 1s. The loop stands at 600ms, which is 300ms of a clock at half speed.
+      await tester.pumpWidget(build(timeScale: 2));
+      expect(painted, <Duration>[_ms(300)]);
+      await tester.pump(_ms(100));
+      await tester.pumpWidget(build(timeScale: 2));
+      expect(painted, <Duration>[_ms(300)]);
+      // Stopped, it is at rest, and started again under muted tickers it stays there.
+      await tester.pumpWidget(build(timeScale: 2, enabled: false));
+      expect(painted.last, Duration.zero);
+      await tester.pumpWidget(build(timeScale: 2));
+      await tester.pump(_ms(100));
+      await tester.pumpWidget(build());
+      expect(painted.last, Duration.zero);
+      // Running again, it is where the clock is: 1.2s.
+      await tester.pumpWidget(build(paused: false));
+      expect(painted.last, _ms(1200));
+    });
   });
 
   group('effects', () {
