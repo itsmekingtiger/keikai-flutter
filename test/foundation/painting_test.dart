@@ -868,6 +868,121 @@ void main() {
       }
     });
 
+    testChecked('the second half of a side mirrors the first, whichever way a step rounds', (
+      WidgetTester tester,
+    ) async {
+      // Five dashes on 29px are 6.5px apart. Rounding every start the same way
+      // gives the gaps 4, 3, 4, 3: one end of the side would not look like the other.
+      final _Pixels p = await _render(
+        tester,
+        29,
+        29,
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTWH(0, 0, 29, 29)),
+      );
+      const String side = '###....###...###...###....###';
+      expect(p.row(0), side);
+      expect(p.row(28), side);
+      expect(p.column(0), side);
+      expect(p.column(28), side);
+    });
+
+    testChecked('a side of a fractional length keeps its dashes on whole pixels and lets the last one reach its end', (
+      WidgetTester tester,
+    ) async {
+      Future<_Pixels> box(double width, double height) => _render(
+        tester,
+        width.ceil(),
+        height.ceil(),
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, Rect.fromLTWH(0, 0, width, height)),
+      );
+      // A suggestion chip is as wide as its label, 65.2px for "ROUTE B". Its
+      // top is fitted like a side of 65px, and the last dash runs on to the edge.
+      const String fitted = '###...###...###....###...###...###...###...###....###...###...###';
+      expect((await box(65, 28)).row(0), fitted);
+      final _Pixels chip = await box(65.2, 28);
+      expect(chip.row(0), '$fitted+');
+      expect(chip.row(27), '$fitted+');
+      expect(chip.alpha(65, 0), closeTo(0.2 * 255, 1));
+      // The same along a left side.
+      expect((await box(28, 65.2)).column(0), '$fitted+');
+
+      // Every length is laid out as its nearest whole length, and one that
+      // ends halfway as the shorter of the two: the number of dashes, their
+      // places and whether there is room for a gap at all. Only the last pixel
+      // of the side is partly covered, as the edge of the box is.
+      for (final double width in <double>[100.5, 37.8, 12.4, 11.5, 7.4, 6.6, 6.5, 6.4]) {
+        final String reason = 'a side of $width';
+        final int whole = width.floor();
+        final _Pixels p = await box(width, 20);
+        final String nearest = (await box((width - 0.5).ceilToDouble(), 20)).row(0);
+        expect(p.row(0).substring(0, whole), nearest.substring(0, whole), reason: reason);
+        expect(p.row(0).substring(whole), '+', reason: reason);
+        expect(p.alpha(whole, 0), closeTo((width - whole) * 255, 1), reason: reason);
+      }
+      expect((await box(100.5, 20)).row(0), endsWith('###...###...###+'));
+      expect((await box(37.8, 20)).row(0), endsWith('###...###...##+'));
+      expect((await box(11.5, 20)).row(0), '###.....###+');
+      expect((await box(6.6, 20)).row(0), '###.##+');
+      expect((await box(6.5, 20)).row(0), '######+');
+      expect((await box(6.4, 20)).row(0), '######+');
+    });
+
+    testChecked('a side that starts between two pixels keeps its dashes on whole pixels and reaches both of its ends', (
+      WidgetTester tester,
+    ) async {
+      // The second chip of a row starts where the first one ends, at 73.2, and
+      // ends at 138.4. Its run is the one of a 65px side from pixel 73 on, with
+      // the first and the last dash drawn out to where the side really ends.
+      const String fitted = '###...###...###....###...###...###...###...###....###...###...###';
+      final String side = '${'.' * 73}+${fitted.substring(1)}+.';
+      final _Pixels across = await _render(
+        tester,
+        140,
+        28,
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTWH(73.2, 0, 65.2, 28)),
+      );
+      expect(across.row(0), side);
+      expect(across.row(27), side);
+      expect(across.alpha(73, 0), closeTo(0.8 * 255, 1));
+      expect(across.alpha(138, 0), closeTo(0.4 * 255, 1));
+      final _Pixels down = await _render(
+        tester,
+        28,
+        140,
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTWH(0, 73.2, 28, 65.2)),
+      );
+      expect(down.column(0), side);
+      expect(down.column(27), side);
+
+      // A box that is centred on a half pixel: each end takes the inner of the
+      // two pixels it lies between, so both end dashes are stretched alike.
+      final _Pixels half = await _render(
+        tester,
+        31,
+        20,
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTWH(0.5, 0, 29, 20)),
+      );
+      expect(half.row(0), '+###...###....###...###...###+.');
+      // The sums that place a box are not exact. One that misses the half
+      // pixel by their last digit is fitted the same way.
+      final _Pixels nearly = await _render(
+        tester,
+        31,
+        20,
+        (Canvas canvas) =>
+            KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTRB(0.5 - 1e-12, 0, 29.5 + 1e-12, 20)),
+      );
+      expect(nearly.row(0), half.row(0));
+      // Too short for a gap, wherever it lies.
+      final _Pixels short = await _render(
+        tester,
+        8,
+        20,
+        (Canvas canvas) => KkEdges.line(_red, dashed: true).paint(canvas, const Rect.fromLTWH(0.7, 0, 6.2, 20)),
+      );
+      expect(short.row(0), '+#####+.');
+    });
+
     testChecked('a translucent colour is painted once where two dashed sides share a corner', (
       WidgetTester tester,
     ) async {

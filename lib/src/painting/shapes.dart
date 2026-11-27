@@ -190,6 +190,11 @@ void kkPaintGlow(Canvas canvas, Rect rect, KkGlow glow, {KkShape shape = const K
   }
 }
 
+/// How far from a half pixel a coordinate still counts as lying on it. The
+/// sums that place a box are not exact, and a box that is meant to sit on a
+/// half pixel must not be fitted one way or the other by their last digit.
+const double _halfPixelSlack = 1e-6;
+
 /// One side of a rectangular border.
 @immutable
 class KkSide {
@@ -253,7 +258,10 @@ class KkEdges {
   /// both ends of a side look the same, and the dashes between are spread
   /// evenly on whole pixels. A dash is three times as long as the side is wide
   /// (3px at least) and the gaps are as close to that as the length allows. A
-  /// side with no room for two dashes and a gap is solid.
+  /// side with no room for two dashes and a gap is solid. A side that starts
+  /// or ends between two pixels is fitted between the whole pixels nearest to
+  /// its ends, and only its first and last dash are cut or stretched to where
+  /// the side really ends.
   void paint(Canvas canvas, Rect r) {
     if (isNone || r.isEmpty) return;
     final Paint paint = Paint();
@@ -273,29 +281,38 @@ class KkEdges {
       // and cut to the band.
       final Path path = (dashes ??= <Color, Path>{})[s.color] ??= Path();
       final double start = horizontal ? r.left : r.top;
-      final double length = horizontal ? r.width : r.height;
+      final double end = horizontal ? r.right : r.bottom;
       void dash(double from, double to) {
         if (horizontal) {
-          path.addRect(Rect.fromLTRB(start + from, band.top, start + to, band.bottom));
+          path.addRect(Rect.fromLTRB(from, band.top, to, band.bottom));
           return;
         }
-        final double y0 = math.max(start + from, band.top);
-        final double y1 = math.min(start + to, band.bottom);
+        final double y0 = math.max(from, band.top);
+        final double y1 = math.min(to, band.bottom);
         if (y1 > y0) path.addRect(Rect.fromLTRB(band.left, y0, band.right, y1));
       }
 
       final double on = math.max(3, s.width * 3);
-      if (length <= on * 2) {
-        dash(0, length);
+      // A box that hugs its text can start at 73.2 and be 65.2 wide. The run
+      // is fitted between the whole pixels nearest to its two ends, which
+      // keeps every dash on whole pixels. An end that lies halfway takes the
+      // inner pixel, so a box on a half pixel keeps both of its ends alike.
+      final double first = (start + 0.5 + _halfPixelSlack).floorToDouble();
+      final double whole = (end - 0.5 - _halfPixelSlack).ceilToDouble() - first;
+      if (whole <= on * 2) {
+        dash(start, end);
         return;
       }
-      final int count = math.max(2, ((length + on) / (on * 2)).round());
-      final double step = (length - on) / (count - 1);
+      final int count = math.max(2, ((whole + on) / (on * 2)).round());
+      final double last = whole - on;
+      final double step = last / (count - 1);
       for (int i = 0; i < count; i++) {
         // The second half mirrors the first, whichever way a step rounds.
         final int mirror = count - 1 - i;
-        final double at = i <= mirror ? (i * step).roundToDouble() : length - on - (mirror * step).roundToDouble();
-        dash(at, at + on);
+        final double at = first + (i <= mirror ? (i * step).roundToDouble() : last - (mirror * step).roundToDouble());
+        // The first and the last dash reach the true ends of the side, so
+        // both corners are solid.
+        dash(i == 0 ? start : at, mirror == 0 ? end : at + on);
       }
     }
 
