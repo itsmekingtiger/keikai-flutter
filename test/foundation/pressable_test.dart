@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/foundation.dart';
@@ -31,6 +32,24 @@ Future<void> _click(WidgetTester tester, Offset at) async {
   await mouse.up();
   await mouse.removePointer();
 }
+
+/// A lazy list with [first] as its first item.
+///
+/// Such a list builds and drops its items while it is laid out, which comes
+/// after the build of the frame: an item can be rebuilt and then taken away in
+/// one and the same frame, by a jump of [scroll].
+Widget _lazyList(ScrollController scroll, Widget first) => CustomScrollView(
+  controller: scroll,
+  slivers: <Widget>[
+    SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (BuildContext context, int index) => SizedBox(height: 200, child: index == 0 ? first : null),
+        childCount: 20,
+        addAutomaticKeepAlives: false,
+      ),
+    ),
+  ],
+);
 
 void main() {
   setUpAll(loadKkFonts);
@@ -1019,6 +1038,548 @@ void main() {
       await finger.up();
       await tester.pump();
       expect(states!.pressed, isFalse);
+    });
+  });
+
+  group('KkPressable onFocusChanged', () {
+    final List<String> log = <String>[];
+
+    setUp(log.clear);
+
+    /// A control that logs what it is told about the focus as "name:value".
+    Widget control(String name, {FocusNode? node, Key? key, Widget child = const SizedBox(width: 40, height: 40)}) =>
+        KkPressable(
+          key: key,
+          focusNode: node,
+          onPressed: () {},
+          onFocusChanged: (bool focused) => log.add('$name:$focused'),
+          builder: (BuildContext context, KkStates states) => child,
+        );
+
+    Future<void> shiftTab(WidgetTester tester) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+    }
+
+    testChecked('the control that loses the focus says so before the one that takes it', (WidgetTester tester) async {
+      // The focused control kept in one variable, the way an app keeps it.
+      int? active;
+      final FocusNode last = FocusNode(debugLabel: 'last');
+      addTearDown(last.dispose);
+      await pumpKk(
+        tester,
+        KkRow(
+          shrinkWrap: true,
+          children: <Widget>[
+            for (int i = 0; i < 3; i++)
+              KkPressable(
+                // One control on a node of the app's, the others on their own.
+                focusNode: i == 2 ? last : null,
+                onPressed: () {},
+                onFocusChanged: (bool focused) {
+                  log.add('$i:$focused');
+                  active = focused ? i : null;
+                },
+                builder: (BuildContext context, KkStates states) => const SizedBox(width: 40, height: 40),
+              ),
+          ],
+        ),
+      );
+      for (int i = 0; i < 3; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(active, i, reason: 'control $i has the focus');
+      }
+      expect(log, <String>['0:true', '0:false', '1:true', '1:false', '2:true']);
+
+      // Round to the first one, back again, and moved by the program.
+      log.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(active, 0);
+      await shiftTab(tester);
+      expect(active, 2);
+      await shiftTab(tester);
+      expect(active, 1);
+      last.requestFocus();
+      await tester.pump();
+      expect(active, 2);
+      expect(log, <String>['2:false', '0:true', '0:false', '2:true', '2:false', '1:true', '1:false', '2:true']);
+    });
+
+    testChecked('next to a plain Focus it reports in the order of a plain Focus', (WidgetTester tester) async {
+      final FocusNode plain = FocusNode(debugLabel: 'plain');
+      addTearDown(plain.dispose);
+      await pumpKk(
+        tester,
+        KkRow(
+          shrinkWrap: true,
+          children: <Widget>[
+            Focus(
+              focusNode: plain,
+              onFocusChange: (bool focused) => log.add('plain:$focused'),
+              child: const SizedBox(width: 40, height: 40),
+            ),
+            control('control'),
+          ],
+        ),
+      );
+      plain.requestFocus();
+      await tester.pump();
+      expect(log, <String>['plain:true']);
+
+      log.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(log, <String>['plain:false', 'control:true']);
+
+      log.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(log, <String>['control:false', 'plain:true']);
+    });
+
+    testChecked('the focus moving between a control and something inside it is no change for the control', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode row = FocusNode(debugLabel: 'row');
+      final FocusNode inner = FocusNode(debugLabel: 'inner');
+      final FocusNode next = FocusNode(debugLabel: 'next');
+      addTearDown(row.dispose);
+      addTearDown(inner.dispose);
+      addTearDown(next.dispose);
+      await pumpKk(
+        tester,
+        KkRow(
+          shrinkWrap: true,
+          children: <Widget>[
+            control(
+              'row',
+              node: row,
+              child: KkBox(
+                width: 200,
+                height: 48,
+                alignment: Alignment.centerRight,
+                child: control('inner', node: inner),
+              ),
+            ),
+            control('next', node: next),
+          ],
+        ),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(row.hasPrimaryFocus, isTrue);
+      expect(log, <String>['row:true']);
+
+      // In to the control inside and out again: the row has the focus all along.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(inner.hasPrimaryFocus, isTrue);
+      expect(log, <String>['row:true', 'inner:true']);
+      await shiftTab(tester);
+      expect(row.hasPrimaryFocus, isTrue);
+      expect(log, <String>['row:true', 'inner:true', 'inner:false']);
+
+      // From the control inside on to the next one: both are done with the
+      // focus before the next one has it.
+      inner.requestFocus();
+      await tester.pump();
+      log.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(next.hasPrimaryFocus, isTrue);
+      expect(log, hasLength(3));
+      expect(log.sublist(0, 2), unorderedEquals(<String>['row:false', 'inner:false']));
+      expect(log.last, 'next:true');
+    });
+
+    testChecked('a focused control that is given another focus node says that the focus is gone', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      await pumpKk(tester, control('control', node: a));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      expect(log, <String>['control:true']);
+
+      // The node that goes takes the focus with it, and neither node reports.
+      await pumpKk(tester, control('control', node: b));
+      expect(a.hasFocus, isFalse);
+      expect(b.hasFocus, isFalse);
+      expect(log, <String>['control:true', 'control:false'], reason: 'nothing has the focus now');
+
+      // The new node is the one that is heard from now on.
+      b.requestFocus();
+      await tester.pump();
+      expect(log, <String>['control:true', 'control:false', 'control:true']);
+
+      // And once more, to a node of the control's own.
+      await pumpKk(tester, control('control'));
+      expect(b.hasFocus, isFalse);
+      expect(log, <String>['control:true', 'control:false', 'control:true', 'control:false']);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(log, hasLength(5));
+      expect(log.last, 'control:true');
+    });
+
+    testChecked('the focus that falls back on another control after an exchange of nodes is reported in order', (
+      WidgetTester tester,
+    ) async {
+      // The focused control kept in one variable again.
+      int? active;
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      Widget one(int i, FocusNode? node) => KkPressable(
+        focusNode: node,
+        onPressed: () {},
+        onFocusChanged: (bool focused) {
+          log.add('$i:$focused');
+          active = focused ? i : null;
+        },
+        builder: (BuildContext context, KkStates states) => const SizedBox(width: 40, height: 40),
+      );
+      Widget row(FocusNode node) => KkRow(shrinkWrap: true, children: <Widget>[one(0, null), one(1, node)]);
+      await pumpKk(tester, row(a));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      expect(active, 1);
+
+      // The node that goes takes the focus with it, and the focus manager
+      // gives it to the control that had it before.
+      log.clear();
+      await pumpKk(tester, row(b));
+      expect(a.hasFocus, isFalse);
+      expect(b.hasFocus, isFalse);
+      expect(log, <String>['1:false', '0:true']);
+      expect(active, 0, reason: 'the first control has the focus');
+    });
+
+    testChecked('a focus node that is handed from one control to another is reported by the one that gives it first', (
+      WidgetTester tester,
+    ) async {
+      int? active;
+      final FocusNode roving = FocusNode(debugLabel: 'roving');
+      addTearDown(roving.dispose);
+      // Three controls, and one node of the app's for the one that is current.
+      Widget row(int current) => KkRow(
+        shrinkWrap: true,
+        children: <Widget>[
+          for (int i = 0; i < 3; i++)
+            KkPressable(
+              focusNode: i == current ? roving : null,
+              onPressed: () {},
+              onFocusChanged: (bool focused) {
+                log.add('$i:$focused');
+                active = focused ? i : null;
+              },
+              builder: (BuildContext context, KkStates states) => const SizedBox(width: 40, height: 40),
+            ),
+        ],
+      );
+      await pumpKk(tester, row(1));
+      roving.requestFocus();
+      await tester.pump();
+      expect(log, <String>['1:true']);
+
+      // To the control before: the node keeps the focus on the way.
+      log.clear();
+      await pumpKk(tester, row(0));
+      expect(roving.hasPrimaryFocus, isTrue);
+      expect(log, <String>['1:false', '0:true']);
+      expect(active, 0);
+
+      // To a control after: the node loses the focus on the way, and the app
+      // gives it back when the frame is built.
+      log.clear();
+      WidgetsBinding.instance.addPostFrameCallback((Duration timeStamp) => roving.requestFocus());
+      await pumpKk(tester, row(2));
+      expect(roving.hasPrimaryFocus, isTrue);
+      expect(log, <String>['0:false', '2:true']);
+      expect(active, 2);
+    });
+
+    testChecked('a focused control that is given another node says that the focus left, and when it is back', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      final FocusNode inside = FocusNode(debugLabel: 'inside');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      addTearDown(inside.dispose);
+      Widget tree(FocusNode node) => control(
+        'control',
+        node: node,
+        child: KkBox(
+          width: 200,
+          height: 48,
+          alignment: Alignment.center,
+          child: Focus(focusNode: inside, child: const SizedBox(width: 20, height: 20)),
+        ),
+      );
+      await pumpKk(tester, tree(a));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      expect(log, <String>['control:true']);
+
+      // The app exchanges the node and puts the focus on the new one. In
+      // between nothing had the focus.
+      b.requestFocus();
+      await pumpKk(tester, tree(b));
+      expect(b.hasPrimaryFocus, isTrue);
+      expect(log, <String>['control:true', 'control:false', 'control:true']);
+
+      // The focus on something inside the control stays where it is: there is
+      // nothing to say.
+      inside.requestFocus();
+      await tester.pump();
+      log.clear();
+      await pumpKk(tester, tree(a));
+      expect(inside.hasPrimaryFocus, isTrue);
+      expect(a.hasFocus, isTrue);
+      expect(log, isEmpty);
+
+      // Left without a node, the focus falls back on what had it before, and
+      // that is inside the control.
+      a.requestFocus();
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      expect(log, isEmpty);
+      await pumpKk(tester, tree(b));
+      expect(inside.hasPrimaryFocus, isTrue);
+      expect(log, <String>['control:false', 'control:true']);
+    });
+
+    testChecked('a control built on a node that has the focus says so, and again when the focus leaves', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode node = FocusNode(debugLabel: 'node');
+      final FocusNode inside = FocusNode(debugLabel: 'inside');
+      final FocusNode other = FocusNode(debugLabel: 'other');
+      addTearDown(node.dispose);
+      addTearDown(inside.dispose);
+      addTearDown(other.dispose);
+      // The app keeps its nodes and puts another control on them.
+      Widget tree(String name) => KkRow(
+        shrinkWrap: true,
+        children: <Widget>[
+          control(
+            name,
+            node: node,
+            key: ValueKey<String>(name),
+            child: KkBox(
+              width: 200,
+              height: 48,
+              alignment: Alignment.center,
+              child: Focus(focusNode: inside, child: const SizedBox(width: 20, height: 20)),
+            ),
+          ),
+          control('other', node: other),
+        ],
+      );
+      await pumpKk(tester, tree('first'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(log, <String>['first:true']);
+
+      // The node keeps the focus and has nothing to tell the new control.
+      await pumpKk(tester, tree('second'));
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(log, <String>['first:true', 'second:true']);
+      other.requestFocus();
+      await tester.pump();
+      expect(log, <String>['first:true', 'second:true', 'second:false', 'other:true']);
+
+      // The same with the focus on something inside the control.
+      inside.requestFocus();
+      await tester.pump();
+      log.clear();
+      await pumpKk(tester, tree('third'));
+      expect(inside.hasPrimaryFocus, isTrue);
+      expect(log, <String>['third:true']);
+      other.requestFocus();
+      await tester.pump();
+      expect(log, <String>['third:true', 'third:false', 'other:true']);
+    });
+
+    testChecked('a node that is taken from a control is not listened to any more', (WidgetTester tester) async {
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      Widget tree({FocusNode? first, FocusNode? second}) => KkRow(
+        shrinkWrap: true,
+        children: <Widget>[
+          if (first != null) control('first', node: first, key: const ValueKey<String>('first')),
+          if (second != null) control('second', node: second, key: const ValueKey<String>('second')),
+        ],
+      );
+      await pumpKk(tester, tree(first: a));
+      await pumpKk(tester, tree(first: b));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(b.hasPrimaryFocus, isTrue);
+      expect(log, <String>['first:true']);
+
+      // The control goes while it has the focus and shows its ring, and the
+      // node it had at first serves another control.
+      await pumpKk(tester, tree(second: a));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      expect(log, <String>['first:true', 'second:true'], reason: 'a control that is gone does not report');
+      a.unfocus();
+      await tester.pump();
+      expect(log, <String>['first:true', 'second:true', 'second:false']);
+    });
+
+    testChecked('a control that is given another node and scrolled away in the same frame says nothing', (
+      WidgetTester tester,
+    ) async {
+      final FocusNode a = FocusNode(debugLabel: 'a');
+      final FocusNode b = FocusNode(debugLabel: 'b');
+      final ScrollController scroll = ScrollController();
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      addTearDown(scroll.dispose);
+      FocusNode node = a;
+      late StateSetter setItem;
+      await pumpKk(
+        tester,
+        _lazyList(
+          scroll,
+          StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              setItem = setState;
+              return control('control', node: node);
+            },
+          ),
+        ),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(a.hasPrimaryFocus, isTrue);
+      expect(log, <String>['control:true']);
+
+      setItem(() => node = b);
+      scroll.jumpTo(2000);
+      await tester.pump();
+      expect(find.byType(KkPressable), findsNothing);
+      await tester.pump();
+      expect(log, <String>['control:true'], reason: 'a control that is gone does not report');
+    });
+
+    testChecked('random focus moves and exchanges of nodes: an app that notes the focused control is never wrong', (
+      WidgetTester tester,
+    ) async {
+      const int count = 4;
+      final math.Random random = math.Random(7);
+      final List<FocusNode> pool = <FocusNode>[for (int i = 0; i < 10; i++) FocusNode(debugLabel: 'pool$i')];
+      for (final FocusNode node in pool) {
+        addTearDown(node.dispose);
+      }
+      for (int round = 0; round < 24; round++) {
+        // What the app notes: the focused control in one variable, and what
+        // each control said last.
+        int? active;
+        final List<bool?> told = List<bool?>.filled(count, null);
+        final List<String> repeated = <String>[];
+        // What the controls are built with: a node of the app's or none, and
+        // a key that is changed to put another control in the place.
+        final List<FocusNode?> nodes = <FocusNode?>[pool[0], null, pool[1], pool[2]];
+        final List<int> generation = List<int>.filled(count, 0);
+        final List<FocusNode?> current = List<FocusNode?>.filled(count, null);
+        Widget row() => KkRow(
+          key: ValueKey<int>(round),
+          shrinkWrap: true,
+          children: <Widget>[
+            for (int i = 0; i < count; i++)
+              KkPressable(
+                key: ValueKey<String>('$i/${generation[i]}'),
+                focusNode: nodes[i],
+                onPressed: () {},
+                onFocusChanged: (bool focused) {
+                  if (told[i] == focused) repeated.add('$i:$focused');
+                  told[i] = focused;
+                  active = focused ? i : null;
+                },
+                builder: (BuildContext context, KkStates states) => Builder(
+                  builder: (BuildContext context) {
+                    current[i] = Focus.of(context);
+                    return const SizedBox(width: 40, height: 40);
+                  },
+                ),
+              ),
+          ],
+        );
+        FocusNode? spare() {
+          final List<FocusNode> free = pool.where((FocusNode node) => !nodes.contains(node)).toList();
+          return random.nextBool() ? free[random.nextInt(free.length)] : null;
+        }
+
+        await tester.pumpWidget(kkHarness(row()));
+        for (int step = 0; step < 30; step++) {
+          final int i = random.nextInt(count);
+          final int move = random.nextInt(8);
+          switch (move) {
+            case 0 || 1:
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            case 2:
+              await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+            case 3:
+              current[i]!.requestFocus();
+            case 4:
+              FocusManager.instance.primaryFocus?.unfocus();
+            case 5:
+              // Another node for a control, with or without the focus for it.
+              final FocusNode? next = nodes[i] = spare();
+              if (next != null && random.nextBool()) next.requestFocus();
+            case 6:
+              // The node of one control for another one, and the focus for
+              // it again when the frame is built, or not.
+              final int j = (i + 1 + random.nextInt(count - 1)) % count;
+              final FocusNode? moved = nodes[j] = nodes[i];
+              nodes[i] = spare();
+              if (moved != null && random.nextBool()) {
+                WidgetsBinding.instance.addPostFrameCallback((Duration timeStamp) => moved.requestFocus());
+              }
+            case 7:
+              // Another control on the same node. The one that goes says
+              // nothing, so the app forgets what it noted about it.
+              generation[i]++;
+              told[i] = null;
+              if (active == i) active = null;
+          }
+          await tester.pumpWidget(kkHarness(row()));
+          await tester.pump();
+
+          final String at = 'round $round, step $step, move $move on control $i';
+          int? focused;
+          for (int k = 0; k < count; k++) {
+            if (current[k]!.hasFocus) focused = k;
+            expect(told[k] ?? false, current[k]!.hasFocus, reason: '$at: what control $k said last');
+          }
+          expect(active, focused, reason: '$at: the control the app takes for the focused one');
+          expect(repeated, isEmpty, reason: '$at: a control said the same thing twice');
+        }
+      }
     });
   });
 }

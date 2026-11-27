@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -101,6 +103,16 @@ class KkPressable extends StatefulWidget {
   final bool? mixed;
   final bool? toggled;
   final ValueChanged<bool>? onHoverChanged;
+
+  /// Called with true when the focus comes to the control or to something
+  /// inside it, and with false when it has left both.
+  ///
+  /// The control's own focus node is what reports, in the order of
+  /// [Focus.onFocusChange]: a control that hands the focus to its neighbour
+  /// says false before the neighbour says true. A control that is given
+  /// another [focusNode] while it has the focus says false, and true again
+  /// if the new node takes the focus. A control that is removed while it has
+  /// the focus says nothing.
   final ValueChanged<bool>? onFocusChanged;
   final HitTestBehavior behavior;
 
@@ -121,6 +133,10 @@ class _KkPressableState extends State<KkPressable> {
   /// (with the focus on a control inside it, it only has the focus within it)
   /// and the focus came from the keyboard.
   bool _ring = false;
+
+  /// Whether [KkPressable.onFocusChanged] was last told that the focus is on
+  /// the control or inside it.
+  bool _within = false;
 
   static final Map<ShortcutActivator, Intent> _shortcuts = <ShortcutActivator, Intent>{
     const SingleActivator(LogicalKeyboardKey.enter): const ActivateIntent(),
@@ -160,21 +176,68 @@ class _KkPressableState extends State<KkPressable> {
     if (ring != _ring) setState(() => _ring = ring);
   }
 
+  /// Tells [KkPressable.onFocusChanged] that the focus has come to the control
+  /// or has left it.
+  ///
+  /// The control's own node is asked, when its turn comes among the nodes the
+  /// focus manager notifies: the node that lost the focus is told before the
+  /// one that took it. The detector's node is an ancestor of the one that
+  /// takes it and is told ahead of both, so a control that listened there
+  /// would say that it has the focus before its neighbour says that it lost
+  /// it.
+  void _reportFocus() {
+    final bool within = _node.hasFocus;
+    if (within == _within) return;
+    _within = within;
+    widget.onFocusChanged?.call(within);
+  }
+
+  /// Called when the focus comes to the control's node, leaves it or moves
+  /// inside it.
+  void _onFocus() {
+    _syncRing();
+    _reportFocus();
+  }
+
+  /// Reports the focus of a node that the control was just put on.
+  ///
+  /// No node reports the exchange: the one that goes is no longer heard when
+  /// it gives the focus up, and the one that comes has nothing to tell,
+  /// whether it brings the focus along or not. So the control looks for
+  /// itself as soon as the frame is built. That is before the focus manager
+  /// moves the focus on, so a control that lost the focus with its node says
+  /// so before the control that takes the focus next.
+  void _reportFocusAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((Duration timeStamp) {
+      if (!mounted) return;
+      if (_node.hasFocus) {
+        // The node came with the focus. The control it came from speaks
+        // first, in its own callback of this frame.
+        scheduleMicrotask(_reportFocus);
+      } else {
+        _reportFocus();
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    _node.addListener(_syncRing);
+    _node.addListener(_onFocus);
     _KkFocusVisibility.addListener(_syncRing);
     _ring = _showsFocus;
+    // A node that has the focus already is not going to say so.
+    if (_node.hasFocus) _reportFocusAfterFrame();
   }
 
   @override
   void didUpdateWidget(KkPressable oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focusNode != widget.focusNode) {
-      (oldWidget.focusNode ?? _ownNode)?.removeListener(_syncRing);
-      _node.addListener(_syncRing);
+      (oldWidget.focusNode ?? _ownNode)?.removeListener(_onFocus);
+      _node.addListener(_onFocus);
       _ring = _showsFocus;
+      _reportFocusAfterFrame();
     }
     // A press ends with the control. The hover is left alone: the look is
     // masked in build, and the detector reports its end after this frame, the
@@ -185,7 +248,7 @@ class _KkPressableState extends State<KkPressable> {
   @override
   void dispose() {
     _KkFocusVisibility.removeListener(_syncRing);
-    _node.removeListener(_syncRing);
+    _node.removeListener(_onFocus);
     _ownNode?.dispose();
     super.dispose();
   }
@@ -235,7 +298,6 @@ class _KkPressableState extends State<KkPressable> {
           setState(() => _hovered = value);
           widget.onHoverChanged?.call(value);
         },
-        onFocusChange: widget.onFocusChanged,
         child: Focus(
           focusNode: _node,
           autofocus: widget.autofocus,
