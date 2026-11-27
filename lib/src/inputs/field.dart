@@ -57,7 +57,7 @@ class KkFieldLabel extends StatelessWidget {
 ///
 /// * idle: faint ink; hovered: dim ink;
 /// * focused: signal border doubled by a 1px inner ring, and four corner
-///   brackets sitting 5px outside;
+///   brackets sitting 4px outside the border;
 /// * error: all of that in alert;
 /// * disabled: dashed, in the offline colour.
 ///
@@ -136,8 +136,11 @@ class KkFieldBox extends StatelessWidget {
       decoration: KkDecoration(
         fill: fill ?? c.bg100,
         edges: KkEdges.line(edge, width: m.stroke1 + ring, dashed: !enabled),
+        // The design's `inset: -5px` is measured from the inner edge of its
+        // border, which the focus ring does not thicken; the outset of a
+        // bracket is measured from the outer edge.
         brackets: active && brackets
-            ? KkBracketSpec(color: accent, length: m.space2, width: m.stroke2, outset: 5)
+            ? KkBracketSpec(color: accent, length: m.space2, width: m.stroke2, outset: 5 - m.stroke1)
             : null,
       ),
       child: child,

@@ -1,5 +1,8 @@
+import 'dart:ui' as ui show Image;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
@@ -19,6 +22,36 @@ Future<void> _secondaryClick(WidgetTester tester, Offset at) async {
   await gesture.up();
   await gesture.removePointer();
   await tester.pump();
+}
+
+/// The smallest rectangle around every pixel of exactly [color] in what the
+/// repaint boundary found by [boundary] painted, in its own coordinates.
+Future<Rect> _inkBounds(WidgetTester tester, Finder boundary, Color color) async {
+  final RenderRepaintBoundary render = tester.renderObject<RenderRepaintBoundary>(boundary);
+  late ByteData bytes;
+  late int width;
+  late int height;
+  await tester.runAsync(() async {
+    final ui.Image image = await render.toImage();
+    width = image.width;
+    height = image.height;
+    bytes = (await image.toByteData())!;
+    image.dispose();
+  });
+  // Bytes are red, green, blue, alpha; a colour is alpha, red, green, blue.
+  final int argb = color.toARGB32();
+  final int rgba = ((argb << 8) | (argb >> 24)) & 0xFFFFFFFF;
+  int left = width, top = height, right = -1, bottom = -1;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      if (bytes.getUint32((y * width + x) * 4) != rgba) continue;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+  return right < 0 ? Rect.zero : Rect.fromLTRB(left.toDouble(), top.toDouble(), right + 1, bottom + 1);
 }
 
 void main() {
@@ -168,12 +201,13 @@ void main() {
       expect(_box(tester).focused, isTrue);
       expect(tester.getTopLeft(find.byType(EditableText)), before);
       expect(tester.getSize(find.byType(KkFieldBox)), const Size(320, 36));
-      // The decoration: 2px signal edge and 8px / 2px brackets 5px outside.
+      // The decoration: 2px signal edge and 8px / 2px brackets 4px outside,
+      // which is 5px from the inner edge of the design's 1px border.
       final KkBox inner = tester.widget<KkBox>(
         find.descendant(of: find.byType(KkFieldBox), matching: find.byType(KkBox)).first,
       );
       expect(inner.decoration!.edges.top, const KkSide(Color(0xFFFF7A1A), width: 2));
-      expect(inner.decoration!.brackets, const KkBracketSpec(color: Color(0xFFFF7A1A), length: 8, width: 2, outset: 5));
+      expect(inner.decoration!.brackets, const KkBracketSpec(color: Color(0xFFFF7A1A), length: 8, width: 2, outset: 4));
       focus.unfocus();
       await tester.pump();
       await tester.pump();
@@ -545,6 +579,37 @@ void main() {
       expect(disabled.brackets, isNull);
       expect((await decoration(const KkFieldBox(focused: true, brackets: false, child: child))).brackets, isNull);
       expect(tester.getSize(find.byType(KkFieldBox)).height, 36);
+    });
+
+    testWidgets('the focus brackets end 5px outside the inner edge of the 1px border, 4px outside the box', (
+      WidgetTester tester,
+    ) async {
+      const Key shot = ValueKey<String>('shot');
+      // The brackets are the outermost thing painted in the signal colour: the
+      // border and its inner ring are inside the box.
+      Future<Rect> bracketsAround(KkMetrics metrics) async {
+        await pumpKk(
+          tester,
+          const RepaintBoundary(
+            key: shot,
+            child: KkBox(
+              width: 240,
+              padding: EdgeInsets.all(20),
+              child: KkFieldBox(focused: true, child: KkBox()),
+            ),
+          ),
+          theme: KeikaiThemeData(metrics: metrics),
+        );
+        return _inkBounds(tester, find.byKey(shot), KkColors.standby.signal);
+      }
+
+      // In CSS the brackets are a layer with `inset: -5px`. That is measured
+      // from the padding edge of the box, which lies inside its 1px border; the
+      // inner ring of the focus state is a shadow and does not move that edge.
+      expect(await bracketsAround(const KkMetrics()), tester.getRect(find.byType(KkFieldBox)).inflate(4));
+      expect(tester.getRect(find.byType(KkFieldBox)), const Rect.fromLTWH(20, 20, 200, 36));
+      // A heavier border moves the padding edge in, and the brackets with it.
+      expect(await bracketsAround(const KkMetrics(stroke1: 2)), tester.getRect(find.byType(KkFieldBox)).inflate(3));
     });
 
     testWidgets('KkFieldFoot wraps long support and shows a counter', (WidgetTester tester) async {
