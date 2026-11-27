@@ -1,6 +1,9 @@
+import 'dart:ui' as ui show Image;
 import 'dart:ui' show SemanticsRole;
 
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show SemanticsData;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
@@ -87,6 +90,36 @@ Future<void> _open(WidgetTester tester) async {
 
 /// A list for results the test does not look at.
 List<Object?> _sink() => <Object?>[];
+
+/// The smallest rectangle around every pixel of exactly [color] in what the
+/// repaint boundary found by [boundary] painted, in its own coordinates.
+Future<Rect> _inkBounds(WidgetTester tester, Finder boundary, Color color) async {
+  final RenderRepaintBoundary render = tester.renderObject<RenderRepaintBoundary>(boundary);
+  late ByteData bytes;
+  late int width;
+  late int height;
+  await tester.runAsync(() async {
+    final ui.Image image = await render.toImage();
+    width = image.width;
+    height = image.height;
+    bytes = (await image.toByteData())!;
+    image.dispose();
+  });
+  // Bytes are red, green, blue, alpha; a colour is alpha, red, green, blue.
+  final int argb = color.toARGB32();
+  final int rgba = ((argb << 8) | (argb >> 24)) & 0xFFFFFFFF;
+  int left = width, top = height, right = -1, bottom = -1;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      if (bytes.getUint32((y * width + x) * 4) != rgba) continue;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+  return right < 0 ? Rect.zero : Rect.fromLTRB(left.toDouble(), top.toDouble(), right + 1, bottom + 1);
+}
 
 void main() {
   setUpAll(loadKkFonts);
@@ -262,7 +295,8 @@ void main() {
     expect(panel.decoration!.edges.top.color, c.alert);
     expect(panel.decoration!.glow, c.glowAlert);
     expect(panel.decoration!.brackets!.color, c.alert);
-    expect(panel.decoration!.brackets!.outset, 6);
+    // 6px from the inner edge of the 1px border.
+    expect(panel.decoration!.brackets!.outset, 5);
     expect(tester.getSemantics(find.byType(KkDialog)).getSemanticsData().role, SemanticsRole.alertDialog);
     handle.dispose();
   });
@@ -457,6 +491,36 @@ void main() {
     expect(closes, 1);
     // No actions row: the dialog ends right under the body.
     expect(dialog.bottom, closeTo(tester.getRect(find.text('BODY')).bottom + 4 + 1, 0.5));
+  });
+
+  testWidgets('the corner brackets end 6px outside the inner edge of the border, 5px outside the dialog', (
+    WidgetTester tester,
+  ) async {
+    const Key shot = ValueKey<String>('shot');
+    // The brackets are the outermost thing painted in the signal colour: the
+    // border, the ring of the glow and the code plate are all further in.
+    Future<Rect> bracketsAround(KkMetrics metrics) async {
+      await pumpKk(
+        tester,
+        const RepaintBoundary(
+          key: shot,
+          child: KkBox(
+            padding: EdgeInsets.all(20),
+            child: KkDialog(code: 'DLG-07', showClose: false, child: KkText.body('BODY')),
+          ),
+        ),
+        size: const Size(700, 300),
+        theme: KeikaiThemeData(metrics: metrics),
+      );
+      return _inkBounds(tester, find.byKey(shot), KkColors.standby.signal);
+    }
+
+    // In CSS the brackets are a layer with `inset: -6px`. That is measured from
+    // the padding edge of the dialog, which lies inside its 1px border.
+    expect(await bracketsAround(const KkMetrics()), tester.getRect(find.byType(KkDialog)).inflate(5));
+    expect(tester.getTopLeft(find.byType(KkDialog)), const Offset(20, 20));
+    // A heavier border moves the padding edge in, and the brackets with it.
+    expect(await bracketsAround(const KkMetrics(stroke1: 2)), tester.getRect(find.byType(KkDialog)).inflate(4));
   });
 
   testWidgets('survives an empty dialog and a 0-size screen', (WidgetTester tester) async {

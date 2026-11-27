@@ -28,9 +28,9 @@ import '../widgets/text.dart';
 ///
 /// 520px wide (never wider than the space it is given), on the panel colour
 /// with a 1px signal border, the signal glow and four corner brackets sitting
-/// 6px outside. The 40px head carries a code block, the bilingual title and a
-/// close button; the body scrolls when it is too tall; the [actions] sit
-/// right-aligned in a foot row.
+/// 5px outside the border. The 40px head carries a code block, the bilingual
+/// title and a close button; the body scrolls when it is too tall; the
+/// [actions] sit right-aligned in a foot row.
 ///
 /// With [level] critical the frame, glow and code block turn to the alert
 /// colour and the head to the deep alert fill.
@@ -177,7 +177,9 @@ class KkDialog extends StatelessWidget {
         fill: c.bg100,
         edges: KkEdges.line(frame, width: m.stroke1),
         glow: critical ? c.glowAlert : c.glowSignal,
-        brackets: KkBracketSpec(color: frame, length: m.space3, width: m.stroke2, outset: 6),
+        // The design's `inset: -6px` is measured from the inner edge of the
+        // border; the outset of a bracket is measured from its outer edge.
+        brackets: KkBracketSpec(color: frame, length: m.space3, width: m.stroke2, outset: 6 - m.stroke1),
       ),
       child: KkColumn(
         shrinkWrap: true,

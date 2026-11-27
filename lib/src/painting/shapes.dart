@@ -342,7 +342,10 @@ class KkBracketSpec {
   /// Thickness of each arm.
   final double width;
 
-  /// How far outside the box the brackets sit.
+  /// How far outside the box the brackets sit. The box includes its border.
+  /// The CSS of the design measures the same distance from the inner edge of
+  /// the border, so a layer with `inset: -6px` on a box with a 1px border is
+  /// an outset of 5.
   final double outset;
 
   void paint(Canvas canvas, Rect rect) {
