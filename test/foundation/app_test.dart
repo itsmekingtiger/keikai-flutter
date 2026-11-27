@@ -353,6 +353,54 @@ void main() {
       expect(_rootGlitch(tester).progress.value, 1);
       await tester.pumpAndSettle();
     });
+
+    testChecked('changing glitchOnAlert during an alert does not glitch the screen', (WidgetTester tester) async {
+      Widget app(KkCondition condition, {bool glitch = true}) =>
+          KeikaiApp(condition: condition, glitchOnAlert: glitch, home: const _Page('home'));
+      await tester.pumpWidget(app(KkCondition.standby));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpWidget(app(KkCondition.alert));
+      expect(_rootGlitch(tester).progress.value, 0);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(_rootGlitch(tester).progress.value, 1);
+      // Switching the effect off, and on again, is not a turn to alert.
+      for (final bool glitch in <bool>[false, true]) {
+        await tester.pumpWidget(app(KkCondition.alert, glitch: glitch));
+        expect(_rootGlitch(tester).progress.value, 1, reason: 'glitchOnAlert turned to $glitch');
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(_rootGlitch(tester).progress.value, 1);
+      }
+      // The next turn to alert glitches as before.
+      await tester.pumpWidget(app(KkCondition.standby));
+      await tester.pumpWidget(app(KkCondition.alert));
+      expect(_rootGlitch(tester).progress.value, 0);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 20));
+    });
+
+    testChecked('an alert entered with glitchOnAlert off is not glitched later, when it is switched on', (
+      WidgetTester tester,
+    ) async {
+      Widget app({required bool glitch}) => KeikaiApp(glitchOnAlert: glitch, home: const _Page('home'));
+      await tester.pumpWidget(app(glitch: false));
+      await tester.pump(const Duration(milliseconds: 500));
+      KeikaiApp.setCondition(_contextOf(tester, 'home'), KkCondition.alert);
+      await tester.pump();
+      expect(_rootGlitch(tester).progress.value, 1);
+      await tester.pumpWidget(app(glitch: true));
+      expect(KeikaiApp.conditionOf(_contextOf(tester, 'home')), KkCondition.alert);
+      expect(_rootGlitch(tester).progress.value, 1);
+      // With the effect on, the next turn to alert shows it.
+      KeikaiApp.setCondition(_contextOf(tester, 'home'), KkCondition.standby);
+      await tester.pump();
+      KeikaiApp.setCondition(_contextOf(tester, 'home'), KkCondition.alert);
+      await tester.pump();
+      expect(_rootGlitch(tester).progress.value, 0);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(_rootGlitch(tester).progress.value, 1);
+    });
   });
 
   group('wall scale', () {

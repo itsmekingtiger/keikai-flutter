@@ -105,6 +105,8 @@ class KeikaiApp extends StatefulWidget {
   final bool wallScale;
 
   /// Glitch the screen and flash red when the condition turns to alert.
+  ///
+  /// Changing it plays nothing by itself: it is read at each turn to alert.
   final bool glitchOnAlert;
   final bool debugShowCheckedModeBanner;
 
@@ -124,14 +126,18 @@ class KeikaiApp extends StatefulWidget {
 
 class _KeikaiAppState extends State<KeikaiApp> {
   late KkCondition _own = widget.theme.condition;
-  int _alerts = 0;
+
+  /// The turns to alert that were to be shown with the glitch. It is the
+  /// glitch's trigger, so it changes at a turn to alert and at nothing else:
+  /// switching [KeikaiApp.glitchOnAlert] must not play the effect.
+  int _glitches = 0;
 
   KkCondition get _condition => widget.condition ?? _own;
 
   void _setCondition(KkCondition condition) {
     if (widget.condition != null || condition == _own) return;
     setState(() {
-      if (condition == KkCondition.alert) _alerts++;
+      if (condition == KkCondition.alert && widget.glitchOnAlert) _glitches++;
       _own = condition;
     });
   }
@@ -141,7 +147,7 @@ class _KeikaiAppState extends State<KeikaiApp> {
     super.didUpdateWidget(oldWidget);
     final KkCondition? now = widget.condition;
     if (now != null && now != (oldWidget.condition ?? _own)) {
-      if (now == KkCondition.alert) _alerts++;
+      if (now == KkCondition.alert && widget.glitchOnAlert) _glitches++;
       _own = now;
     }
   }
@@ -169,7 +175,7 @@ class _KeikaiAppState extends State<KeikaiApp> {
         child: ScrollConfiguration(
           behavior: widget.scrollBehavior,
           child: KkGlitch(
-            trigger: widget.glitchOnAlert ? _alerts : 0,
+            trigger: _glitches,
             // The snackbar stack sits above every route.
             child: ColoredBox(color: colors.bg000, child: KkMessenger(child: content)),
           ),
