@@ -361,4 +361,110 @@ void main() {
       expect(text(tester), '0000000000');
     });
   });
+
+  group('KkScramble.builder', () {
+    /// A builder form of [value] that records every text it is handed.
+    Widget probe(
+      String value,
+      List<String> log, {
+      Duration duration = KkMotion.scramble,
+      int steps = 10,
+      bool onMount = true,
+      bool letters = false,
+      bool enabled = true,
+    }) {
+      return KkScramble.builder(
+        value,
+        duration: duration,
+        steps: steps,
+        onMount: onMount,
+        letters: letters,
+        enabled: enabled,
+        builder: (BuildContext context, String shown) {
+          log.add(shown);
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+    }
+
+    testChecked('hands its builder what the text form shows, frame for frame', (WidgetTester tester) async {
+      final List<String> built = <String>[];
+      Widget build(String value) => KkColumn(children: <Widget>[KkScramble(value), probe(value, built)]);
+      String text() => tester.widget<Text>(find.byType(Text)).data!;
+
+      await pumpKk(tester, build('042.7 °C'), motion: true);
+      expect(find.byType(Text), findsOneWidget, reason: 'the builder form lays out no text of its own');
+      expect(built.last, isNot('042.7 °C'));
+      final Set<String> frames = <String>{};
+      for (int ms = 0; ms < 460; ms += 23) {
+        expect(built.last, text(), reason: 'at ${ms}ms');
+        expect(built.last, matches(RegExp(r'^\d\d\d\.\d °C$')), reason: 'at ${ms}ms');
+        frames.add(built.last);
+        await tester.pump(const Duration(milliseconds: 23));
+      }
+      expect(frames.length, greaterThan(4));
+      // It is built once for each of the ten noise steps and once for the value.
+      expect(built, hasLength(11));
+      expect(built.last, '042.7 °C');
+      expect(text(), '042.7 °C');
+
+      // A new value churns both again, still alike.
+      await tester.pumpWidget(kkHarness(build('113.9 °C'), motion: true));
+      expect(built.last, isNot('113.9 °C'));
+      for (int ms = 0; ms < 460; ms += 46) {
+        expect(built.last, text(), reason: 'at ${ms}ms');
+        await tester.pump(const Duration(milliseconds: 46));
+      }
+      expect(built.last, '113.9 °C');
+      expect(text(), '113.9 °C');
+    });
+
+    testChecked('takes the same switches as the text form', (WidgetTester tester) async {
+      final List<String> built = <String>[];
+      await pumpKk(tester, probe('SEC-04', built, letters: true), motion: true);
+      expect(built.last, matches(RegExp(r'^[A-Z]{3}-\d\d$')));
+      expect(built.last.substring(0, 3), isNot('SEC'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(built.last, 'SEC-04');
+
+      // Not when first shown, only on change.
+      Widget keyed(int key, Widget child) => KeyedSubtree(key: ValueKey<int>(key), child: child);
+      built.clear();
+      await pumpKk(tester, keyed(1, probe('100', built, onMount: false)), motion: true);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(built.toSet(), <String>{'100'});
+      await pumpKk(tester, keyed(1, probe('200', built, onMount: false)), motion: true);
+      expect(built.last, isNot('200'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(built.last, '200');
+
+      // Never with motion off, nor when disabled.
+      built.clear();
+      await pumpKk(tester, keyed(2, probe('31337', built)));
+      await pumpKk(tester, keyed(2, probe('40404', built)));
+      await tester.pumpAndSettle();
+      expect(built.toSet(), <String>{'31337', '40404'});
+      built.clear();
+      await pumpKk(tester, keyed(3, probe('31337', built, enabled: false)), motion: true);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(built.toSet(), <String>{'31337'});
+
+      expect(() => probe('31337', built, steps: 0), throwsAssertionError);
+    });
+
+    testChecked('reduced motion that arrives mid-scramble hands over the value at once', (WidgetTester tester) async {
+      final List<String> built = <String>[];
+      await pumpKk(tester, probe('0000000000', built, duration: const Duration(seconds: 2)), motion: true);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(built.last, isNot('0000000000'));
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pump();
+      await tester.pump();
+      expect(built.last, '0000000000');
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'the scramble has stopped');
+    });
+  });
 }

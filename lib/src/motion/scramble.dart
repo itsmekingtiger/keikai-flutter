@@ -93,7 +93,24 @@ class KkScramble extends StatefulWidget {
     this.letters = false,
     this.textAlign,
     this.enabled = true,
-  }) : assert(steps > 0);
+  }) : builder = null,
+       assert(steps > 0);
+
+  /// The same scramble for a value that is not laid out as a [Text]: [builder]
+  /// is handed the characters to show and draws them itself, on a canvas for
+  /// example. Assistive technology must be given [text] by the caller.
+  const KkScramble.builder(
+    this.text, {
+    super.key,
+    this.duration = KkMotion.scramble,
+    this.steps = 10,
+    this.onMount = true,
+    this.letters = false,
+    this.enabled = true,
+    required Widget Function(BuildContext context, String shown) this.builder,
+  }) : style = null,
+       textAlign = null,
+       assert(steps > 0);
 
   final String text;
 
@@ -109,6 +126,10 @@ class KkScramble extends StatefulWidget {
   final bool letters;
   final TextAlign? textAlign;
   final bool enabled;
+
+  /// Builds what stands in place of the [Text]. `shown` is [text] once the
+  /// scramble has settled. Null unless made with [KkScramble.builder].
+  final Widget Function(BuildContext context, String shown)? builder;
 
   @override
   State<KkScramble> createState() => _KkScrambleState();
@@ -181,6 +202,8 @@ class _KkScrambleState extends State<KkScramble> with SingleTickerProviderStateM
     final String shown = p >= 1
         ? widget.text
         : kkScrambleText(widget.text, p, step: kkStepAt(p, widget.steps), seed: _seed, letters: widget.letters);
+    final Widget Function(BuildContext context, String shown)? builder = widget.builder;
+    if (builder != null) return builder(context, shown);
     return Text(
       shown,
       style: widget.style,
