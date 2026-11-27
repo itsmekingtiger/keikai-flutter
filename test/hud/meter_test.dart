@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart';
 import '../support/harness.dart';
 
 Color? _numberColor(WidgetTester tester, String number) => tester.widget<Text>(find.text(number)).style!.color;
@@ -105,6 +106,73 @@ void main() {
     expect(tester.getTopRight(find.text('100')).dx, meter.right);
     // Bar sits 8px under the head and 8px over the ticks.
     expect(tester.getTopLeft(find.text('0')).dy - bar.bottom, 8);
+  });
+
+  testWidgets('the head is its labels and the number with one gap between each', (WidgetTester tester) async {
+    // The innermost row around the number: status icon, number and unit.
+    Rect number() => tester.getRect(find.ancestor(of: find.text('078'), matching: find.byType(KkRow)).first);
+
+    // A meter that hugs a long head is as wide as cjk + 8 + en + 8 + number.
+    await pumpKk(
+      tester,
+      const KkWrap(
+        children: <Widget>[KkMeter(cjk: '冷却水温冷却水温', en: 'coolant temperature loop', value: 0.78, unit: '%')],
+      ),
+    );
+    final Rect cjk = tester.getRect(find.byType(KkSqueeze));
+    final Rect en = tester.getRect(find.text('COOLANT TEMPERATURE LOOP'));
+    expect(en.left - cjk.right, closeTo(8, 0.01));
+    expect(number().left - en.right, closeTo(8, 0.01));
+    final Rect meter = tester.getRect(find.byType(KkMeter));
+    expect(meter.width, greaterThan(200));
+    expect(meter.width, closeTo(cjk.width + 8 + en.width + 8 + number().width, 0.01));
+
+    // With room to spare, and with no labels at all, the number sits at the right.
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 320,
+        child: KkMeter(cjk: '負荷', en: 'load', value: 0.78, unit: '%'),
+      ),
+    );
+    expect(tester.getRect(find.byType(KkSqueeze)).left, 0);
+    expect(number().right, closeTo(320, 0.01));
+    await pumpKk(tester, const KkBox(width: 320, child: KkMeter(value: 0.78, unit: '%')));
+    expect(number().right, closeTo(320, 0.01));
+  });
+
+  testChecked('with any mix of head parts it passes the render self-checks at any width', (WidgetTester tester) async {
+    const List<Widget> meters = <Widget>[
+      KkMeter(cjk: '出力', en: 'output', value: 0.42, unit: '%', ticks: <String>['0', '50', '100']),
+      KkMeter(en: 'output', value: 0.78, unit: 'kPa'),
+      KkMeter(cjk: '出力', value: 0.95),
+      KkMeter(value: 0.3),
+    ];
+    // Hugging, side by side.
+    await pumpKk(
+      tester,
+      const KkWrap(gap: 8, cross: KkCrossAlign.start, children: meters),
+      size: const Size(1400, 600),
+    );
+    expect(tester.takeException(), isNull);
+    // Filling a column, down to widths where the head no longer fits.
+    for (final double width in <double>[0, 40, 120, 200, 300]) {
+      await pumpKk(
+        tester,
+        KkBox(
+          width: width,
+          child: const KkColumn(gap: 8, shrinkWrap: true, children: meters),
+        ),
+      );
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
+    // On a shared baseline, which measures each one without laying it out.
+    await pumpKk(
+      tester,
+      const KkRow(cross: KkCrossAlign.baseline, gap: 8, children: meters),
+      size: const Size(1400, 600),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('steps to a new value in nine jumps over 0.45s', (WidgetTester tester) async {

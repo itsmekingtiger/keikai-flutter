@@ -112,6 +112,7 @@ class KkMeter extends StatelessWidget {
     final String? label = cjk;
     final String? sub = en;
     final String? u = unit;
+    final bool hasLabels = label != null || sub != null;
 
     Widget bar(double shown) => CustomPaint(
       size: Size(0, barHeight),
@@ -141,15 +142,34 @@ class KkMeter extends StatelessWidget {
               gap: m.space2,
               shrinkWrap: true,
               children: <Widget>[
+                // The labels and the number are two children pushed apart, as
+                // the CSS head pushes its last item away with an auto margin. A
+                // spacer between them would be a child of its own, with a gap
+                // on both sides.
                 KkRow(
                   gap: m.space2,
+                  main: hasLabels ? KkMainAlign.between : KkMainAlign.end,
                   cross: KkCrossAlign.baseline,
                   clip: Clip.hardEdge,
                   children: <Widget>[
-                    if (label != null) KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: squeeze),
-                    if (sub != null)
-                      KkText.en(sub, size: 11, weight: FontWeight.w600, height: 1.55, spacing: 0.14, color: c.inkDim),
-                    const KkSpacer(),
+                    if (hasLabels)
+                      KkRow(
+                        shrinkWrap: true,
+                        gap: m.space2,
+                        cross: KkCrossAlign.baseline,
+                        children: <Widget>[
+                          if (label != null) KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: squeeze),
+                          if (sub != null)
+                            KkText.en(
+                              sub,
+                              size: 11,
+                              weight: FontWeight.w600,
+                              height: 1.55,
+                              spacing: 0.14,
+                              color: c.inkDim,
+                            ),
+                        ],
+                      ),
                     KkRow(
                       shrinkWrap: true,
                       gap: 6,
@@ -162,19 +182,15 @@ class KkMeter extends StatelessWidget {
                           ),
                         KkText.num(number, size: 18, weight: FontWeight.w500, color: ink),
                         if (u != null)
-                          KkText.en(
-                            u,
-                            size: 11,
-                            weight: FontWeight.w600,
-                            spacing: 0.06,
-                            color: c.inkDim,
-                            upper: false,
-                          ),
+                          KkText.en(u, size: 11, weight: FontWeight.w600, spacing: 0.06, color: c.inkDim, upper: false),
                       ],
                     ),
                   ],
                 ),
-                if (animate) KkSteppedValue(value: v, builder: (BuildContext context, double shown) => bar(shown)) else bar(v),
+                if (animate)
+                  KkSteppedValue(value: v, builder: (BuildContext context, double shown) => bar(shown))
+                else
+                  bar(v),
                 if (ticks.isNotEmpty)
                   KkRow(
                     main: KkMainAlign.between,

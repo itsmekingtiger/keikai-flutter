@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart';
 import '../support/harness.dart';
 
 Color? _valueColor(WidgetTester tester, String value) => tester.widget<Text>(find.text(value)).style!.color;
@@ -94,6 +95,94 @@ void main() {
     expect(tester.getTopRight(find.text('MAX 060.0')).dx, box.right - 12);
   });
 
+  testWidgets('the head is its labels and the status word with one gap between each', (WidgetTester tester) async {
+    // At the 208px minimum the status word of every level still fits beside the labels.
+    for (final KkLevel level in KkLevel.values) {
+      await pumpKk(
+        tester,
+        KkBox(
+          width: 208,
+          child: KkReadout(cjk: '冷却水温', en: 'coolant temp', value: '042.7', unit: '°C', level: level, scramble: false),
+        ),
+      );
+      final Rect box = tester.getRect(find.byType(KkReadout));
+      final Rect state = tester.getRect(find.byType(KkStateWord));
+      expect(state.right, closeTo(box.right - 12, 0.01), reason: '$level: pushed to the right edge, nothing cut off');
+      expect(state.left - tester.getRect(find.text('COOLANT TEMP')).right, greaterThanOrEqualTo(8), reason: '$level');
+    }
+
+    // A readout that hugs a long head is as wide as cjk + 8 + en + 8 + status word inside its 12px padding.
+    await pumpKk(
+      tester,
+      const KkWrap(
+        children: <Widget>[
+          KkReadout(
+            cjk: '冷却水温冷却水温',
+            en: 'coolant temperature',
+            value: '042.7',
+            level: KkLevel.nominal,
+            scramble: false,
+          ),
+        ],
+      ),
+    );
+    final Rect cjk = tester.getRect(find.byType(KkSqueeze));
+    final Rect en = tester.getRect(find.text('COOLANT TEMPERATURE'));
+    final Rect state = tester.getRect(find.byType(KkStateWord));
+    expect(en.left - cjk.right, closeTo(8, 0.01));
+    expect(state.left - en.right, closeTo(8, 0.01));
+    expect(
+      tester.getSize(find.byType(KkReadout)).width,
+      closeTo(12 + cjk.width + 8 + en.width + 8 + state.width + 12, 0.01),
+    );
+
+    // Alone in the head, the status word still sits at the right.
+    await pumpKk(
+      tester,
+      const KkBox(
+        width: 300,
+        child: KkReadout(value: '042.7', level: KkLevel.caution, scramble: false),
+      ),
+    );
+    expect(tester.getRect(find.byType(KkStateWord)).right, closeTo(300 - 12, 0.01));
+  });
+
+  testChecked('with any mix of head parts it passes the render self-checks at any width', (WidgetTester tester) async {
+    const List<Widget> readouts = <Widget>[
+      KkReadout(cjk: '冷却水温', en: 'coolant temp', value: '042.7', unit: '°C', level: KkLevel.nominal, position: 0.4),
+      KkReadout(en: 'coolant temp', value: '042.7', level: KkLevel.caution, footStart: 'MIN 030.0'),
+      KkReadout(cjk: '冷却水温', value: '042.7'),
+      KkReadout(value: '042.7', level: KkLevel.critical),
+      KkReadout(value: '042.7'),
+    ];
+    // Hugging, side by side.
+    await pumpKk(
+      tester,
+      const KkWrap(gap: 8, cross: KkCrossAlign.start, children: readouts),
+      size: const Size(1400, 600),
+    );
+    expect(tester.takeException(), isNull);
+    // Filling a column, down to widths where the head no longer fits.
+    for (final double width in <double>[0, 60, 180, 208, 300]) {
+      await pumpKk(
+        tester,
+        KkBox(
+          width: width,
+          child: const KkColumn(gap: 8, shrinkWrap: true, children: readouts),
+        ),
+        size: const Size(800, 1000),
+      );
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
+    // On a shared baseline, which measures each one without laying it out.
+    await pumpKk(
+      tester,
+      const KkRow(cross: KkCrossAlign.baseline, gap: 8, children: readouts),
+      size: const Size(1400, 600),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('writes the value in the colour of its level', (WidgetTester tester) async {
     const KkColors c = KkColors.standby;
     final Map<KkLevel?, Color> expected = <KkLevel?, Color>{
@@ -145,9 +234,7 @@ void main() {
     final Set<String> seen = <String>{};
     for (int i = 0; i < 9; i++) {
       await tester.pump(const Duration(milliseconds: 46));
-      final Text text = tester.widget(
-        find.descendant(of: find.byType(KkScramble), matching: find.byType(Text)),
-      );
+      final Text text = tester.widget(find.descendant(of: find.byType(KkScramble), matching: find.byType(Text)));
       final String shown = text.data!;
       seen.add(shown);
       // Same width, same punctuation: only digits churn.
@@ -166,7 +253,13 @@ void main() {
 
   testWidgets('the marker is clamped to the scale; odd input does not throw', (WidgetTester tester) async {
     for (final double position in <double>[-4, 0, 1, 7, double.nan, double.infinity]) {
-      await pumpKk(tester, KkBox(width: 240, child: KkReadout(value: '0', position: position)));
+      await pumpKk(
+        tester,
+        KkBox(
+          width: 240,
+          child: KkReadout(value: '0', position: position),
+        ),
+      );
       expect(tester.takeException(), isNull, reason: '$position');
     }
     await pumpKk(

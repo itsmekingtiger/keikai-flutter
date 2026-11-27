@@ -348,6 +348,7 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     final String? label = widget.cjk;
     final String? sub = widget.en;
     final String? mode = widget.mode;
+    final bool hasLabels = label != null || sub != null;
 
     final Widget timer = Semantics(
       container: true,
@@ -366,16 +367,36 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
             gap: m.space2,
             shrinkWrap: true,
             children: <Widget>[
-              if (label != null || sub != null || mode != null)
+              // The labels and the mode are two children pushed apart, as the
+              // CSS head pushes its last item away with an auto margin. A
+              // spacer between them would be a child of its own, with a gap on
+              // both sides.
+              if (hasLabels || mode != null)
                 KkRow(
                   gap: m.space2,
+                  main: hasLabels ? KkMainAlign.between : KkMainAlign.end,
                   cross: KkCrossAlign.baseline,
                   clip: Clip.hardEdge,
                   children: <Widget>[
-                    if (label != null) KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: widget.squeeze),
-                    if (sub != null)
-                      KkText.en(sub, size: 11, weight: FontWeight.w600, height: 1.55, spacing: 0.14, color: c.inkDim),
-                    const KkSpacer(),
+                    if (hasLabels)
+                      KkRow(
+                        shrinkWrap: true,
+                        gap: m.space2,
+                        cross: KkCrossAlign.baseline,
+                        children: <Widget>[
+                          if (label != null)
+                            KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: widget.squeeze),
+                          if (sub != null)
+                            KkText.en(
+                              sub,
+                              size: 11,
+                              weight: FontWeight.w600,
+                              height: 1.55,
+                              spacing: 0.14,
+                              color: c.inkDim,
+                            ),
+                        ],
+                      ),
                     if (mode != null) KkText.num(mode, size: 11, weight: FontWeight.w600, color: c.inkDim),
                   ],
                 ),

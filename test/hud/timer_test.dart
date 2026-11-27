@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keikai/keikai.dart';
 
+import '../layout/layout_util.dart';
 import '../support/harness.dart';
 
 String _digits(WidgetTester tester) {
@@ -85,6 +86,88 @@ void main() {
     expect(tester.getSize(find.byType(KkTimer)).width, 264);
     // No head row when there is nothing to put in it: 1 + 12 + 56 + 8 + 4 + 12 + 1.
     expect(tester.getSize(find.byType(KkTimer)).height, 94);
+  });
+
+  testWidgets('the head is its labels and the mode with one gap between each', (WidgetTester tester) async {
+    // A timer that hugs a long head is as wide as cjk + 8 + en + 8 + mode inside its 16px padding and 1px border.
+    await pumpKk(
+      tester,
+      const KkWrap(
+        children: <Widget>[
+          KkTimer(
+            cjk: '残り時間残り時間',
+            en: 't-minus to automatic shutdown',
+            mode: 'COUNTDOWN ARMED',
+            value: Duration(seconds: 5),
+          ),
+        ],
+      ),
+    );
+    Rect cjk = tester.getRect(find.byType(KkSqueeze));
+    Rect en = tester.getRect(find.text('T-MINUS TO AUTOMATIC SHUTDOWN'));
+    final Rect mode = tester.getRect(find.text('COUNTDOWN ARMED'));
+    expect(en.left - cjk.right, closeTo(8, 0.01));
+    expect(mode.left - en.right, closeTo(8, 0.01));
+    expect(tester.getSize(find.byType(KkTimer)).width, greaterThan(264));
+    expect(
+      tester.getSize(find.byType(KkTimer)).width,
+      closeTo(1 + 16 + cjk.width + 8 + en.width + 8 + mode.width + 16 + 1, 0.01),
+    );
+
+    // Without a mode nothing follows the labels, not even a gap.
+    await pumpKk(
+      tester,
+      const KkWrap(
+        children: <Widget>[
+          KkTimer(cjk: '残り時間残り時間', en: 't-minus to automatic shutdown sequence', value: Duration(seconds: 5)),
+        ],
+      ),
+    );
+    cjk = tester.getRect(find.byType(KkSqueeze));
+    en = tester.getRect(find.text('T-MINUS TO AUTOMATIC SHUTDOWN SEQUENCE'));
+    expect(tester.getSize(find.byType(KkTimer)).width, greaterThan(264));
+    expect(tester.getSize(find.byType(KkTimer)).width, closeTo(1 + 16 + cjk.width + 8 + en.width + 16 + 1, 0.01));
+
+    // With room to spare, and alone in the head, the mode sits at the right.
+    await pumpKk(tester, const KkTimer(cjk: '保持', en: 'hold', mode: 'T-MINUS', value: Duration(seconds: 5)));
+    expect(tester.getRect(find.byType(KkSqueeze)).left, 17);
+    expect(tester.getRect(find.text('T-MINUS')).right, closeTo(264 - 17, 0.01));
+    await pumpKk(tester, const KkTimer(mode: 'T-MINUS', value: Duration(seconds: 5)));
+    expect(tester.getRect(find.text('T-MINUS')).right, closeTo(264 - 17, 0.01));
+  });
+
+  testChecked('with any mix of head parts it passes the render self-checks at any width', (WidgetTester tester) async {
+    const List<Widget> timers = <Widget>[
+      KkTimer(cjk: '残り時間', en: 't-minus', mode: 'COUNTDOWN', value: Duration(seconds: 5)),
+      KkTimer(en: 't-minus', value: Duration(seconds: 5)),
+      KkTimer(mode: 'COUNTDOWN', value: Duration(hours: 5)),
+      KkTimer(value: Duration(seconds: 5)),
+    ];
+    // Hugging, side by side.
+    await pumpKk(
+      tester,
+      const KkWrap(gap: 8, cross: KkCrossAlign.start, children: timers),
+      size: const Size(1400, 600),
+    );
+    expect(tester.takeException(), isNull);
+    // Filling a column, down to widths where neither head nor digits fit.
+    for (final double width in <double>[0, 40, 120, 264, 400]) {
+      await pumpKk(
+        tester,
+        KkBox(
+          width: width,
+          child: const KkColumn(gap: 8, shrinkWrap: true, children: timers),
+        ),
+      );
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
+    // On a shared baseline, which measures each one without laying it out.
+    await pumpKk(
+      tester,
+      const KkRow(cross: KkCrossAlign.baseline, gap: 8, children: timers),
+      size: const Size(1400, 600),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('caution colours the border; critical adds the glow and blinks the digits', (WidgetTester tester) async {

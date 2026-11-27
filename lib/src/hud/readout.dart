@@ -106,6 +106,7 @@ class KkReadout extends StatelessWidget {
     final String? u = unit;
     final double? pos = position;
     final String? word = state ?? level?.word;
+    final bool hasLabels = label != null || sub != null;
     final bool hasFoot = footStart != null || footEnd != null;
 
     final Widget readout = Semantics(
@@ -124,15 +125,34 @@ class KkReadout extends StatelessWidget {
             gap: m.space2,
             shrinkWrap: true,
             children: <Widget>[
+              // The labels and the status word are two children pushed apart,
+              // as the CSS head pushes its last item away with an auto margin.
+              // A spacer between them would be a child of its own, with a gap
+              // on both sides.
               KkRow(
                 gap: m.space2,
+                main: hasLabels ? KkMainAlign.between : KkMainAlign.end,
                 cross: KkCrossAlign.baseline,
                 clip: Clip.hardEdge,
                 children: <Widget>[
-                  if (label != null) KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: squeeze),
-                  if (sub != null)
-                    KkText.en(sub, size: 11, weight: FontWeight.w600, height: 1.55, spacing: 0.14, color: c.inkDim),
-                  const KkSpacer(),
+                  if (hasLabels)
+                    KkRow(
+                      shrinkWrap: true,
+                      gap: m.space2,
+                      cross: KkCrossAlign.baseline,
+                      children: <Widget>[
+                        if (label != null) KkText.cjk(label, size: 14, height: 1.55, color: c.ink, squeeze: squeeze),
+                        if (sub != null)
+                          KkText.en(
+                            sub,
+                            size: 11,
+                            weight: FontWeight.w600,
+                            height: 1.55,
+                            spacing: 0.14,
+                            color: c.inkDim,
+                          ),
+                      ],
+                    ),
                   if (showState && word != null)
                     KkAlignSelf(
                       align: KkCrossAlign.center,
@@ -210,10 +230,7 @@ class _ScalePainter extends CustomPainter {
     }
     canvas.drawPath(ticks, Paint()..color = tick);
     final double left = math.min(position * size.width, size.width - markerWidth);
-    canvas.drawRect(
-      Rect.fromLTWH(math.max(0, left), -3, markerWidth, size.height + 6),
-      Paint()..color = marker,
-    );
+    canvas.drawRect(Rect.fromLTWH(math.max(0, left), -3, markerWidth, size.height + 6), Paint()..color = marker);
   }
 
   @override
