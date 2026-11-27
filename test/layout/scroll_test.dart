@@ -95,6 +95,45 @@ void main() {
     });
   });
 
+  group('KkListView', () {
+    for (final double gap in <double>[0, 10]) {
+      testChecked('rows that fit leave a drag to the scroll view around them (gap ${gap.round()})', (
+        WidgetTester tester,
+      ) async {
+        final ScrollController controller = ScrollController();
+        addTearDown(controller.dispose);
+        await pumpKk(
+          tester,
+          SizedBox(
+            width: 200,
+            height: 300,
+            child: KkScroll(
+              controller: controller,
+              child: KkBox(
+                height: 1000,
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: KkListView(
+                    gap: gap,
+                    itemCount: 2,
+                    itemBuilder: (BuildContext context, int index) => box('row$index', null, 50),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        // The list has nothing to scroll, so it does not keep the drag for itself.
+        await tester.dragFrom(const Offset(100, 100), const Offset(0, -80));
+        await tester.pump();
+        expect(controller.offset, 80);
+        expect(rectOf(tester, 'row1').top, 50.0 + gap - 80);
+      });
+    }
+  });
+
   group('KkScrollBehavior', () {
     testChecked('KeikaiApp installs it: no glow, no stretch, a KEIKAI scrollbar', (WidgetTester tester) async {
       late ScrollBehavior behavior;
