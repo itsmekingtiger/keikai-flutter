@@ -198,6 +198,14 @@ class KkListView extends StatelessWidget {
   final double gap;
   final EdgeInsets padding;
   final Axis axis;
+
+  /// Reads and moves the scroll offset from outside.
+  ///
+  /// The list is never left past its rows. When rows go and the list is
+  /// shorter than where the view is, the offset is at the new end within that
+  /// frame, and an animation that is on its way (`animateTo`) ends there
+  /// instead of at its target. To send the list somewhere in the frame its
+  /// rows change, use `jumpTo`, or start the animation after that frame.
   final ScrollController? controller;
   final bool reverse;
 

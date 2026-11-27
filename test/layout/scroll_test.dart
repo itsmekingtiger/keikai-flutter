@@ -40,11 +40,7 @@ void main() {
         SizedBox(
           width: 200,
           height: 100,
-          child: KkScroll(
-            controller: controller,
-            padding: const EdgeInsets.all(16),
-            child: box('a', null, 500),
-          ),
+          child: KkScroll(controller: controller, padding: const EdgeInsets.all(16), child: box('a', null, 500)),
         ),
       );
       expect(rectOf(tester, 'a'), const Rect.fromLTWH(16, 16, 168, 500));
@@ -215,11 +211,14 @@ void main() {
       addTearDown(controller.dispose);
       await pumpKk(
         tester,
-        SizedBox(width: 200, height: 100, child: KkScroll(controller: controller, child: box('a', null, 500))),
+        SizedBox(
+          width: 200,
+          height: 100,
+          child: KkScroll(controller: controller, child: box('a', null, 500)),
+        ),
       );
-      RenderObject bar() => tester.renderObject(
-        find.descendant(of: find.byType(RawScrollbar), matching: find.byType(CustomPaint)).first,
-      );
+      RenderObject bar() =>
+          tester.renderObject(find.descendant(of: find.byType(RawScrollbar), matching: find.byType(CustomPaint)).first);
       // At rest: no thumb.
       expect(bar(), isNot(paints..rrect()));
       controller.jumpTo(100);
@@ -385,6 +384,124 @@ void main() {
       expect(controller.offset, 140);
     });
 
+    // The end of the rows also wins over an animation that is on its way: the animation is not carried on from
+    // the new end.
+    for (final Curve curve in <Curve>[const KkSteps(6), Curves.linear]) {
+      testChecked('when rows go in the frame an animation starts, which ends at the new end ($curve)', (
+        WidgetTester tester,
+      ) async {
+        final ScrollController controller = ScrollController();
+        addTearDown(controller.dispose);
+        await pumpKk(tester, list(controller, 20), motion: true);
+        controller.jumpTo(controller.position.maxScrollExtent);
+        await tester.pump();
+        expect(controller.offset, 800);
+        // An app filters its rows and sends the list back to the top in one go.
+        bool done = false;
+        controller
+            .animateTo(0, duration: const Duration(milliseconds: 300), curve: curve)
+            .whenComplete(() => done = true);
+        await frame(tester, list(controller, 8), motion: true);
+        // 8 rows are 400px. The view is on the last of them at once, and the animation has not been told.
+        expect(controller.offset, 200);
+        expect(rectOf(tester, 'row7').bottom, 200);
+        expect(done, isFalse);
+        // On its next tick the animation asks for an offset past the new end, is refused and stops.
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(done, isTrue);
+        expect(controller.position.isScrollingNotifier.value, isFalse);
+        expect(controller.offset, 200);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(controller.offset, 200);
+        expect(rectOf(tester, 'row7').bottom, 200);
+      });
+    }
+
+    testChecked('when rows go under an animation that has passed their new end, which goes on', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      await pumpKk(tester, list(controller, 20), motion: true);
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+      bool done = false;
+      controller
+          .animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.linear)
+          .whenComplete(() => done = true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(controller.offset, 600);
+      // 16 rows can scroll by 600: the view is still inside them.
+      await frame(tester, list(controller, 16), motion: true);
+      expect(controller.offset, 600);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(controller.offset, 400);
+      expect(done, isFalse);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(controller.offset, 0);
+      // The animation is over on the first tick after its time is up.
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(controller.offset, 0);
+      expect(done, isTrue);
+    });
+
+    testChecked('when rows go under an animation that has not reached their new end, which stops there', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      await pumpKk(tester, list(controller, 20), motion: true);
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+      bool done = false;
+      controller
+          .animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.linear)
+          .whenComplete(() => done = true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(controller.offset, 600);
+      await frame(tester, list(controller, 8), motion: true);
+      expect(controller.offset, 200);
+      expect(rectOf(tester, 'row7').bottom, 200);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(done, isTrue);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(controller.offset, 200);
+    });
+
+    testChecked('and an animation that starts once the rows have gone reaches its target', (WidgetTester tester) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      await pumpKk(tester, list(controller, 20), motion: true);
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+      await frame(tester, list(controller, 8), motion: true);
+      expect(controller.offset, 200);
+      controller.animateTo(0, duration: const Duration(milliseconds: 300), curve: const KkSteps(6));
+      await tester.pump();
+      // 6 steps of 50ms: half way after three of them.
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(controller.offset, 100);
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(controller.offset, 0);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(controller.offset, 0);
+      expect(controller.position.isScrollingNotifier.value, isFalse);
+    });
+
+    testChecked('and a jump in the frame the rows go lands where it was sent', (WidgetTester tester) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      await pumpKk(tester, list(controller, 20));
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+      controller.jumpTo(50);
+      await frame(tester, list(controller, 8));
+      expect(controller.offset, 50);
+      expect(rectOf(tester, 'row1').top, 0);
+    });
+
     testChecked('when a jump to the end finds the rows it had not built yet to be short', (WidgetTester tester) async {
       final ScrollController controller = ScrollController();
       addTearDown(controller.dispose);
@@ -461,6 +578,33 @@ void main() {
       expect(controller.position.maxScrollExtent, 200);
       expect(controller.offset, 200);
       expect(rectOf(tester, 'a').bottom, 200);
+    });
+
+    testChecked('ends an animation at the new end of a child that gets shorter in the frame it starts', (
+      WidgetTester tester,
+    ) async {
+      final ScrollController controller = ScrollController();
+      addTearDown(controller.dispose);
+      Widget view(double height) => SizedBox(
+        width: 200,
+        height: 200,
+        child: KkScroll(controller: controller, child: box('a', null, height)),
+      );
+      await pumpKk(tester, view(1000), motion: true);
+      controller.jumpTo(800);
+      await tester.pump();
+      bool done = false;
+      controller
+          .animateTo(0, duration: const Duration(milliseconds: 300), curve: const KkSteps(6))
+          .whenComplete(() => done = true);
+      await tester.pumpWidget(kkHarness(view(400), motion: true));
+      expect(controller.offset, 200);
+      expect(rectOf(tester, 'a').bottom, 200);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(done, isTrue);
+      expect(controller.position.isScrollingNotifier.value, isFalse);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(controller.offset, 200);
     });
   });
 }

@@ -16,7 +16,9 @@ class KkScrollBehavior extends ScrollBehavior {
   Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
 
   /// Clamping physics that also put the offset back inside the content, at
-  /// once, when the content or the view changes size.
+  /// once, when the content or the view changes size. A scroll animation that
+  /// is past the new end at that moment stops there: see
+  /// [KkScroll.controller].
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) => const _KkScrollPhysics();
 
@@ -60,6 +62,18 @@ class KkScrollBehavior extends ScrollBehavior {
 /// there for as long as a finger is down. Here the offset is back in range
 /// within the layout that found it out of range, the way a `KkScroll` has
 /// always corrected itself.
+///
+/// The correction wins over an animation in flight (`animateTo`,
+/// `ensureVisible` with a duration, the paging keys). The framework's
+/// animation is not told that the offset moved: on its next tick it asks for
+/// an offset past the new end, is refused and stops, so the view rests at
+/// the new end and the future of `animateTo` completes there. Physics cannot
+/// carry the animation on. They are not told whether an animation, a fling
+/// or a finger moves the view (a stepped curve between two steps reports no
+/// velocity, like a finger at rest), and to leave the offset alone would
+/// show the space past the last row until the animation is back inside. A
+/// `KkScroll` ends such an animation whatever its physics, because its
+/// viewport corrects the offset itself.
 class _KkScrollPhysics extends ClampingScrollPhysics {
   const _KkScrollPhysics({super.parent});
 
@@ -174,6 +188,16 @@ class KkScroll extends StatelessWidget {
 
   final Axis axis;
   final EdgeInsets padding;
+
+  /// Reads and moves the scroll offset from outside.
+  ///
+  /// The view is never left past its content. When the content gets shorter
+  /// than where the view is, the offset is at the new end within that frame,
+  /// and an animation that is on its way (`animateTo`) ends there instead of
+  /// at its target: its future completes, and the view stays at the new end.
+  /// To send a view somewhere in the frame its content changes, use `jumpTo`,
+  /// or start the animation after that frame. A `KkListView`, and any other
+  /// scroll view under a [KkScrollBehavior], does the same.
   final ScrollController? controller;
   final bool reverse;
 
