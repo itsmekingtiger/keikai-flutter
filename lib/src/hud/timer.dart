@@ -89,18 +89,24 @@ class KkTimerController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  /// Tells the listeners at the end of the frame, if the controller no longer
-  /// reports what it did [before].
+  /// Tells the listeners at the end of the frame, once however often it is
+  /// asked to in that frame.
   ///
   /// This is for changes that are made while the tree is being built, when
   /// listeners must not be called.
-  void _changedSince((bool, Duration) before) {
-    if (_telling || _report == before) return;
+  void _changedLater() {
+    if (_telling) return;
     _telling = true;
     SchedulerBinding.instance.addPostFrameCallback((Duration _) {
       _telling = false;
       _changed();
     });
+  }
+
+  /// Tells the listeners at the end of the frame, if the controller no longer
+  /// reports what it did [before].
+  void _changedSince((bool, Duration) before) {
+    if (_report != before) _changedLater();
   }
 
   @override
@@ -155,7 +161,8 @@ class KkTimer extends StatefulWidget {
   /// A timer that counts down from [from] to zero and then calls [onDone].
   ///
   /// The bar empties with the time left. With [cautionAt] / [criticalAt] the
-  /// level changes when that much time (or less) is left.
+  /// level changes when that much time (or less) is left. With no time to
+  /// count, [from] being zero or less, it has run out as soon as it starts.
   const KkTimer.countdown({
     super.key,
     required Duration this.from,
@@ -220,7 +227,8 @@ class KkTimer extends StatefulWidget {
   /// A countdown turns critical when this much time or less is left.
   final Duration? criticalAt;
 
-  /// Called once when a countdown reaches zero.
+  /// Called once when a countdown reaches zero. A countdown that starts by
+  /// itself with nothing left calls it at the end of its first frame.
   final VoidCallback? onDone;
 
   final String? cjk;
@@ -338,9 +346,25 @@ class _KkTimerState extends State<KkTimer> with SingleTickerProviderStateMixin {
     _beat = Timer.periodic(_kBeat, (Timer beat) => _count(counted + _kBeat * beat.tick, repaint: false));
   }
 
+  /// Starts counting. With [notify] false the timer starts while the tree is
+  /// being built, and nobody is called before the frame is over.
   void _start({bool notify = true}) {
     if (!_live || _running) return;
-    if (widget._kind == _TimerKind.countdown && _left <= Duration.zero) return;
+    if (widget._kind == _TimerKind.countdown && _left <= Duration.zero) {
+      // Nothing is left to count, so the countdown has run out as it starts.
+      if (_doneFired) return;
+      _doneFired = true;
+      if (notify) {
+        widget.onDone?.call();
+        widget.controller?._changed();
+      } else {
+        SchedulerBinding.instance.addPostFrameCallback((Duration _) {
+          if (mounted) widget.onDone?.call();
+        });
+        widget.controller?._changedLater();
+      }
+      return;
+    }
     final Ticker ticker = _ticker ??= createTicker(_onTick);
     _run = Duration.zero;
     _running = true;

@@ -281,6 +281,77 @@ void main() {
     expect(done, 1);
   });
 
+  testWidgets('a countdown that starts with nothing left reports done at once', (WidgetTester tester) async {
+    int done = 0;
+    await pumpKk(tester, KkTimer.countdown(from: Duration.zero, onDone: () => done++));
+    expect(_digits(tester), '00:00.00');
+    expect(done, 1);
+    await tester.pump(const Duration(seconds: 2));
+    expect(done, 1, reason: 'once');
+
+    // A deadline that has passed already, given to the same timer.
+    await pumpKk(tester, KkTimer.countdown(from: const Duration(seconds: -5), onDone: () => done++));
+    expect(_digits(tester), '00:00.00');
+    expect(done, 2);
+
+    // A running countdown that is given nothing to count.
+    await pumpKk(tester, KkTimer.countdown(from: const Duration(seconds: 5), onDone: () => done++));
+    await tester.pump(const Duration(seconds: 1));
+    expect(done, 2);
+    await pumpKk(tester, KkTimer.countdown(from: Duration.zero, onDone: () => done++));
+    expect(done, 3);
+    await tester.pump(const Duration(seconds: 6));
+    expect(done, 3);
+  });
+
+  testWidgets('a controller starts a countdown with nothing left into done, once until it is reset', (
+    WidgetTester tester,
+  ) async {
+    final KkTimerController controller = KkTimerController();
+    addTearDown(controller.dispose);
+    int done = 0;
+    int notified = 0;
+    controller.addListener(() => notified++);
+    await pumpKk(
+      tester,
+      KkTimer.countdown(from: Duration.zero, controller: controller, autostart: false, onDone: () => done++),
+    );
+    expect(done, 0, reason: 'not started yet');
+    expect(notified, 0);
+
+    controller.start();
+    expect(done, 1);
+    expect(notified, 1);
+    expect(controller.isRunning, isFalse);
+    controller.start();
+    expect(done, 1);
+    expect(notified, 1);
+
+    controller.reset();
+    expect(notified, 2);
+    controller.toggle();
+    expect(done, 2);
+    expect(notified, 3);
+
+    // Another timer, which starts by itself: it tells its controller with the frame that shows it.
+    final KkTimerController other = KkTimerController();
+    addTearDown(other.dispose);
+    int otherNotified = 0;
+    other.addListener(() => otherNotified++);
+    await pumpKk(
+      tester,
+      KkTimer.countdown(
+        key: const ValueKey<String>('other'),
+        from: Duration.zero,
+        controller: other,
+        onDone: () => done++,
+      ),
+    );
+    expect(done, 3);
+    expect(otherNotified, 1);
+    expect(notified, 3, reason: 'the first timer had nothing to tell when it left');
+  });
+
   testWidgets('the bar of a countdown is the time left, not the whole seconds left', (WidgetTester tester) async {
     // With motion off the bar shows the share that is left at once.
     await pumpKk(tester, const KkTimer.countdown(from: Duration(seconds: 2)));
