@@ -15,8 +15,10 @@ class KkScrollBehavior extends ScrollBehavior {
   @override
   Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
 
+  /// Clamping physics that also put the offset back inside the content, at
+  /// once, when the content or the view changes size.
   @override
-  ScrollPhysics getScrollPhysics(BuildContext context) => const ClampingScrollPhysics();
+  ScrollPhysics getScrollPhysics(BuildContext context) => const _KkScrollPhysics();
 
   /// Gives a scroll view its scrollbar, on every platform.
   ///
@@ -46,6 +48,39 @@ class KkScrollBehavior extends ScrollBehavior {
 
   @override
   bool shouldNotify(KkScrollBehavior oldDelegate) => oldDelegate.showScrollbars != showScrollbars;
+}
+
+/// The scroll physics of [KkScrollBehavior]: no bounce, and no gliding back
+/// after the content or the view changed size.
+///
+/// Such a change can leave a view scrolled past its content: rows were
+/// removed, the view got taller, or a jump to the end of a lazily built list
+/// found the list shorter than it had guessed. Plain clamping physics show
+/// that for a frame and then bring the offset back on a spring, or leave it
+/// there for as long as a finger is down. Here the offset is back in range
+/// within the layout that found it out of range, the way a `KkScroll` has
+/// always corrected itself.
+class _KkScrollPhysics extends ClampingScrollPhysics {
+  const _KkScrollPhysics({super.parent});
+
+  @override
+  _KkScrollPhysics applyTo(ScrollPhysics? ancestor) => _KkScrollPhysics(parent: buildParent(ancestor));
+
+  @override
+  double adjustPositionForNewDimensions({
+    required ScrollMetrics oldPosition,
+    required ScrollMetrics newPosition,
+    required bool isScrolling,
+    required double velocity,
+  }) {
+    final double pixels = super.adjustPositionForNewDimensions(
+      oldPosition: oldPosition,
+      newPosition: newPosition,
+      isScrolling: isScrolling,
+      velocity: velocity,
+    );
+    return pixels.clamp(newPosition.minScrollExtent, newPosition.maxScrollExtent);
+  }
 }
 
 /// A thin, square scrollbar thumb in the line colour on a clear track
