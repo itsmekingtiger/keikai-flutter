@@ -1139,7 +1139,9 @@ void main() {
         expect(line.row(y), '.' * 51);
       }
       // A 4px solid top over a 1px dashed left: the corner belongs to the solid
-      // side, and the dashed one still ends on a dash at the bottom corner.
+      // side, and the dashed one still ends on a dash at the bottom corner. Its
+      // run is the one of the whole 40px edge, with the first dash hidden under
+      // the solid side: it does not start again where that side ends.
       final _Pixels mixed = await _render(
         tester,
         30,
@@ -1154,7 +1156,19 @@ void main() {
         expect(mixed.alpha(0, y), once, reason: 'the solid band at y=$y is not painted over');
       }
       expect(mixed.column(0), endsWith('.+++'));
+      expect(mixed.column(0), '++++..+++...+++....+++...+++...+++...+++');
       expect(mixed.column(1).substring(4), '.' * 36);
+      // The same run with nothing over it.
+      final _Pixels alone = await _render(
+        tester,
+        30,
+        40,
+        (Canvas canvas) =>
+            const KkEdges(left: KkSide(Color(0x80FF0000), dashed: true))
+                .paint(canvas, const Rect.fromLTWH(0, 0, 30, 40)),
+      );
+      expect(alone.column(0), '+++...+++...+++....+++...+++...+++...+++');
+      expect(mixed.column(0).substring(4), alone.column(0).substring(4));
     });
   });
 
