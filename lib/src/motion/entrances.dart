@@ -292,8 +292,11 @@ class KkGrow extends StatelessWidget {
 ///
 /// A change that arrives while the number is moving starts [steps] new jumps
 /// from the number shown, as a CSS transition does. A change that arrives
-/// before the first jump only gives the run a new target: the run keeps its
-/// clock, so a value that changes every frame still moves, one jump per step.
+/// less than one step after the change before it does not: starting over
+/// every time would never let the number move. The run in flight then keeps
+/// its clock and aims the jumps it has left at the new value, so a value that
+/// changes every frame is caught up with at the end of every run, one
+/// [duration] after that run began.
 class KkSteppedValue extends StatefulWidget {
   const KkSteppedValue({
     super.key,
@@ -319,15 +322,29 @@ class KkSteppedValue extends StatefulWidget {
 
 class _KkSteppedValueState extends State<KkSteppedValue> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(vsync: this, value: 1)..addListener(_onTick);
+
+  /// The number the run moves from, and how far the run had stepped when it
+  /// showed that number: 0 for a run that starts there, more for a run that
+  /// was given a new target on its way.
   late double _from = widget.from ?? widget.value;
+  double _fromStep = 0;
   late double _to = widget.value;
+
+  /// Where the clock of the run stood (0 to 1) when its target last changed.
+  double _aimedAt = 0;
   double _shown = 0;
   bool _started = false;
 
   /// How far the run has stepped: 0 until its first jump, 1 at the end.
   double _stepped() => KkSteps(widget.steps).transform(_controller.value.clamp(0.0, 1.0));
 
-  double _current() => _from + (_to - _from) * _stepped();
+  /// The number to show: of the way from [_from] to [_to], the share that the
+  /// steps made since [_fromStep] are of the steps that were left then.
+  double _current() {
+    final double stepped = _stepped();
+    if (stepped >= 1) return _to;
+    return _from + (_to - _from) * ((stepped - _fromStep) / (1 - _fromStep)).clamp(0.0, 1.0);
+  }
 
   void _onTick() {
     final double v = _current();
@@ -343,6 +360,8 @@ class _KkSteppedValueState extends State<KkSteppedValue> with SingleTickerProvid
       return;
     }
     if (restart) {
+      _fromStep = 0;
+      _aimedAt = 0;
       _controller.duration = KeikaiTheme.of(context).motion.scaled(widget.duration);
       _controller.forward(from: 0);
     }
@@ -366,14 +385,22 @@ class _KkSteppedValueState extends State<KkSteppedValue> with SingleTickerProvid
   void didUpdateWidget(KkSteppedValue oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
-      // A run that has not made its first jump yet still shows [_from], so it
-      // keeps its clock and only takes the new target. Starting it again would
-      // push that jump back each time, and a value that changes more often
-      // than one step lasts would never move.
-      final bool waiting = _controller.isAnimating && _stepped() == 0;
-      if (!waiting) _from = _current();
+      // A change starts the run again from the number shown, as it restarts a
+      // CSS transition, unless the run in flight was given its target less
+      // than one step ago. Starting again would then push the next jump back
+      // every time, and a value that changes more often than one step lasts
+      // would never move. Such a run keeps its clock instead, and the jumps
+      // it has left lead from the number shown to the new target.
+      final double at = _controller.value;
+      final double stepped = _stepped();
+      final bool keep = _controller.isAnimating && stepped < 1 && kkStepAt(at - _aimedAt, widget.steps) < 1;
+      _from = _current();
       _to = widget.value;
-      _run(restart: !waiting);
+      if (keep) {
+        _fromStep = stepped;
+        _aimedAt = at;
+      }
+      _run(restart: !keep);
     }
   }
 

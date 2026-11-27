@@ -600,7 +600,105 @@ void main() {
       expect(shown, 20);
     });
 
-    testChecked('a value that changes every frame keeps moving and ends on its last value', (
+    testChecked('changes less than one step apart do not restart a run that has already jumped', (
+      WidgetTester tester,
+    ) async {
+      double shown = -1;
+      Widget build(double value) => kkHarness(
+        KkSteppedValue(
+          value: value,
+          builder: (BuildContext context, double v) {
+            shown = v;
+            return const SizedBox(width: 10, height: 10);
+          },
+        ),
+        motion: true,
+      );
+      await tester.pumpWidget(build(0));
+      await tester.pumpWidget(build(90));
+      await tester.pump(_ms(40));
+      await tester.pumpWidget(build(45));
+      await tester.pump(_ms(40));
+      // 80ms in, the run has made the first of its nine jumps.
+      expect(shown, closeTo(5, 1e-9));
+      // The last change was 40ms ago: the run keeps its clock, and its eight other jumps now lead to 85.
+      await tester.pumpWidget(build(85));
+      expect(shown, closeTo(5, 1e-9));
+      await tester.pump(_ms(19));
+      expect(shown, closeTo(5, 1e-9));
+      await tester.pump(_ms(1));
+      expect(shown, closeTo(15, 1e-9));
+      // It ends when it would have ended anyway, 0.45s after it began, on the latest value.
+      await tester.pump(_ms(349));
+      expect(shown, closeTo(75, 1e-9));
+      await tester.pump(_ms(1));
+      expect(shown, 85);
+      await tester.pump(_ms10);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testChecked('a change one quiet step after a new target starts nine new steps', (WidgetTester tester) async {
+      double shown = -1;
+      Widget build(double value) => kkHarness(
+        KkSteppedValue(
+          value: value,
+          builder: (BuildContext context, double v) {
+            shown = v;
+            return const SizedBox(width: 10, height: 10);
+          },
+        ),
+        motion: true,
+      );
+      await tester.pumpWidget(build(0));
+      await tester.pumpWidget(build(90));
+      await tester.pump(_ms(40));
+      await tester.pumpWidget(build(45));
+      await tester.pump(_ms(60));
+      expect(shown, closeTo(10, 1e-9));
+      // 60ms after the last change the run has been left alone for a whole step: this one starts over.
+      await tester.pumpWidget(build(100));
+      expect(shown, closeTo(10, 1e-9));
+      await tester.pump(_ms(45));
+      expect(shown, closeTo(10, 1e-9));
+      await tester.pump(_ms(10));
+      expect(shown, closeTo(20, 1e-9));
+      await tester.pump(_ms(390));
+      expect(shown, closeTo(90, 1e-9));
+      await tester.pump(_ms(10));
+      expect(shown, 100);
+    });
+
+    testChecked('a run that is given the number it shows as its target has nothing left to do', (
+      WidgetTester tester,
+    ) async {
+      double shown = -1;
+      Widget build(double value) => kkHarness(
+        KkSteppedValue(
+          value: value,
+          builder: (BuildContext context, double v) {
+            shown = v;
+            return const SizedBox(width: 10, height: 10);
+          },
+        ),
+        motion: true,
+      );
+      await tester.pumpWidget(build(20));
+      await _settleRoute(tester);
+      await tester.pumpWidget(build(110));
+      await tester.pump(_ms(40));
+      await tester.pumpWidget(build(65));
+      await tester.pump(_ms(40));
+      expect(shown, closeTo(25, 1e-9));
+      final double there = shown;
+      await tester.pumpWidget(build(there));
+      expect(shown, there);
+      await tester.pump(_ms(20));
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'nothing left to animate');
+      await tester.pump(_ms(500));
+      expect(shown, there);
+    });
+
+    testChecked('a value that changes every frame is caught up with at the end of every run', (
       WidgetTester tester,
     ) async {
       double shown = -1;
@@ -616,27 +714,69 @@ void main() {
       double value = 0;
       double last = 0;
       int jumps = 0;
+      int arrivals = 0;
       for (int frame = 1; frame <= 180; frame++) {
         value = frame * 0.005;
         await tester.pumpWidget(kkHarness(build(value), motion: true));
         await tester.pump(_ms(16));
-        expect(shown, lessThan(value), reason: 'frame $frame');
+        expect(shown, lessThanOrEqualTo(value), reason: 'frame $frame');
+        // It is never a whole run (0.45s of rise) behind.
+        expect(value - shown, lessThan(450 / 16 * 0.005), reason: 'frame $frame');
         if (shown != last) {
-          // Each jump covers a ninth of what is left to the latest value.
-          expect(shown - last, closeTo((value - last) / 9, 1e-9), reason: 'frame $frame');
+          // The run does not start over: each of its jumps covers an equal share of what is left to the latest
+          // value, a ninth with nine jumps to go and all of it with one.
+          final int left = 9 - jumps % 9;
+          expect(shown - last, closeTo((value - last) / left, 1e-9), reason: 'frame $frame');
+          if (left == 1) {
+            expect(shown, value, reason: 'frame $frame');
+            arrivals++;
+          }
           jumps++;
         }
         last = shown;
       }
-      // The first frame that is 50ms or more into a run is its fourth: one jump every four frames.
-      expect(jumps, 45);
-      // Behind a value that rises steadily it settles eight jumps' worth of rise back.
-      expect(value - shown, closeTo(8 * 4 * 0.005, 0.002));
-      // The run in flight began four frames ago, so it ends 386ms from here, on the last value.
-      await tester.pump(_ms(385));
+      // A run lasts 0.45s and ends with the first frame after that, the 29th, so six runs fit in 180 frames. The
+      // seventh has made one jump.
+      expect(arrivals, 6);
+      expect(jumps, 55);
+      // It began 96ms ago, so it ends 354ms from here, on the last value.
+      await tester.pump(_ms(353));
       expect(shown, lessThan(0.9));
       await tester.pump(_ms(1));
       expect(shown, 0.9);
+    });
+
+    testChecked('a value that jumps about every frame is followed without overshoot', (WidgetTester tester) async {
+      double shown = -1;
+      Widget build(double value) => KkSteppedValue(
+        value: value,
+        builder: (BuildContext context, double v) {
+          shown = v;
+          return const SizedBox(width: 10, height: 10);
+        },
+      );
+      await pumpKk(tester, build(0.5), motion: true);
+      // A fixed sequence of values that looks random, a new one with every 16ms frame.
+      int seed = 20261127;
+      double next() {
+        seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF;
+        return seed / 0x7FFFFFFF;
+      }
+
+      double value = 0.5;
+      double last = 0.5;
+      for (int frame = 1; frame <= 290; frame++) {
+        value = next();
+        await tester.pumpWidget(kkHarness(build(value), motion: true));
+        await tester.pump(_ms(16));
+        // Every jump goes toward the value of that moment and never past it.
+        final double low = last < value ? last : value;
+        final double high = last < value ? value : last;
+        expect(shown, inInclusiveRange(low - 1e-12, high + 1e-12), reason: 'frame $frame');
+        // Whatever the values were on the way, every run of 29 frames ends on the latest one.
+        if (frame % 29 == 0) expect(shown, value, reason: 'frame $frame');
+        last = shown;
+      }
     });
 
     testChecked('motion off jumps', (WidgetTester tester) async {
